@@ -4,12 +4,13 @@
 
 ### ✅ Implementato
 - ✅ Setup base Next.js + TypeScript + Tailwind + Prisma
-- ✅ Database SQLite con schema base (User, Transaction)
-- ✅ Interfaccia demo con transazioni di test
+- ✅ Database SQLite con schema completo (User, Account, Transaction, Category, Transfer, Budget)
+- ✅ Sistema di navigazione completo con sidebar
+- ✅ Layout base dell'app con tutte le pagine
 - ✅ Repository GitHub collegato
 
 ### 🔄 In Sviluppo
-- Prossima feature da implementare: **Struttura database completa**
+- Prossima feature da implementare: **FASE 2 - Conti Bancari (CRUD completo)**
 
 ### ⏳ Da Implementare
 - Tutto il resto (vedi roadmap sotto)
@@ -228,4 +229,9 @@ Ogni volta che si implementa una feature:
 
 ## 🎯 PROSSIMA AZIONE
 
-**SVILUPPARE**: Aggiornamento schema database Prisma con tutte le tabelle necessarie
+**SVILUPPARE**: FASE 2 - Conti Bancari
+- Lista conti con saldi
+- Form creazione/modifica conto
+- Sistema conto predefinito  
+- Possibilità di cancellare conto (solo se senza transazioni)
+- Preparazione per trasferimenti tra conti
