@@ -45,6 +45,7 @@ model Category {
   id           Int           @id @default(autoincrement())
   name         String
   type         String        // "income" o "expense"
+  color        String        @default("#3B82F6") // 🎨 NUOVO: Campo colore
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   userId       Int

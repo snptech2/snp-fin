@@ -286,7 +286,7 @@ export default function BudgetPage() {
                       className="h-3 rounded-full transition-all duration-300"
                       style={{ 
                         width: `${Math.min(100, budget.progress || 0)}%`,
-                        backgroundColor: budget.isCompleted ? '#10B981' : budget.color // 🎨 Usa colore dinamico!
+                        backgroundColor: budget.color // 🎨 Usa colore dinamico!
                       }}
                     />
                   </div>
