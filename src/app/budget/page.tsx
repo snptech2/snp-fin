@@ -152,7 +152,7 @@ export default function BudgetPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Caricamento budget...</div>
+        <div className="text-adaptive-500">Caricamento budget...</div>
       </div>
     )
   }
@@ -162,38 +162,38 @@ export default function BudgetPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Budget</h1>
-          <p className="text-gray-600">Gestione allocazione fondi</p>
+          <h1 className="text-3xl font-bold text-white">Budget</h1>
+          <p className="text-white opacity-80">Gestione allocazione fondi</p>
         </div>
         <button
           onClick={openCreateForm}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          className="btn-primary px-4 py-2 rounded-lg transition-colors"
         >
           + Nuovo Budget
         </button>
       </div>
 
       {/* Dashboard Liquidità */}
-      <div className="bg-gradient-to-r from-blue-50 to-green-50 p-6 rounded-lg border">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">💰 Panoramica Liquidità</h2>
+      <div style={{backgroundColor: '#1A1A1A'}} className="border border-gray-600 p-6 rounded-lg">
+        <h2 className="text-xl font-semibold text-white mb-4">💰 Panoramica Liquidità</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="text-center">
-            <div className="text-3xl font-bold text-blue-600">
+            <div className="text-3xl font-bold text-blue-400">
               {formatCurrency(budgetData?.totalLiquidity || 0)}
             </div>
-            <div className="text-gray-600">Liquidità Totale</div>
+            <div className="text-gray-300">Liquidità Totale</div>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold text-green-600">
+            <div className="text-3xl font-bold text-green-400">
               {formatCurrency((budgetData?.totalLiquidity || 0) - (budgetData?.unallocated || 0))}
             </div>
-            <div className="text-gray-600">Allocato</div>
+            <div className="text-gray-300">Allocato</div>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold text-orange-600">
+            <div className="text-3xl font-bold text-orange-400">
               {formatCurrency(budgetData?.unallocated || 0)}
             </div>
-            <div className="text-gray-600">Non Allocato</div>
+            <div className="text-gray-300">Non Allocato</div>
           </div>
         </div>
       </div>
@@ -201,18 +201,18 @@ export default function BudgetPage() {
       {/* Lista Budget */}
       {budgetData?.budgets && budgetData.budgets.length > 0 ? (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-gray-800">📊 Allocazione Budget (per priorità)</h2>
+          <h2 className="text-xl font-semibold text-white">📊 Allocazione Budget (per priorità)</h2>
           
           {budgetData.budgets.map((budget, index) => (
-            <div key={budget.id} className="bg-white border rounded-lg p-6 shadow-sm">
+            <div key={budget.id} style={{backgroundColor: '#1A1A1A'}} className="border border-gray-600 rounded-lg p-6 shadow-sm">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-medium">
+                  <div className="bg-gray-800 text-white px-2 py-1 rounded text-sm font-medium border border-gray-600">
                     #{budget.order}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">{budget.name}</h3>
-                    <div className="text-sm text-gray-600">
+                    <h3 className="font-semibold text-white">{budget.name}</h3>
+                    <div className="text-sm text-gray-300">
                       {budget.type === 'fixed' 
                         ? `Target: ${formatCurrency(budget.targetAmount)}`
                         : 'Budget Illimitato (tutto il resto)'
@@ -224,13 +224,13 @@ export default function BudgetPage() {
                 <div className="flex space-x-2">
                   <button
                     onClick={() => openEditForm(budget)}
-                    className="text-blue-600 hover:bg-blue-50 px-3 py-1 rounded transition-colors"
+                    className="text-blue-400 hover:bg-gray-800 px-3 py-1 rounded transition-colors"
                   >
                     Modifica
                   </button>
                   <button
                     onClick={() => deleteBudget(budget.id, budget.name)}
-                    className="text-red-600 hover:bg-red-50 px-3 py-1 rounded transition-colors"
+                    className="text-red-400 hover:bg-gray-800 px-3 py-1 rounded transition-colors"
                   >
                     Cancella
                   </button>
@@ -240,18 +240,18 @@ export default function BudgetPage() {
               {/* Barra di Progresso */}
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="font-medium text-gray-700">
+                  <span className="font-medium text-gray-200">
                     Allocato: {formatCurrency(budget.allocatedAmount || 0)}
                   </span>
                   {budget.type === 'fixed' && (
-                    <span className={`font-medium ${budget.isCompleted ? 'text-green-600' : 'text-orange-600'}`}>
+                    <span className={`font-medium ${budget.isCompleted ? 'text-green-400' : 'text-orange-400'}`}>
                       {budget.progress?.toFixed(1)}%
                     </span>
                   )}
                 </div>
                 
                 {budget.type === 'fixed' && (
-                  <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div className="w-full bg-gray-700 rounded-full h-3">
                     <div
                       className={`h-3 rounded-full transition-all duration-300 ${
                         budget.isCompleted ? 'bg-green-500' : 'bg-blue-500'
@@ -262,13 +262,13 @@ export default function BudgetPage() {
                 )}
 
                 {budget.deficit && budget.deficit > 0 && (
-                  <div className="text-sm text-red-600 font-medium">
+                  <div className="text-sm text-red-400 font-medium">
                     ⚠️ Deficit: {formatCurrency(budget.deficit)}
                   </div>
                 )}
 
                 {budget.isCompleted && budget.type === 'fixed' && (
-                  <div className="text-sm text-green-600 font-medium">
+                  <div className="text-sm text-green-400 font-medium">
                     ✅ Obiettivo raggiunto!
                   </div>
                 )}
@@ -277,12 +277,12 @@ export default function BudgetPage() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <div className="text-gray-500 text-lg mb-4">📊 Nessun budget configurato</div>
+        <div className="text-center py-12 border border-gray-600 rounded-lg" style={{backgroundColor: '#1A1A1A'}}>
+          <div className="text-gray-300 text-lg mb-4">📊 Nessun budget configurato</div>
           <div className="text-gray-400 mb-6">Crea il tuo primo budget per iniziare ad allocare i fondi</div>
           <button
             onClick={openCreateForm}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            className="btn-primary px-6 py-3 rounded-lg transition-colors"
           >
             Crea Primo Budget
           </button>
@@ -292,27 +292,27 @@ export default function BudgetPage() {
       {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">
+          <div className="card-adaptive rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
               {editingBudget ? 'Modifica Budget' : 'Nuovo Budget'}
             </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Nome Budget
                 </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
                   placeholder="es. Fondo Emergenza"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Tipo Budget
                 </label>
                 <select
@@ -322,65 +322,59 @@ export default function BudgetPage() {
                     type: e.target.value as 'fixed' | 'unlimited',
                     targetAmount: e.target.value === 'unlimited' ? '0' : prev.targetAmount
                   }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
                 >
-                  <option value="fixed">Importo Fisso</option>
-                  <option value="unlimited">Illimitato (tutto il resto)</option>
+                  <option value="fixed">Budget Fisso (con target)</option>
+                  <option value="unlimited">Budget Illimitato (tutto il resto)</option>
                 </select>
               </div>
 
               {formData.type === 'fixed' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Importo Target (€)
+                  <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                    Target Amount (€)
                   </label>
                   <input
                     type="number"
                     step="0.01"
-                    min="0"
                     value={formData.targetAmount}
                     onChange={(e) => setFormData(prev => ({ ...prev, targetAmount: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                    className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
                     placeholder="15000.00"
                   />
                 </div>
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Priorità
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                  Priorità (1 = massima priorità)
                 </label>
                 <input
                   type="number"
                   min="1"
                   value={formData.order}
                   onChange={(e) => setFormData(prev => ({ ...prev, order: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
                   placeholder="1"
                 />
-                <div className="text-xs text-gray-500 mt-1">
-                  1 = priorità massima, 2 = seconda priorità, ecc.
-                </div>
               </div>
-
-              <div className="flex space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-                  disabled={submitting}
-                >
-                  Annulla
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  disabled={submitting}
-                >
-                  {submitting ? 'Salvando...' : editingBudget ? 'Aggiorna' : 'Crea'}
-                </button>
-              </div>
+            </div>
+            
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={resetForm}
+                className="btn-secondary flex-1 py-2 rounded-lg"
+                disabled={submitting}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="btn-primary flex-1 py-2 rounded-lg disabled:opacity-50"
+                disabled={submitting || !formData.name.trim() || !formData.order}
+              >
+                {submitting ? 'Salvando...' : 'Salva'}
+              </button>
             </div>
           </div>
         </div>

@@ -139,12 +139,12 @@ export default function AccountsPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Conti Bancari</h1>
-          <p className="text-gray-600">Gestisci i tuoi conti bancari e trasferimenti</p>
+          <h1 className="text-3xl font-bold text-white">Conti Bancari</h1>
+          <p className="text-white opacity-80">Gestisci i tuoi conti bancari e trasferimenti</p>
         </div>
         <button
           onClick={handleNewAccount}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2"
         >
           ➕ Nuovo Conto
         </button>
@@ -174,7 +174,7 @@ export default function AccountsPage() {
           accounts.map((account) => (
             <div 
               key={account.id} 
-              className="bg-white p-6 rounded-lg shadow-sm border flex items-center justify-between"
+              className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive flex items-center justify-between"
             >
               <div className="flex items-center gap-4">
                 {/* Stellina per conto predefinito */}
@@ -183,8 +183,8 @@ export default function AccountsPage() {
                 )}
                 
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{account.name}</h3>
-                  <p className="text-sm text-gray-500">
+                  <h3 className="text-lg font-semibold text-adaptive-900">{account.name}</h3>
+                  <p className="text-sm text-adaptive-500">
                     {account.isDefault ? 'Conto predefinito' : 'Conto secondario'}
                   </p>
                 </div>
@@ -192,17 +192,17 @@ export default function AccountsPage() {
               
               <div className="flex items-center gap-6">
                 <div className="text-right">
-                  <p className="text-xl font-bold text-gray-900">
+                  <p className="text-xl font-bold text-adaptive-900">
                     € {account.balance.toFixed(2)}
                   </p>
-                  <p className="text-sm text-gray-500">Saldo disponibile</p>
+                  <p className="text-sm text-adaptive-500">Saldo disponibile</p>
                 </div>
                 
                 <div className="flex gap-2">
                   {!account.isDefault && (
                     <button
                       onClick={() => handleSetDefault(account.id)}
-                      className="px-3 py-1 bg-green-100 text-green-700 rounded-md hover:bg-green-200 text-sm"
+                      className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
                     >
                       Imposta Predefinito
                     </button>
@@ -210,14 +210,14 @@ export default function AccountsPage() {
                   
                   <button
                     onClick={() => handleEditAccount(account)}
-                    className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm"
+                    className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
                   >
                     Modifica
                   </button>
                   
                   <button
                     onClick={() => handleDeleteAccount(account.id)}
-                    className="px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200 text-sm"
+                    className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium"
                   >
                     Cancella
                   </button>
@@ -226,11 +226,11 @@ export default function AccountsPage() {
             </div>
           ))
         ) : (
-          <div className="bg-white p-8 rounded-lg shadow-sm border text-center">
-            <p className="text-gray-500 mb-4">Nessun conto bancario trovato</p>
+          <div className="card-adaptive p-8 rounded-lg shadow-sm border-adaptive text-center">
+            <p className="text-adaptive-500 mb-4">Nessun conto bancario trovato</p>
             <button
               onClick={handleNewAccount}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              className="btn-primary px-4 py-2 rounded-lg"
             >
               Crea il tuo primo conto
             </button>
@@ -241,27 +241,27 @@ export default function AccountsPage() {
       {/* Modal Form */}
       {showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
-            <h3 className="text-lg font-semibold mb-4">
+          <div className="card-adaptive p-6 rounded-lg shadow-lg w-96">
+            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
               {editingAccount ? 'Modifica Conto' : 'Nuovo Conto'}
             </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Nome Conto
                 </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-2 border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Es. Conto Corrente BNL"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Saldo Iniziale
                 </label>
                 <input
@@ -269,7 +269,7 @@ export default function AccountsPage() {
                   step="0.01"
                   value={formData.balance}
                   onChange={(e) => setFormData({...formData, balance: e.target.value})}
-                  className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-2 border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="0.00"
                 />
               </div>
@@ -278,14 +278,14 @@ export default function AccountsPage() {
             <div className="flex gap-2 mt-6">
               <button
                 onClick={() => setShowForm(false)}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                className="btn-secondary flex-1 py-2 rounded-md"
                 disabled={saving}
               >
                 Annulla
               </button>
               <button
                 onClick={handleSaveAccount}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                className="btn-primary flex-1 py-2 rounded-md disabled:opacity-50"
                 disabled={saving || !formData.name.trim()}
               >
                 {saving ? 'Salvataggio...' : 'Salva'}

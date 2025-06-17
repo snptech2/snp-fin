@@ -266,147 +266,13 @@ export default function ExpensesPage() {
     setSelectAll(!selectAll)
   }
 
-  // Cancellazione multipla
-  const handleDeleteSelected = async () => {
-    if (selectedTransactions.length === 0) return
-    
-    if (!confirm(`Sei sicuro di voler cancellare ${selectedTransactions.length} transazioni selezionate?`)) return
+  // Reset selezione quando cambia la pagina
+  useEffect(() => {
+    setSelectedTransactions([])
+    setSelectAll(false)
+  }, [currentPage])
 
-    try {
-      // Cancella tutte le transazioni selezionate
-      await Promise.all(
-        selectedTransactions.map(id => 
-          fetch(`/api/transactions/${id}`, { method: 'DELETE' })
-        )
-      )
-      
-      await fetchData()
-      setSelectedTransactions([])
-      setSelectAll(false)
-    } catch (error) {
-      console.error('Errore nella cancellazione multipla:', error)
-      alert('Errore nella cancellazione delle transazioni')
-    }
-  }
-
-  // Reset filtri
-  const resetFilters = () => {
-    setSearchTerm('')
-    setSelectedCategory('')
-    setSelectedAccount('')
-    setDateFrom('')
-    setDateTo('')
-    setCurrentPage(1)
-  }
-
-  // Gestione categoria
-  const handleCategorySubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!categoryForm.name.trim()) return
-
-    setIsSubmitting(true)
-    setError('')
-
-    try {
-      const url = editingCategory ? `/api/categories/${editingCategory.id}` : '/api/categories'
-      const method = editingCategory ? 'PUT' : 'POST'
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: categoryForm.name.trim(),
-          type: 'expense'
-        })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Errore nel salvataggio')
-      }
-
-      await fetchData()
-      resetCategoryForm()
-    } catch (error: any) {
-      setError(error.message)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const resetCategoryForm = () => {
-    setCategoryForm({ name: '' })
-    setEditingCategory(null)
-    setShowCategoryForm(false)
-    setError('')
-  }
-
-  const handleEditCategory = (category: Category) => {
-    setCategoryForm({ name: category.name })
-    setEditingCategory(category)
-    setShowCategoryForm(true)
-  }
-
-  const handleDeleteCategory = async (category: Category) => {
-    if (!confirm(`Sei sicuro di voler cancellare la categoria "${category.name}"?`)) return
-
-    try {
-      const response = await fetch(`/api/categories/${category.id}`, { method: 'DELETE' })
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Errore nella cancellazione')
-      }
-
-      await fetchData()
-    } catch (error: any) {
-      alert(error.message)
-    }
-  }
-
-  // Gestione transazione
-  const handleTransactionSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!transactionForm.amount || !transactionForm.accountId || !transactionForm.categoryId) {
-      setError('Tutti i campi sono obbligatori')
-      return
-    }
-
-    setIsSubmitting(true)
-    setError('')
-
-    try {
-      const url = editingTransaction ? `/api/transactions/${editingTransaction.id}` : '/api/transactions'
-      const method = editingTransaction ? 'PUT' : 'POST'
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: transactionForm.description.trim() || null,
-          amount: parseFloat(transactionForm.amount),
-          date: transactionForm.date,
-          accountId: parseInt(transactionForm.accountId),
-          categoryId: parseInt(transactionForm.categoryId),
-          type: 'expense'
-        })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Errore nel salvataggio')
-      }
-
-      await fetchData()
-      resetTransactionForm()
-    } catch (error: any) {
-      setError(error.message)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
+  // Form handlers
   const resetTransactionForm = () => {
     setTransactionForm({
       description: '',
@@ -420,7 +286,87 @@ export default function ExpensesPage() {
     setError('')
   }
 
+  const resetCategoryForm = () => {
+    setCategoryForm({ name: '' })
+    setEditingCategory(null)
+    setShowCategoryForm(false)
+  }
+
+  const handleTransactionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isSubmitting) return
+
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      const url = editingTransaction 
+        ? `/api/transactions/${editingTransaction.id}`
+        : '/api/transactions'
+      
+      const method = editingTransaction ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...transactionForm,
+          type: 'expense',
+          amount: parseFloat(transactionForm.amount)
+        })
+      })
+
+      if (response.ok) {
+        await fetchData()
+        resetTransactionForm()
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Errore nella gestione della transazione')
+      }
+    } catch (error) {
+      setError('Errore di connessione')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isSubmitting) return
+
+    setIsSubmitting(true)
+    try {
+      const url = editingCategory 
+        ? `/api/categories/${editingCategory.id}`
+        : '/api/categories'
+      
+      const method = editingCategory ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...categoryForm,
+          type: 'expense'
+        })
+      })
+
+      if (response.ok) {
+        await fetchData()
+        resetCategoryForm()
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Errore nella gestione della categoria')
+      }
+    } catch (error) {
+      setError('Errore di connessione')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   const handleEditTransaction = (transaction: Transaction) => {
+    setEditingTransaction(transaction)
     setTransactionForm({
       description: transaction.description || '',
       amount: transaction.amount.toString(),
@@ -428,24 +374,68 @@ export default function ExpensesPage() {
       accountId: transaction.account.id.toString(),
       categoryId: transaction.category.id.toString()
     })
-    setEditingTransaction(transaction)
     setShowTransactionForm(true)
   }
 
   const handleDeleteTransaction = async (transaction: Transaction) => {
-    if (!confirm(`Sei sicuro di voler cancellare questa transazione di €${transaction.amount}?`)) return
+    if (!confirm(`Sei sicuro di voler cancellare l'uscita "${transaction.description || 'senza descrizione'}"?`)) return
 
     try {
-      const response = await fetch(`/api/transactions/${transaction.id}`, { method: 'DELETE' })
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Errore nella cancellazione')
-      }
+      const response = await fetch(`/api/transactions/${transaction.id}`, {
+        method: 'DELETE'
+      })
 
+      if (response.ok) {
+        await fetchData()
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Errore nella cancellazione')
+      }
+    } catch (error) {
+      setError('Errore di connessione')
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedTransactions.length === 0) return
+    if (!confirm(`Sei sicuro di voler cancellare ${selectedTransactions.length} uscite selezionate?`)) return
+
+    try {
+      const deletePromises = selectedTransactions.map(id =>
+        fetch(`/api/transactions/${id}`, { method: 'DELETE' })
+      )
+
+      await Promise.all(deletePromises)
       await fetchData()
-    } catch (error: any) {
-      alert(error.message)
+      setSelectedTransactions([])
+      setSelectAll(false)
+    } catch (error) {
+      setError('Errore nella cancellazione multipla')
+    }
+  }
+
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category)
+    setCategoryForm({ name: category.name })
+    setShowCategoryForm(true)
+  }
+
+  const handleDeleteCategory = async (category: Category) => {
+    if (!confirm(`Sei sicuro di voler cancellare la categoria "${category.name}"?`)) return
+
+    try {
+      const response = await fetch(`/api/categories/${category.id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        await fetchData()
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Errore nella cancellazione della categoria')
+      }
+    } catch (error) {
+      setError('Errore di connessione')
     }
   }
 
@@ -461,7 +451,7 @@ export default function ExpensesPage() {
   const SimpleChart = ({ data, title }: { data: any[], title: string }) => {
     if (data.length === 0) {
       return (
-        <div className="h-64 flex items-center justify-center text-gray-600">
+        <div className="h-64 flex items-center justify-center text-adaptive-600">
           Nessuna transazione per {title.toLowerCase()}
         </div>
       )
@@ -472,8 +462,8 @@ export default function ExpensesPage() {
         {data.map((item, index) => (
           <div key={index} className="space-y-2">
             <div className="flex justify-between items-center text-sm">
-              <span className="font-medium">{item.name}</span>
-              <span className="text-gray-600">€{item.value.toFixed(2)} ({item.percentage.toFixed(1)}%)</span>
+              <span className="font-medium text-adaptive-900">{item.name}</span>
+              <span className="text-adaptive-700">€{item.value.toFixed(2)} ({item.percentage.toFixed(1)}%)</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3">
               <div
@@ -494,8 +484,8 @@ export default function ExpensesPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Uscite</h1>
-          <p className="text-gray-600">Gestisci le tue uscite e categorie</p>
+          <h1 className="text-3xl font-bold text-white">Uscite</h1>
+          <p className="text-white opacity-80">Gestisci le tue uscite e categorie</p>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           <div className="bg-gray-200 animate-pulse rounded-lg h-64"></div>
@@ -511,71 +501,87 @@ export default function ExpensesPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Uscite</h1>
-          <p className="text-gray-600">Gestisci le tue uscite e categorie</p>
+          <h1 className="text-3xl font-bold text-white">Uscite</h1>
+          <p className="text-white opacity-80">Gestisci le tue uscite e categorie</p>
         </div>
         <button
           onClick={() => setShowTransactionForm(true)}
-          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2"
+          className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2"
         >
           <PlusIcon className="w-5 h-5" />
           Nuova Uscita
         </button>
       </div>
 
-      {/* Riepilogo Generale */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-r from-red-500 to-red-600 text-white p-6 rounded-lg">
-          <h2 className="text-lg font-medium">Totale Generale</h2>
-          <p className="text-3xl font-bold">€ {statistiche.grandTotal.toFixed(2)}</p>
-          <p className="text-red-100">{statistiche.totalCount} transazioni</p>
+      {/* Riepilogo Statistiche */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <h3 className="text-sm font-medium text-adaptive-500">Totale {getCurrentMonthName()}</h3>
+          <p className="text-2xl font-bold text-red-600">€ {statistiche.thisMonth.total.toFixed(2)}</p>
+          <p className="text-sm text-adaptive-600">{statistiche.thisMonth.count} transazioni</p>
         </div>
-        <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-6 rounded-lg">
-          <h2 className="text-lg font-medium">{getCurrentMonthName()}</h2>
-          <p className="text-3xl font-bold">€ {statistiche.thisMonth.total.toFixed(2)}</p>
-          <p className="text-orange-100">{statistiche.thisMonth.count} transazioni</p>
+        
+        <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <h3 className="text-sm font-medium text-adaptive-500">Altri Periodi</h3>
+          <p className="text-2xl font-bold text-orange-600">€ {statistiche.other.total.toFixed(2)}</p>
+          <p className="text-sm text-adaptive-600">{statistiche.other.count} transazioni</p>
         </div>
-        <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-6 rounded-lg">
-          <h2 className="text-lg font-medium">Altri Periodi</h2>
-          <p className="text-3xl font-bold">€ {statistiche.other.total.toFixed(2)}</p>
-          <p className="text-amber-100">{statistiche.other.count} transazioni</p>
+        
+        <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <h3 className="text-sm font-medium text-adaptive-500">Totale Generale</h3>
+          <p className="text-2xl font-bold text-adaptive-900">€ {statistiche.grandTotal.toFixed(2)}</p>
+          <p className="text-sm text-adaptive-600">{statistiche.totalCount} transazioni</p>
+        </div>
+        
+        <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <h3 className="text-sm font-medium text-adaptive-500">Media Mensile</h3>
+          <p className="text-2xl font-bold text-purple-600">
+            € {statistiche.totalCount > 0 ? (statistiche.grandTotal / Math.max(1, statistiche.totalCount / 12)).toFixed(2) : '0.00'}
+          </p>
+          <p className="text-sm text-adaptive-600">Stima approssimativa</p>
         </div>
       </div>
 
       {/* Grafici */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Grafico Mese Corrente */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5" />
-            Uscite per Categoria - {getCurrentMonthName()}
-          </h3>
-          <SimpleChart data={statistiche.thisMonth.chartData} title={getCurrentMonthName()} />
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
+          <div className="p-6 border-b border-adaptive">
+            <h3 className="text-lg font-semibold text-adaptive-900 flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5" />
+              Uscite per Categoria - {getCurrentMonthName()}
+            </h3>
+          </div>
+          <div className="p-6">
+            <SimpleChart data={statistiche.thisMonth.chartData} title="Mese Corrente" />
+          </div>
         </div>
 
-        {/* Grafico Altri Periodi */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5" />
-            Uscite per Categoria - Altri Periodi
-          </h3>
-          <SimpleChart data={statistiche.other.chartData} title="Altri Periodi" />
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
+          <div className="p-6 border-b border-adaptive">
+            <h3 className="text-lg font-semibold text-adaptive-900 flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5" />
+              Uscite per Categoria - Altri Periodi
+            </h3>
+          </div>
+          <div className="p-6">
+            <SimpleChart data={statistiche.other.chartData} title="Altri Periodi" />
+          </div>
         </div>
       </div>
 
       {/* Layout a tre colonne */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Gestione Categorie */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-6 border-b">
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
+          <div className="p-6 border-b border-adaptive">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+              <h2 className="text-xl font-semibold text-adaptive-900 flex items-center gap-2">
                 <TagIcon className="w-6 h-6" />
                 Categorie
               </h2>
               <button
                 onClick={() => setShowCategoryForm(true)}
-                className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 text-sm"
+                className="btn-primary px-3 py-1 rounded-lg text-sm"
               >
                 + Categoria
               </button>
@@ -591,28 +597,28 @@ export default function ExpensesPage() {
 
             {/* Form Categoria */}
             {showCategoryForm && (
-              <div className="border rounded-lg p-4 bg-gray-50">
+              <div className="border-adaptive rounded-lg p-4 bg-gray-50">
                 <form onSubmit={handleCategorySubmit} className="space-y-4">
                   <input
                     type="text"
                     placeholder="Nome categoria"
                     value={categoryForm.name}
                     onChange={(e) => setCategoryForm({ name: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
                     required
                   />
                   <div className="flex gap-2">
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      className="btn-primary px-4 py-2 rounded-lg disabled:opacity-50"
                     >
                       {isSubmitting ? 'Salvando...' : editingCategory ? 'Aggiorna' : 'Crea'}
                     </button>
                     <button
                       type="button"
                       onClick={resetCategoryForm}
-                      className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                      className="btn-secondary px-4 py-2 rounded-lg"
                     >
                       Annulla
                     </button>
@@ -623,31 +629,29 @@ export default function ExpensesPage() {
 
             {/* Lista Categorie */}
             {categories.length === 0 ? (
-              <p className="text-gray-600 text-center py-8">
+              <p className="text-adaptive-600 text-center py-8">
                 Nessuna categoria per uscite. Creane una per iniziare!
               </p>
             ) : (
               <div className="space-y-2">
                 {categories.map((category) => (
-                  <div key={category.id} className="border rounded-lg p-3 hover:bg-gray-50">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium text-gray-900">{category.name}</span>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEditCategory(category)}
-                          className="text-blue-600 hover:text-blue-800"
-                          title="Modifica"
-                        >
-                          <PencilIcon className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCategory(category)}
-                          className="text-red-600 hover:text-red-800"
-                          title="Cancella"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
-                      </div>
+                  <div key={category.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="font-medium text-adaptive-900">{category.name}</span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleEditCategory(category)}
+                        className="text-blue-600 hover:text-blue-800 p-1"
+                        title="Modifica categoria"
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(category)}
+                        className="text-red-600 hover:text-red-800 p-1"
+                        title="Cancella categoria"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -656,54 +660,47 @@ export default function ExpensesPage() {
           </div>
         </div>
 
-        {/* Lista Transazioni - Occupa 2 colonne */}
-        <div className="xl:col-span-2 bg-white rounded-lg shadow-sm border">
-          <div className="p-6 border-b">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                <CurrencyEuroIcon className="w-6 h-6" />
-                Transazioni ({filteredTransactions.length})
+        {/* Filtri e Ricerca */}
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
+          <div className="p-6 border-b border-adaptive">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-adaptive-900 flex items-center gap-2">
+                <FunnelIcon className="w-6 h-6" />
+                Filtri e Ricerca
               </h2>
-              <div className="flex gap-2">
-                {selectedTransactions.length > 0 && (
-                  <button
-                    onClick={handleDeleteSelected}
-                    className="bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 text-sm"
-                  >
-                    Cancella {selectedTransactions.length} selezionate
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm"
-                >
-                  <FunnelIcon className="w-4 h-4" />
-                  Filtri
-                </button>
-              </div>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="text-blue-600 hover:text-blue-800 text-sm"
+              >
+                {showFilters ? 'Nascondi' : 'Mostra'} Filtri
+              </button>
             </div>
+          </div>
 
+          <div className="p-6 space-y-4">
             {/* Barra di ricerca */}
-            <div className="relative mb-4">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <div className="relative">
+              <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-adaptive-500" />
               <input
                 type="text"
                 placeholder="Cerca per descrizione, categoria, conto o importo..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-lg"
+                className="w-full pl-10 pr-4 py-2 border-adaptive rounded-lg focus:outline-none"
               />
             </div>
 
             {/* Filtri avanzati */}
             {showFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg mb-4">
+              <div className="space-y-4 pt-4 border-t border-adaptive">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                  <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                    Categoria
+                  </label>
                   <select
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
                   >
                     <option value="">Tutte le categorie</option>
                     {categories.map((category) => (
@@ -713,78 +710,133 @@ export default function ExpensesPage() {
                     ))}
                   </select>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Conto</label>
+                  <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                    Conto
+                  </label>
                   <select
                     value={selectedAccount}
                     onChange={(e) => setSelectedAccount(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
                   >
                     <option value="">Tutti i conti</option>
                     {accounts.map((account) => (
                       <option key={account.id} value={account.id}>
-                        {account.name}
+                        {account.name} {account.isDefault && '⭐'}
                       </option>
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Dal</label>
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
-                  />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                      Da
+                    </label>
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                      A
+                    </label>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Al</label>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
-                  />
-                </div>
-                <div className="md:col-span-4 flex gap-2">
-                  <button
-                    onClick={resetFilters}
-                    className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 text-sm"
-                  >
-                    Reset Filtri
-                  </button>
-                </div>
+
+                <button
+                  onClick={() => {
+                    setSearchTerm('')
+                    setSelectedCategory('')
+                    setSelectedAccount('')
+                    setDateFrom('')
+                    setDateTo('')
+                  }}
+                  className="w-full btn-secondary py-2 rounded-lg"
+                >
+                  Azzera Filtri
+                </button>
               </div>
             )}
+
+            {/* Riepilogo risultati */}
+            <div className="pt-4 border-t border-adaptive">
+              <p className="text-sm text-adaptive-600">
+                {filteredTransactions.length} uscite trovate
+                {searchTerm && (
+                  <span className="ml-1 text-blue-600">
+                    per "{searchTerm}"
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Lista Transazioni */}
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
+          <div className="p-6 border-b border-adaptive">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-adaptive-900 flex items-center gap-2">
+                <CurrencyEuroIcon className="w-6 h-6" />
+                Uscite
+              </h2>
+              {selectedTransactions.length > 0 && (
+                <button
+                  onClick={handleDeleteSelected}
+                  className="text-red-600 hover:text-red-800 text-sm"
+                >
+                  Cancella Selezionate ({selectedTransactions.length})
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="p-6">
             {filteredTransactions.length === 0 ? (
-              <p className="text-gray-600 text-center py-8">
-                {searchTerm || selectedCategory || selectedAccount || dateFrom || dateTo 
-                  ? 'Nessuna transazione trovata con i filtri applicati.'
-                  : 'Nessuna transazione da mostrare. Aggiungi la tua prima uscita!'
-                }
-              </p>
+              <div className="text-center py-8">
+                <p className="text-adaptive-600 mb-4">
+                  {searchTerm || selectedCategory || selectedAccount || dateFrom || dateTo
+                    ? 'Nessuna uscita corrisponde ai filtri selezionati'
+                    : 'Nessuna uscita registrata'
+                  }
+                </p>
+                <button
+                  onClick={() => setShowTransactionForm(true)}
+                  className="btn-primary px-4 py-2 rounded-lg"
+                >
+                  Registra Prima Uscita
+                </button>
+              </div>
             ) : (
               <>
-                {/* Controlli selezione */}
+                {/* Selezione multipla header */}
                 {paginatedTransactions.length > 0 && (
-                  <div className="flex items-center gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-4 p-3 bg-gray-50 rounded-lg">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={selectAll}
                         onChange={handleSelectAll}
-                        className="rounded"
+                        className="rounded border-adaptive"
                       />
-                      <span className="text-sm font-medium">
+                      <span className="text-sm text-adaptive-600">
                         Seleziona tutte ({paginatedTransactions.length})
                       </span>
                     </label>
                     {selectedTransactions.length > 0 && (
-                      <span className="text-sm text-blue-600">
-                        {selectedTransactions.length} transazioni selezionate
+                      <span className="text-sm text-blue-600 font-medium">
+                        {selectedTransactions.length} selezionate
                       </span>
                     )}
                   </div>
@@ -793,24 +845,24 @@ export default function ExpensesPage() {
                 {/* Lista transazioni */}
                 <div className="space-y-3">
                   {paginatedTransactions.map((transaction) => (
-                    <div key={transaction.id} className="border rounded-lg p-4 hover:bg-gray-50">
-                      <div className="flex items-start gap-4">
+                    <div key={transaction.id} className="border-adaptive rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start gap-3">
                         <input
                           type="checkbox"
                           checked={selectedTransactions.includes(transaction.id)}
                           onChange={() => handleSelectTransaction(transaction.id)}
-                          className="mt-1 rounded"
+                          className="mt-1 rounded border-adaptive"
                         />
                         <div className="flex-1">
-                          <div className="flex justify-between items-center mb-2">
-                            <h3 className="font-medium text-gray-900">
+                          <div className="flex justify-between items-start mb-2">
+                            <h3 className="font-medium text-adaptive-900">
                               {transaction.description || 'Uscita senza descrizione'}
                             </h3>
                             <span className="text-xl font-bold text-red-600">
                               -€ {transaction.amount.toFixed(2)}
                             </span>
                           </div>
-                          <div className="text-sm text-gray-600 space-y-1">
+                          <div className="text-sm text-adaptive-600 space-y-1">
                             <p>📂 {transaction.category.name}</p>
                             <p>🏦 {transaction.account.name}</p>
                             <p>📅 {formatDate(transaction.date)}</p>
@@ -840,14 +892,14 @@ export default function ExpensesPage() {
                 {/* Paginazione */}
                 {totalPages > 1 && (
                   <div className="flex justify-between items-center mt-6 p-4 bg-gray-50 rounded-lg">
-                    <div className="text-sm text-gray-600">
-                      Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredTransactions.length)} di {filteredTransactions.length} transazioni
+                    <div className="text-sm text-adaptive-600">
+                      Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredTransactions.length)} di {filteredTransactions.length} transazioni
                     </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                         disabled={currentPage === 1}
-                        className="flex items-center gap-1 px-3 py-2 border rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1 px-3 py-2 border-adaptive rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <ChevronLeftIcon className="w-4 h-4" />
                         Precedente
@@ -858,7 +910,7 @@ export default function ExpensesPage() {
                       <button
                         onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                         disabled={currentPage === totalPages}
-                        className="flex items-center gap-1 px-3 py-2 border rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1 px-3 py-2 border-adaptive rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Successivo
                         <ChevronRightIcon className="w-4 h-4" />
@@ -875,8 +927,8 @@ export default function ExpensesPage() {
       {/* Modal Form Transazione */}
       {showTransactionForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">
+          <div className="card-adaptive rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
               {editingTransaction ? 'Modifica Uscita' : 'Nuova Uscita'}
             </h3>
             
@@ -888,7 +940,7 @@ export default function ExpensesPage() {
 
             <form onSubmit={handleTransactionSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Descrizione
                 </label>
                 <input
@@ -896,12 +948,12 @@ export default function ExpensesPage() {
                   placeholder="Es. Spesa supermercato"
                   value={transactionForm.description}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Importo *
                 </label>
                 <input
@@ -910,32 +962,32 @@ export default function ExpensesPage() {
                   placeholder="0.00"
                   value={transactionForm.amount}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, amount: e.target.value }))}
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Data *
                 </label>
                 <input
                   type="date"
                   value={transactionForm.date}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Conto *
                 </label>
                 <select
                   value={transactionForm.accountId}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, accountId: e.target.value }))}
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
                   required
                 >
                   <option value="">Seleziona conto</option>
@@ -948,13 +1000,13 @@ export default function ExpensesPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Categoria *
                 </label>
                 <select
                   value={transactionForm.categoryId}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, categoryId: e.target.value }))}
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
                   required
                 >
                   <option value="">Seleziona categoria</option>
@@ -966,20 +1018,21 @@ export default function ExpensesPage() {
                 </select>
               </div>
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Salvando...' : editingTransaction ? 'Aggiorna' : 'Salva'}
-                </button>
+              <div className="flex gap-2 pt-4">
                 <button
                   type="button"
                   onClick={resetTransactionForm}
-                  className="flex-1 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                  className="btn-secondary flex-1 py-2 rounded-lg"
+                  disabled={isSubmitting}
                 >
                   Annulla
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="btn-primary flex-1 py-2 rounded-lg disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Salvando...' : editingTransaction ? 'Aggiorna' : 'Salva'}
                 </button>
               </div>
             </form>
