@@ -172,53 +172,65 @@ export default function AccountsPage() {
           </div>
         ) : accounts.length > 0 ? (
           accounts.map((account) => (
-            <div key={account.id} className="bg-white p-6 rounded-lg shadow-sm border flex justify-between items-center">
+            <div 
+              key={account.id} 
+              className="bg-white p-6 rounded-lg shadow-sm border flex items-center justify-between"
+            >
               <div className="flex items-center gap-4">
-                <div className={`w-3 h-3 rounded-full ${account.isDefault ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                {/* Stellina per conto predefinito */}
+                {account.isDefault && (
+                  <span className="text-green-500 text-xl">⭐</span>
+                )}
+                
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    {account.name}
-                    {account.isDefault && (
-                      <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                        Predefinito
-                      </span>
-                    )}
-                  </h3>
-                  <p className="text-2xl font-bold text-gray-700">€ {account.balance.toFixed(2)}</p>
+                  <h3 className="text-lg font-semibold text-gray-900">{account.name}</h3>
+                  <p className="text-sm text-gray-500">
+                    {account.isDefault ? 'Conto predefinito' : 'Conto secondario'}
+                  </p>
                 </div>
               </div>
               
-              <div className="flex gap-2">
-                {!account.isDefault && (
+              <div className="flex items-center gap-6">
+                <div className="text-right">
+                  <p className="text-xl font-bold text-gray-900">
+                    € {account.balance.toFixed(2)}
+                  </p>
+                  <p className="text-sm text-gray-500">Saldo disponibile</p>
+                </div>
+                
+                <div className="flex gap-2">
+                  {!account.isDefault && (
+                    <button
+                      onClick={() => handleSetDefault(account.id)}
+                      className="px-3 py-1 bg-green-100 text-green-700 rounded-md hover:bg-green-200 text-sm"
+                    >
+                      Imposta Predefinito
+                    </button>
+                  )}
+                  
                   <button
-                    onClick={() => handleSetDefault(account.id)}
-                    className="text-green-600 hover:bg-green-50 px-3 py-2 rounded-lg"
-                    title="Imposta come predefinito"
+                    onClick={() => handleEditAccount(account)}
+                    className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm"
                   >
-                    ⭐ Predefinito
+                    Modifica
                   </button>
-                )}
-                <button
-                  onClick={() => handleEditAccount(account)}
-                  className="text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg"
-                >
-                  ✏️ Modifica
-                </button>
-                <button
-                  onClick={() => handleDeleteAccount(account.id)}
-                  className="text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg"
-                >
-                  🗑️ Cancella
-                </button>
+                  
+                  <button
+                    onClick={() => handleDeleteAccount(account.id)}
+                    className="px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200 text-sm"
+                  >
+                    Cancella
+                  </button>
+                </div>
               </div>
             </div>
           ))
         ) : (
-          <div className="text-center py-12 text-gray-500">
-            <p className="text-xl mb-4">Nessun conto configurato</p>
+          <div className="bg-white p-8 rounded-lg shadow-sm border text-center">
+            <p className="text-gray-500 mb-4">Nessun conto bancario trovato</p>
             <button
               onClick={handleNewAccount}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
               Crea il tuo primo conto
             </button>
@@ -226,56 +238,57 @@ export default function AccountsPage() {
         )}
       </div>
 
-      {/* Form Modal */}
+      {/* Modal Form */}
       {showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+            <h3 className="text-lg font-semibold mb-4">
               {editingAccount ? 'Modifica Conto' : 'Nuovo Conto'}
             </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Nome Conto
                 </label>
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="es. Conto Corrente Principale"
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Es. Conto Corrente BNL"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Saldo Iniziale (€)
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Saldo Iniziale
                 </label>
                 <input
                   type="number"
                   step="0.01"
                   value={formData.balance}
-                  onChange={(e) => setFormData({ ...formData, balance: e.target.value })}
-                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setFormData({...formData, balance: e.target.value})}
+                  className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="0.00"
                 />
               </div>
             </div>
-
-            <div className="flex gap-3 mt-6">
+            
+            <div className="flex gap-2 mt-6">
               <button
                 onClick={() => setShowForm(false)}
-                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300"
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                disabled={saving}
               >
                 Annulla
               </button>
               <button
                 onClick={handleSaveAccount}
-                disabled={!formData.name.trim() || saving}
-                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                disabled={saving || !formData.name.trim()}
               >
-                {saving ? '⏳ Salvataggio...' : (editingAccount ? 'Aggiorna' : 'Crea Conto')}
+                {saving ? 'Salvataggio...' : 'Salva'}
               </button>
             </div>
           </div>

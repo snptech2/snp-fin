@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
-const prisma = new PrismaClient()
+// Evita multiple istanze di Prisma in development
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
+}
+
+const prisma = globalForPrisma.prisma ?? new PrismaClient()
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 // PUT - Aggiorna conto
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params
     const { name, balance } = await request.json()
-    const accountId = parseInt(params.id)
+    const accountId = parseInt(resolvedParams.id)
     
     const updatedAccount = await prisma.account.update({
       where: { 
@@ -33,10 +41,11 @@ export async function PUT(
 // DELETE - Cancella conto
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const accountId = parseInt(params.id)
+    const resolvedParams = await params
+    const accountId = parseInt(resolvedParams.id)
     
     // Controlla se ci sono transazioni collegate
     const transactionCount = await prisma.transaction.count({

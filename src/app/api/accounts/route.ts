@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
-const prisma = new PrismaClient()
+// Evita multiple istanze di Prisma in development
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
+}
+
+const prisma = globalForPrisma.prisma ?? new PrismaClient()
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 // GET - Ottieni tutti i conti
 export async function GET() {
@@ -24,6 +31,11 @@ export async function POST(request: NextRequest) {
   try {
     const { name, balance } = await request.json()
     
+    // Validazione input
+    if (!name || name.trim().length === 0) {
+      return NextResponse.json({ error: 'Nome conto obbligatorio' }, { status: 400 })
+    }
+    
     // Controlla se è il primo conto (diventa predefinito)
     const existingAccounts = await prisma.account.findMany({
       where: { userId: 1 }
@@ -31,7 +43,7 @@ export async function POST(request: NextRequest) {
     
     const newAccount = await prisma.account.create({
       data: {
-        name,
+        name: name.trim(),
         balance: parseFloat(balance) || 0,
         isDefault: existingAccounts.length === 0,
         userId: 1
