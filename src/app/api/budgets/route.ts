@@ -4,6 +4,20 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
+// Lista colori predefiniti per i budget
+const BUDGET_COLORS = [
+  '#3B82F6', // Blu
+  '#10B981', // Verde
+  '#F59E0B', // Giallo/Arancione
+  '#EF4444', // Rosso
+  '#8B5CF6', // Viola
+  '#06B6D4', // Turchese
+  '#F97316', // Arancione
+  '#84CC16', // Verde Lime
+  '#EC4899', // Rosa
+  '#6366F1'  // Indaco
+]
+
 // GET /api/budgets - Lista tutti i budget ordinati per priorità
 export async function GET() {
   try {
@@ -60,7 +74,8 @@ export async function GET() {
     return NextResponse.json({
       budgets: allocations,
       totalLiquidity,
-      unallocated: Math.max(0, remainingAmount)
+      unallocated: Math.max(0, remainingAmount),
+      availableColors: BUDGET_COLORS // 🎨 Restituisco colori disponibili
     })
     
   } catch (error) {
@@ -76,7 +91,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, targetAmount, type, order } = body
+    const { name, targetAmount, type, order, color } = body
 
     // Validazioni
     if (!name?.trim()) {
@@ -111,6 +126,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 🎨 Validazione colore
+    const budgetColor = color || BUDGET_COLORS[0] // Default al primo colore se non specificato
+    if (budgetColor && !budgetColor.match(/^#[0-9A-F]{6}$/i)) {
+      return NextResponse.json(
+        { error: 'Colore deve essere in formato esadecimale (#RRGGBB)' },
+        { status: 400 }
+      )
+    }
+
     // Verifica che non esista già un budget con la stessa priorità
     const existingBudgetWithOrder = await prisma.budget.findFirst({
       where: { 
@@ -141,15 +165,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Prepara i dati per la creazione
+    const createData: any = {
+      name: name.trim(),
+      targetAmount: type === 'fixed' ? parseFloat(targetAmount) : 0,
+      type,
+      order: parsedOrder,
+      userId: 1
+    }
+
+    // Aggiungi il colore se fornito
+    if (budgetColor) {
+      createData.color = budgetColor
+    }
+
     // Crea il budget
     const budget = await prisma.budget.create({
-      data: {
-        name: name.trim(),
-        targetAmount: type === 'fixed' ? parseFloat(targetAmount) : 0,
-        type,
-        order: parsedOrder,
-        userId: 1
-      }
+      data: createData
     })
 
     return NextResponse.json(budget, { status: 201 })

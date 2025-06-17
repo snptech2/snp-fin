@@ -19,7 +19,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, targetAmount, type, order } = body
+    const { name, targetAmount, type, order, color } = body
 
     // Verifica che il budget esista
     const existingBudget = await prisma.budget.findFirst({
@@ -69,6 +69,15 @@ export async function PUT(
       )
     }
 
+    // Validazione colore (opzionale)
+    const budgetColor = color || existingBudget.color || '#3B82F6'
+    if (budgetColor && !budgetColor.match(/^#[0-9A-F]{6}$/i)) {
+      return NextResponse.json(
+        { error: 'Colore deve essere in formato esadecimale (#RRGGBB)' },
+        { status: 400 }
+      )
+    }
+
     // Verifica che non esista già un budget con la stessa priorità (escludendo quello corrente)
     if (parsedOrder !== existingBudget.order) {
       const existingBudgetWithOrder = await prisma.budget.findFirst({
@@ -105,16 +114,24 @@ export async function PUT(
       }
     }
 
+    // Prepara i dati per l'aggiornamento
+    const updateData: any = {
+      name: name.trim(),
+      targetAmount: type === 'fixed' ? parseFloat(targetAmount) : 0,
+      type,
+      order: parsedOrder,
+      updatedAt: new Date()
+    }
+
+    // Aggiungi il colore solo se fornito o se esiste un colore di default
+    if (budgetColor) {
+      updateData.color = budgetColor
+    }
+
     // Aggiorna il budget
     const updatedBudget = await prisma.budget.update({
       where: { id: budgetId },
-      data: {
-        name: name.trim(),
-        targetAmount: type === 'fixed' ? parseFloat(targetAmount) : 0,
-        type,
-        order: parsedOrder,
-        updatedAt: new Date()
-      }
+      data: updateData
     })
 
     return NextResponse.json(updatedBudget)
