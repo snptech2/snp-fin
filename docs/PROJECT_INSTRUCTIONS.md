@@ -41,12 +41,21 @@
   - ✅ API transazioni uscite complete
   - ✅ Grafici, filtri, ricerca e gestione avanzata
   - ✅ Aggiornamento automatico saldi conti (decrementando)
+- ✅ **FASE 6 - Sistema Budget Avanzato COMPLETATA** 🎉 *NUOVO!*
+  - ✅ API budget complete (`/api/budgets` GET/POST e `/api/budgets/[id]` PUT/DELETE)
+  - ✅ Pagina `/budget` con allocazione automatica a cascata
+  - ✅ Dashboard liquidità totale (da tutti i conti)
+  - ✅ Budget fissi con target specifico (es. 15.000€)
+  - ✅ Budget illimitati che prendono tutto il resto
+  - ✅ Sistema priorità (1, 2, 3...) per allocazione intelligente
+  - ✅ Barre di progresso e visualizzazione % completamento
+  - ✅ Gestione deficit e avvisi quando i soldi non bastano
+  - ✅ CRUD completo con validazioni e controlli duplicati
 
 ### 🔄 In Sviluppo
 - Nessuna fase attualmente in sviluppo
 
 ### ⏳ Da Implementare
-- **FASE 6**: Sistema Budget Avanzato
 - **FASE 7**: Dashboard Generale
 - **Trasferimenti tra Conti**
 - **Beni non Correnti e Crediti**
@@ -76,6 +85,13 @@
 - `DELETE /api/transactions/[id]` - Cancella transazione
 - **Features Avanzate**: Aggiornamento automatico saldi, validazioni complete, gestione batch
 
+### Budget ✅ COMPLETATE E FUNZIONANTI 🎉 *NUOVO!*
+- `GET /api/budgets` - Lista budget con allocazione automatica a cascata
+- `POST /api/budgets` - Crea nuovo budget (fisso o illimitato)
+- `PUT /api/budgets/[id]` - Aggiorna budget esistente
+- `DELETE /api/budgets/[id]` - Cancella budget
+- **Features Avanzate**: Calcolo liquidità totale, distribuzione per priorità, gestione deficit
+
 ---
 
 ## 🔧 ISTRUZIONI PER SVILUPPATORI
@@ -92,7 +108,7 @@ npm run dev
 ### Commit e Push - PROSSIMA AZIONE
 ```bash
 git add .
-git commit -m "✅ FASI 3-4-5 COMPLETATE: Sistema categorie, entrate e uscite con funzionalità avanzate"
+git commit -m "✅ FASE 6 COMPLETATA: Sistema Budget avanzato con allocazione a cascata e dashboard liquidità"
 git push
 ```
 
@@ -121,26 +137,25 @@ Ogni volta che si implementa una feature:
 
 **PRIORITÀ PROSSIMO SVILUPPO**:
 
-### Opzione 1: **FASE 6 - Sistema Budget Avanzato** ⭐ *Consigliato*
-1. 💰 Budget basati sulla liquidità totale di tutti i conti
-2. 📊 Tipi di budget:
-   - **Fondo Emergenza**: importo fisso (es. 15.000€)
-   - **Fondo Spese**: importo fisso (es. 3.000€)  
-   - **Fondo Investimenti**: tutto il resto della liquidità
-3. 🔧 CRUD completo per budget
-4. 📈 Calcolo automatico distribuzione fondi
-5. 🎯 Dashboard budget con progressi
+### Opzione 1: **FASE 7 - Dashboard Generale** ⭐ *Consigliato*
+1. 🏠 Pagina overview con panoramica completa dell'app
+2. 📊 Grafici entrate vs uscite (mensili/annuali)
+3. 📈 Trend e analisi temporali
+4. 🎯 Riepiloghi rapidi e insights finanziari
+5. 💰 Integrazione dati da conti, transazioni e budget
+6. 📋 Widget per transazioni recenti e budget status
 
-### Opzione 2: **FASE 7 - Dashboard Generale**
-1. 🏠 Panoramica generale dell'app
-2. 📊 Grafici entrate vs uscite
-3. 📈 Trend mensili e annuali
-4. 🎯 Riepiloghi rapidi e insights
-
-### Opzione 3: **🔄 Trasferimenti tra Conti**
+### Opzione 2: **🔄 Trasferimenti tra Conti**
 1. 💸 Sistema per spostare soldi tra conti
-2. 📝 Storico trasferimenti
-3. ⚡ Gestione automatica saldi
+2. 📝 Storico trasferimenti con data e descrizione
+3. ⚡ Gestione automatica saldi (decrementa sorgente, incrementa destinazione)
+4. 🚫 Validazioni: non permettere trasferimenti se saldo insufficiente
+
+### Opzione 3: **🔧 Miglioramenti Sistema Esistente**
+1. 🔍 Filtri avanzati globali per date
+2. 📊 Esportazione dati in CSV/Excel  
+3. 🎨 Miglioramenti UI/UX
+4. 📱 Responsive design mobile
 
 ---
 
@@ -149,8 +164,9 @@ Ogni volta che si implementa una feature:
 ✅ **Database Schema Completo** - Tutte le tabelle necessarie  
 ✅ **Conti Bancari Funzionanti** - CRUD completo con validazioni  
 ✅ **Sistema Categorie Robusto** - Gestione entrate e uscite separate  
-✅ **API Routes Complete** - Conti, categorie e transazioni  
+✅ **API Routes Complete** - Conti, categorie, transazioni e budget  
 ✅ **Pagine Entrate e Uscite** - Con funzionalità professionali  
+✅ **Sistema Budget Avanzato** - Allocazione intelligente a cascata 🎉 *NUOVO!*  
 ✅ **UI/UX Avanzata** - Design moderno e responsive  
 ✅ **Funzionalità Enterprise**:
   - 🔍 Ricerca smart multi-campo
@@ -160,6 +176,7 @@ Ogni volta che si implementa una feature:
   - 📊 Grafici e statistiche per categoria
   - 📈 Analisi mese corrente vs altri periodi
   - 🔄 Aggiornamento automatico saldi
+  - 💰 Budget con allocazione intelligente per priorità
   - ⚡ Loading states e gestione errori completa
 ✅ **Codice Pulito** - Zero errori TypeScript/ESLint, best practices Next.js 15  
 ✅ **Performance Ottimizzate** - Caricamento veloce e reattivo
@@ -167,9 +184,10 @@ Ogni volta che si implementa una feature:
 ## 🎉 MILESTONE RAGGIUNTE
 
 🏆 **CORE TRANSAZIONI COMPLETE** - Sistema entrate/uscite di livello professionale  
+🏆 **BUDGET SYSTEM AVANZATO** - Allocazione automatica a cascata 🎉 *NUOVO!*  
 🏆 **API ROBUSTE** - Validazioni complete e gestione errori  
 🏆 **UI MODERNA** - Esperienza utente ottimale  
-🏆 **SCALABILITÀ** - Gestione di migliaia di transazioni  
+🏆 **SCALABILITÀ** - Gestione di migliaia di transazioni e budget complessi
 
 ---
 
@@ -198,13 +216,17 @@ Ogni volta che si implementa una feature:
 - ✅ Selezione multipla e cancellazione batch
 - ✅ UI moderna con loading states e gestione errori
 
-### 4. **Budget** ⏳ DA IMPLEMENTARE
-- Budget basati sulla liquidità totale di tutti i conti
-- Tipi di budget:
+### 4. **Budget** ✅ COMPLETATO 🎉 *NUOVO!*
+- ✅ Budget basati sulla liquidità totale di tutti i conti
+- ✅ Tipi di budget:
   - **Fondo Emergenza**: importo fisso (es. 15.000€)
   - **Fondo Spese**: importo fisso (es. 3.000€)
-  - **Fondo Investimenti**: tutto il resto della liquidità
-- CRUD completo per budget
+  - **Fondo Investimenti**: budget illimitato (tutto il resto)
+- ✅ CRUD completo per budget
+- ✅ Sistema priorità (1, 2, 3...) per allocazione a cascata
+- ✅ Dashboard con panoramica liquidità e allocazioni
+- ✅ Barre di progresso e visualizzazione completamento
+- ✅ Gestione deficit quando i fondi sono insufficienti
 
 ### 5. **Dashboard** ⏳ DA IMPLEMENTARE
 - Panoramica generale dell'app
@@ -283,6 +305,19 @@ model Transaction {  // ✅ IMPLEMENTATO E FUNZIONANTE
   category    Category @relation(fields: [categoryId], references: [id])
 }
 
+model Budget {  // ✅ IMPLEMENTATO E FUNZIONANTE 🎉 *NUOVO!*
+  id          Int      @id @default(autoincrement())
+  name        String
+  targetAmount Float
+  type        String   // "fixed" o "unlimited"
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+}
+
 model Transfer {  // ⏳ DA IMPLEMENTARE
   id          Int      @id @default(autoincrement())
   amount      Float
@@ -296,19 +331,6 @@ model Transfer {  // ⏳ DA IMPLEMENTARE
   
   toAccountId   Int
   toAccount     Account @relation("ToAccount", fields: [toAccountId], references: [id])
-}
-
-model Budget {  // ⏳ DA IMPLEMENTARE
-  id          Int      @id @default(autoincrement())
-  name        String
-  targetAmount Float
-  type        String   // "fixed" o "remaining"
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
 }
 ```
 
@@ -356,11 +378,13 @@ model Budget {  // ⏳ DA IMPLEMENTARE
 4. ✅ **Filtri e ricerca** avanzati
 5. ✅ **Tutte le funzionalità** delle entrate
 
-### ⏳ FASE 6: Budget
-1. Sistema creazione budget
-2. Calcolo liquidità totale
-3. Distribuzione automatica fondi
-4. Dashboard budget
+### ✅ FASE 6: Budget - COMPLETATA 🎉 *NUOVO!*
+1. ✅ **Sistema creazione budget** con CRUD completo
+2. ✅ **Calcolo liquidità totale** da tutti i conti
+3. ✅ **Distribuzione automatica fondi** a cascata per priorità
+4. ✅ **Dashboard budget** con panoramica e progressi
+5. ✅ **Budget fissi e illimitati** con validazioni
+6. ✅ **Gestione deficit** e avvisi per fondi insufficienti
 
 ### ⏳ FASE 7: Dashboard
 1. Panoramica generale
@@ -374,8 +398,13 @@ model Budget {  // ⏳ DA IMPLEMENTARE
 Quando riprendi lo sviluppo in una nuova chat:
 
 1. **Leggi sempre questo file** per capire lo stato attuale
-2. **Scegli la prossima fase** da implementare (consigliato: FASE 6 Budget)
+2. **Scegli la prossima fase** da implementare (consigliato: FASE 7 Dashboard)
 3. **Aggiorna questo file** quando completi una fase
 4. **Fai commit** con messaggio descrittivo
 
-**Il progetto è ora a un livello professionale** con sistema transazioni completo e interfacce moderne! 🎉
+**Il progetto è ora a un livello enterprise** con sistema budget avanzato e gestione finanziaria completa! 🎉
+
+### 📁 File Creati nella FASE 6 - Budget:
+- `src/app/api/budgets/route.ts` - API principale (GET/POST)
+- `src/app/api/budgets/[id]/route.ts` - API per singolo budget (PUT/DELETE)
+- `src/app/budget/page.tsx` - Pagina frontend aggiornata con sistema completo

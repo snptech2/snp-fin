@@ -461,7 +461,7 @@ export default function IncomePage() {
   const SimpleChart = ({ data, title }: { data: any[], title: string }) => {
     if (data.length === 0) {
       return (
-        <div className="h-64 flex items-center justify-center text-gray-500">
+        <div className="h-64 flex items-center justify-center text-gray-600">
           Nessuna transazione per {title.toLowerCase()}
         </div>
       )
@@ -473,7 +473,7 @@ export default function IncomePage() {
           <div key={index} className="space-y-2">
             <div className="flex justify-between items-center text-sm">
               <span className="font-medium">{item.name}</span>
-              <span className="text-gray-600">€{item.value.toFixed(2)} ({item.percentage.toFixed(1)}%)</span>
+              <span className="text-gray-700">€{item.value.toFixed(2)} ({item.percentage.toFixed(1)}%)</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3">
               <div
@@ -495,7 +495,7 @@ export default function IncomePage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Entrate</h1>
-          <p className="text-gray-600">Gestisci le tue entrate e categorie</p>
+          <p className="text-gray-700">Gestisci le tue entrate e categorie</p>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           <div className="bg-gray-200 animate-pulse rounded-lg h-64"></div>
@@ -623,7 +623,7 @@ export default function IncomePage() {
 
             {/* Lista Categorie */}
             {categories.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">
+              <p className="text-gray-600 text-center py-8">
                 Nessuna categoria per entrate. Creane una per iniziare!
               </p>
             ) : (
@@ -685,7 +685,7 @@ export default function IncomePage() {
 
             {/* Barra di ricerca */}
             <div className="relative mb-4">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
               <input
                 type="text"
                 placeholder="Cerca per descrizione, categoria, conto o importo..."
@@ -699,7 +699,7 @@ export default function IncomePage() {
             {showFilters && (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                  <label className="block text-sm font-medium text-gray-800 mb-1">Categoria</label>
                   <select
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}

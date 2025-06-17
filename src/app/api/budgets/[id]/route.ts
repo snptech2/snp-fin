@@ -1,0 +1,176 @@
+// src/app/api/budgets/[id]/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
+
+// PUT /api/budgets/[id] - Aggiorna budget
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const budgetId = parseInt(params.id)
+    if (isNaN(budgetId)) {
+      return NextResponse.json(
+        { error: 'ID budget non valido' },
+        { status: 400 }
+      )
+    }
+
+    const body = await request.json()
+    const { name, targetAmount, type, order } = body
+
+    // Verifica che il budget esista
+    const existingBudget = await prisma.budget.findFirst({
+      where: {
+        id: budgetId,
+        userId: 1
+      }
+    })
+
+    if (!existingBudget) {
+      return NextResponse.json(
+        { error: 'Budget non trovato' },
+        { status: 404 }
+      )
+    }
+
+    // Validazioni
+    if (!name?.trim()) {
+      return NextResponse.json(
+        { error: 'Nome budget obbligatorio' },
+        { status: 400 }
+      )
+    }
+
+    if (!type || !['fixed', 'unlimited'].includes(type)) {
+      return NextResponse.json(
+        { error: 'Tipo budget deve essere "fixed" o "unlimited"' },
+        { status: 400 }
+      )
+    }
+
+    if (type === 'fixed') {
+      const parsedAmount = parseFloat(targetAmount)
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return NextResponse.json(
+          { error: 'Importo deve essere un numero positivo per budget fissi' },
+          { status: 400 }
+        )
+      }
+    }
+
+    const parsedOrder = parseInt(order)
+    if (isNaN(parsedOrder) || parsedOrder < 1) {
+      return NextResponse.json(
+        { error: 'Priorità deve essere un numero positivo' },
+        { status: 400 }
+      )
+    }
+
+    // Verifica che non esista già un budget con la stessa priorità (escludendo quello corrente)
+    if (parsedOrder !== existingBudget.order) {
+      const existingBudgetWithOrder = await prisma.budget.findFirst({
+        where: { 
+          userId: 1,
+          order: parsedOrder,
+          id: { not: budgetId }
+        }
+      })
+
+      if (existingBudgetWithOrder) {
+        return NextResponse.json(
+          { error: 'Esiste già un budget con questa priorità' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Verifica che non esista già un budget con lo stesso nome (escludendo quello corrente)
+    if (name.trim() !== existingBudget.name) {
+      const existingBudgetWithName = await prisma.budget.findFirst({
+        where: { 
+          userId: 1,
+          name: name.trim(),
+          id: { not: budgetId }
+        }
+      })
+
+      if (existingBudgetWithName) {
+        return NextResponse.json(
+          { error: 'Esiste già un budget con questo nome' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Aggiorna il budget
+    const updatedBudget = await prisma.budget.update({
+      where: { id: budgetId },
+      data: {
+        name: name.trim(),
+        targetAmount: type === 'fixed' ? parseFloat(targetAmount) : 0,
+        type,
+        order: parsedOrder,
+        updatedAt: new Date()
+      }
+    })
+
+    return NextResponse.json(updatedBudget)
+    
+  } catch (error) {
+    console.error('Errore nell\'aggiornamento budget:', error)
+    return NextResponse.json(
+      { error: 'Errore nell\'aggiornamento del budget' },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE /api/budgets/[id] - Cancella budget
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const budgetId = parseInt(params.id)
+    if (isNaN(budgetId)) {
+      return NextResponse.json(
+        { error: 'ID budget non valido' },
+        { status: 400 }
+      )
+    }
+
+    // Verifica che il budget esista
+    const existingBudget = await prisma.budget.findFirst({
+      where: {
+        id: budgetId,
+        userId: 1
+      }
+    })
+
+    if (!existingBudget) {
+      return NextResponse.json(
+        { error: 'Budget non trovato' },
+        { status: 404 }
+      )
+    }
+
+    // Cancella il budget
+    await prisma.budget.delete({
+      where: { id: budgetId }
+    })
+
+    return NextResponse.json({ 
+      message: 'Budget cancellato con successo' 
+    })
+    
+  } catch (error) {
+    console.error('Errore nella cancellazione budget:', error)
+    return NextResponse.json(
+      { error: 'Errore nella cancellazione del budget' },
+      { status: 500 }
+    )
+  }
+}

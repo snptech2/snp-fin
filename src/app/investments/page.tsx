@@ -10,7 +10,7 @@ export default function InvestmentsPage() {
 
       <div className="bg-white p-8 rounded-lg shadow-sm border">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Sezione complessa da sviluppare in futuro:</h2>
-        <ul className="space-y-2 text-gray-600">
+<ul className="space-y-2 text-gray-700">
           <li>• Tracking portafoglio investimenti</li>
           <li>• Performance e analisi</li>
           <li>• Diversificazione asset</li>

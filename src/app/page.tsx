@@ -12,22 +12,22 @@ export default function Dashboard() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-sm font-medium text-gray-500">Saldo Totale</h3>
+<h3 className="text-sm font-medium text-gray-500">Saldo Totale</h3>
           <p className="text-2xl font-bold text-gray-900">€ 0,00</p>
         </div>
         
         <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-sm font-medium text-gray-500">Entrate Mese</h3>
+          <h3 className="text-sm font-medium text-gray-600">Entrate Mese</h3>
           <p className="text-2xl font-bold text-green-600">€ 0,00</p>
         </div>
         
         <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-sm font-medium text-gray-500">Uscite Mese</h3>
+          <h3 className="text-sm font-medium text-gray-600">Uscite Mese</h3>
           <p className="text-2xl font-bold text-red-600">€ 0,00</p>
         </div>
         
         <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-sm font-medium text-gray-500">Budget Utilizzato</h3>
+          <h3 className="text-sm font-medium text-gray-600">Budget Utilizzato</h3>
           <p className="text-2xl font-bold text-blue-600">0%</p>
         </div>
       </div>
@@ -36,7 +36,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Entrate per Categoria</h3>
-          <div className="h-64 flex items-center justify-center text-gray-500">
+          <div className="h-64 flex items-center justify-center text-gray-600">
             Grafico entrate (da implementare)
           </div>
         </div>
@@ -55,7 +55,7 @@ export default function Dashboard() {
           <h3 className="text-lg font-semibold text-gray-900">Transazioni Recenti</h3>
         </div>
         <div className="p-6">
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-gray-600 py-8">
             Nessuna transazione da mostrare
           </div>
         </div>

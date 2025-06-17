@@ -461,7 +461,7 @@ export default function ExpensesPage() {
   const SimpleChart = ({ data, title }: { data: any[], title: string }) => {
     if (data.length === 0) {
       return (
-        <div className="h-64 flex items-center justify-center text-gray-500">
+        <div className="h-64 flex items-center justify-center text-gray-600">
           Nessuna transazione per {title.toLowerCase()}
         </div>
       )
@@ -623,7 +623,7 @@ export default function ExpensesPage() {
 
             {/* Lista Categorie */}
             {categories.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">
+              <p className="text-gray-600 text-center py-8">
                 Nessuna categoria per uscite. Creane una per iniziare!
               </p>
             ) : (
@@ -760,7 +760,7 @@ export default function ExpensesPage() {
 
           <div className="p-6">
             {filteredTransactions.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">
+              <p className="text-gray-600 text-center py-8">
                 {searchTerm || selectedCategory || selectedAccount || dateFrom || dateTo 
                   ? 'Nessuna transazione trovata con i filtri applicati.'
                   : 'Nessuna transazione da mostrare. Aggiungi la tua prima uscita!'

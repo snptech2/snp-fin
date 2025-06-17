@@ -58,7 +58,7 @@ export default function Sidebar() {
             </div>
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-700">Utente</p>
-              <p className="text-xs text-gray-500">EUR</p>
+              <p className="text-xs text-gray-600">EUR</p>
             </div>
           </div>
         </div>

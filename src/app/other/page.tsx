@@ -10,7 +10,7 @@ export default function OtherPage() {
 
       <div className="bg-white p-8 rounded-lg shadow-sm border">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Funzionalità da sviluppare in futuro:</h2>
-        <ul className="space-y-2 text-gray-600">
+        <ul className="space-y-2 text-gray-700">
           <li>• Gestione beni non correnti</li>
           <li>• Tracking crediti</li>
           <li>• Altre funzionalità finanziarie</li>
