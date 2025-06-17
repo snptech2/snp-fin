@@ -1,8 +1,10 @@
+// src/app/api/categories/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
+// GET - Lista tutte le categorie
 export async function GET() {
   try {
     const categories = await prisma.category.findMany({
@@ -22,11 +24,13 @@ export async function GET() {
   }
 }
 
+// POST - Crea nuova categoria
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { name, type } = body
 
+    // Validazione
     if (!name || !type) {
       return NextResponse.json(
         { error: 'Nome e tipo sono obbligatori' },
@@ -34,6 +38,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (type !== 'income' && type !== 'expense') {
+      return NextResponse.json(
+        { error: 'Il tipo deve essere "income" o "expense"' },
+        { status: 400 }
+      )
+    }
+
+    // Controlla se nome già esiste per questo tipo
+    const existingCategory = await prisma.category.findFirst({
+      where: {
+        name: name.trim(),
+        type,
+        userId: 1
+      }
+    })
+
+    if (existingCategory) {
+      return NextResponse.json(
+        { error: 'Nome categoria già esistente' },
+        { status: 400 }
+      )
+    }
+
+    // Crea categoria
     const category = await prisma.category.create({
       data: {
         name: name.trim(),
