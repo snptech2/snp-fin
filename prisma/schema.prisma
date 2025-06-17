@@ -14,16 +14,89 @@ model User {
   id           Int           @id @default(autoincrement())
   name         String
   email        String        @unique
+  currency     String        @default("EUR") // EUR, USD
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  
+  // Relazioni
+  accounts     Account[]
+  transactions Transaction[]
+  categories   Category[]
+  budgets      Budget[]
+}
+
+model Account {
+  id              Int           @id @default(autoincrement())
+  name            String
+  balance         Float         @default(0)
+  isDefault       Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  userId          Int
+  user            User          @relation(fields: [userId], references: [id])
+  
+  // Relazioni
+  transactions    Transaction[]
+  transfersFrom   Transfer[]    @relation("FromAccount")
+  transfersTo     Transfer[]    @relation("ToAccount")
+}
+
+model Category {
+  id           Int           @id @default(autoincrement())
+  name         String
+  type         String        // "income" o "expense"
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  userId       Int
+  user         User          @relation(fields: [userId], references: [id])
+  
+  // Relazioni
   transactions Transaction[]
 }
 
 model Transaction {
   id          Int      @id @default(autoincrement())
-  description String
+  description String?
   amount      Float
   date        DateTime @default(now())
+  type        String   // "income" o "expense"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  
+  accountId   Int
+  account     Account  @relation(fields: [accountId], references: [id])
+  
+  categoryId  Int
+  category    Category @relation(fields: [categoryId], references: [id])
+}
+
+model Transfer {
+  id          Int      @id @default(autoincrement())
+  amount      Float
+  description String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  fromAccountId Int
+  fromAccount   Account @relation("FromAccount", fields: [fromAccountId], references: [id])
+  
+  toAccountId   Int
+  toAccount     Account @relation("ToAccount", fields: [toAccountId], references: [id])
+}
+
+model Budget {
+  id          Int      @id @default(autoincrement())
+  name        String
+  targetAmount Float
+  type        String   // "fixed" o "remaining"
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
 }
