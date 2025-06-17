@@ -78,45 +78,55 @@ export default function ExpensesPage() {
   const [selectedTransactions, setSelectedTransactions] = useState<number[]>([])
   const [selectAll, setSelectAll] = useState(false)
   
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  // Stati per errori e caricamento
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Carica dati iniziali
+  // Funzione per ottenere il nome del mese corrente
+  const getCurrentMonthName = () => {
+    const months = [
+      'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+      'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+    ]
+    return months[new Date().getMonth()]
+  }
+
+  // Caricamento dati iniziale
   useEffect(() => {
     fetchData()
   }, [])
 
   const fetchData = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
-      
       const [accountsRes, categoriesRes, transactionsRes] = await Promise.all([
         fetch('/api/accounts'),
-        fetch('/api/categories'),
-        fetch('/api/transactions?type=expense&limit=1000') // Carica tutte per analisi
+        fetch('/api/categories?type=expense'),
+        fetch('/api/transactions?type=expense')
       ])
 
-      if (accountsRes.ok) {
-        const accountsData = await accountsRes.json()
+      if (accountsRes.ok && categoriesRes.ok && transactionsRes.ok) {
+        const [accountsData, categoriesData, transactionsData] = await Promise.all([
+          accountsRes.json(),
+          categoriesRes.json(),
+          transactionsRes.json()
+        ])
+
         setAccounts(accountsData)
+        setCategories(categoriesData)
+        setTransactions(transactionsData)
         
-        const defaultAccount = accountsData.find((acc: Account) => acc.isDefault)
-        if (defaultAccount) {
-          setTransactionForm(prev => ({ ...prev, accountId: defaultAccount.id.toString() }))
+        // Imposta conto predefinito se non selezionato
+        if (accountsData.length > 0 && !transactionForm.accountId) {
+          const defaultAccount = accountsData.find((acc: Account) => acc.isDefault)
+          if (defaultAccount) {
+            setTransactionForm(prev => ({
+              ...prev,
+              accountId: defaultAccount.id.toString()
+            }))
+          }
         }
       }
-
-      if (categoriesRes.ok) {
-        const categoriesData = await categoriesRes.json()
-        const expenseCategories = categoriesData.filter((cat: Category) => cat.type === 'expense')
-        setCategories(expenseCategories)
-      }
-
-      if (transactionsRes.ok) {
-        const transactionsData = await transactionsRes.json()
-        setTransactions(transactionsData)
-      }
-      
     } catch (error) {
       console.error('Errore nel caricamento dati:', error)
       setError('Errore nel caricamento dei dati')
@@ -125,22 +135,200 @@ export default function ExpensesPage() {
     }
   }
 
-  // Calcoli per statistiche
-  const statistiche = useMemo(() => {
-    const now = new Date()
-    const currentMonth = now.getMonth()
-    const currentYear = now.getFullYear()
+  // Reset form categoria
+  const resetCategoryForm = () => {
+    setCategoryForm({ name: '' })
+    setShowCategoryForm(false)
+    setEditingCategory(null)
+    setError('')
+  }
+
+  // Reset form transazione
+  const resetTransactionForm = () => {
+    setTransactionForm({
+      description: '',
+      amount: '',
+      date: new Date().toISOString().split('T')[0],
+      accountId: transactionForm.accountId, // Mantieni il conto selezionato
+      categoryId: ''
+    })
+    setShowTransactionForm(false)
+    setEditingTransaction(null)
+    setError('')
+  }
+
+  // Gestione submit categoria
+  const handleCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      const url = editingCategory 
+        ? `/api/categories/${editingCategory.id}`
+        : '/api/categories'
+      
+      const method = editingCategory ? 'PUT' : 'POST'
+      
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: categoryForm.name.trim(),
+          type: 'expense'
+        })
+      })
+
+      if (response.ok) {
+        resetCategoryForm()
+        fetchData()
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Errore durante il salvataggio della categoria')
+      }
+    } catch (error) {
+      setError('Errore di rete durante il salvataggio')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Gestione modifica categoria
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category)
+    setCategoryForm({ name: category.name })
+    setShowCategoryForm(true)
+  }
+
+  // Gestione cancellazione categoria
+  const handleDeleteCategory = async (category: Category) => {
+    if (!confirm(`Sei sicuro di voler cancellare la categoria "${category.name}"?`)) return
+
+    try {
+      const response = await fetch(`/api/categories/${category.id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        fetchData()
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Errore durante la cancellazione')
+      }
+    } catch (error) {
+      setError('Errore di rete durante la cancellazione')
+    }
+  }
+
+  // Gestione submit transazione
+  const handleTransactionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      const url = editingTransaction 
+        ? `/api/transactions/${editingTransaction.id}`
+        : '/api/transactions'
+      
+      const method = editingTransaction ? 'PUT' : 'POST'
+      
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: transactionForm.description.trim() || null,
+          amount: parseFloat(transactionForm.amount),
+          date: transactionForm.date,
+          type: 'expense',
+          accountId: parseInt(transactionForm.accountId),
+          categoryId: parseInt(transactionForm.categoryId)
+        })
+      })
+
+      if (response.ok) {
+        resetTransactionForm()
+        fetchData()
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Errore durante il salvataggio della transazione')
+      }
+    } catch (error) {
+      setError('Errore di rete durante il salvataggio')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Gestione modifica transazione
+  const handleEditTransaction = (transaction: Transaction) => {
+    setEditingTransaction(transaction)
+    setTransactionForm({
+      description: transaction.description || '',
+      amount: transaction.amount.toString(),
+      date: transaction.date.split('T')[0],
+      accountId: transaction.account.id.toString(),
+      categoryId: transaction.category.id.toString()
+    })
+    setShowTransactionForm(true)
+  }
+
+  // Gestione cancellazione transazione
+  const handleDeleteTransaction = async (transaction: Transaction) => {
+    if (!confirm(`Sei sicuro di voler cancellare questa uscita di €${transaction.amount}?`)) return
+
+    try {
+      const response = await fetch(`/api/transactions/${transaction.id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        fetchData()
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Errore durante la cancellazione')
+      }
+    } catch (error) {
+      setError('Errore di rete durante la cancellazione')
+    }
+  }
+
+  // Gestione cancellazione batch
+  const handleBatchDelete = async () => {
+    if (selectedTransactions.length === 0) return
     
-    // Transazioni del mese corrente
-    const thisMonthTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.date)
-      return transactionDate.getMonth() === currentMonth && 
-             transactionDate.getFullYear() === currentYear
+    if (!confirm(`Sei sicuro di voler cancellare ${selectedTransactions.length} uscite selezionate?`)) return
+
+    try {
+      await Promise.all(
+        selectedTransactions.map(id => 
+          fetch(`/api/transactions/${id}`, { method: 'DELETE' })
+        )
+      )
+      
+      setSelectedTransactions([])
+      setSelectAll(false)
+      fetchData()
+    } catch (error) {
+      setError('Errore durante la cancellazione multipla')
+    }
+  }
+
+  // Calcolo statistiche
+  const statistiche = useMemo(() => {
+    const currentDate = new Date()
+    const currentMonth = currentDate.getMonth()
+    const currentYear = currentDate.getFullYear()
+    
+    // Dividi transazioni per mese corrente e altri periodi
+    const thisMonthTransactions = transactions.filter(transaction => {
+      const transactionDate = new Date(transaction.date)
+      return (transactionDate.getMonth() === currentMonth && 
+               transactionDate.getFullYear() === currentYear)
     })
     
-    // Transazioni di tutti gli altri periodi
-    const otherTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.date)
+    const otherTransactions = transactions.filter(transaction => {
+      const transactionDate = new Date(transaction.date)
       return !(transactionDate.getMonth() === currentMonth && 
                transactionDate.getFullYear() === currentYear)
     })
@@ -266,193 +454,20 @@ export default function ExpensesPage() {
     setSelectAll(!selectAll)
   }
 
-  // Reset selezione quando cambia la pagina
+  // Aggiorna selectAll quando cambiano le selezioni
   useEffect(() => {
-    setSelectedTransactions([])
-    setSelectAll(false)
-  }, [currentPage])
-
-  // Form handlers
-  const resetTransactionForm = () => {
-    setTransactionForm({
-      description: '',
-      amount: '',
-      date: new Date().toISOString().split('T')[0],
-      accountId: accounts.find(acc => acc.isDefault)?.id.toString() || '',
-      categoryId: ''
-    })
-    setEditingTransaction(null)
-    setShowTransactionForm(false)
-    setError('')
-  }
-
-  const resetCategoryForm = () => {
-    setCategoryForm({ name: '' })
-    setEditingCategory(null)
-    setShowCategoryForm(false)
-  }
-
-  const handleTransactionSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (isSubmitting) return
-
-    setIsSubmitting(true)
-    setError('')
-
-    try {
-      const url = editingTransaction 
-        ? `/api/transactions/${editingTransaction.id}`
-        : '/api/transactions'
-      
-      const method = editingTransaction ? 'PUT' : 'POST'
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...transactionForm,
-          type: 'expense',
-          amount: parseFloat(transactionForm.amount)
-        })
-      })
-
-      if (response.ok) {
-        await fetchData()
-        resetTransactionForm()
-      } else {
-        const errorData = await response.json()
-        setError(errorData.error || 'Errore nella gestione della transazione')
-      }
-    } catch (error) {
-      setError('Errore di connessione')
-    } finally {
-      setIsSubmitting(false)
+    if (paginatedTransactions.length > 0) {
+      const allSelected = paginatedTransactions.every(t => selectedTransactions.includes(t.id))
+      setSelectAll(allSelected)
     }
-  }
+  }, [selectedTransactions, paginatedTransactions])
 
-  const handleCategorySubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (isSubmitting) return
-
-    setIsSubmitting(true)
-    try {
-      const url = editingCategory 
-        ? `/api/categories/${editingCategory.id}`
-        : '/api/categories'
-      
-      const method = editingCategory ? 'PUT' : 'POST'
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...categoryForm,
-          type: 'expense'
-        })
-      })
-
-      if (response.ok) {
-        await fetchData()
-        resetCategoryForm()
-      } else {
-        const errorData = await response.json()
-        setError(errorData.error || 'Errore nella gestione della categoria')
-      }
-    } catch (error) {
-      setError('Errore di connessione')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleEditTransaction = (transaction: Transaction) => {
-    setEditingTransaction(transaction)
-    setTransactionForm({
-      description: transaction.description || '',
-      amount: transaction.amount.toString(),
-      date: transaction.date.split('T')[0],
-      accountId: transaction.account.id.toString(),
-      categoryId: transaction.category.id.toString()
-    })
-    setShowTransactionForm(true)
-  }
-
-  const handleDeleteTransaction = async (transaction: Transaction) => {
-    if (!confirm(`Sei sicuro di voler cancellare l'uscita "${transaction.description || 'senza descrizione'}"?`)) return
-
-    try {
-      const response = await fetch(`/api/transactions/${transaction.id}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
-        await fetchData()
-      } else {
-        const errorData = await response.json()
-        setError(errorData.error || 'Errore nella cancellazione')
-      }
-    } catch (error) {
-      setError('Errore di connessione')
-    }
-  }
-
-  const handleDeleteSelected = async () => {
-    if (selectedTransactions.length === 0) return
-    if (!confirm(`Sei sicuro di voler cancellare ${selectedTransactions.length} uscite selezionate?`)) return
-
-    try {
-      const deletePromises = selectedTransactions.map(id =>
-        fetch(`/api/transactions/${id}`, { method: 'DELETE' })
-      )
-
-      await Promise.all(deletePromises)
-      await fetchData()
-      setSelectedTransactions([])
-      setSelectAll(false)
-    } catch (error) {
-      setError('Errore nella cancellazione multipla')
-    }
-  }
-
-  const handleEditCategory = (category: Category) => {
-    setEditingCategory(category)
-    setCategoryForm({ name: category.name })
-    setShowCategoryForm(true)
-  }
-
-  const handleDeleteCategory = async (category: Category) => {
-    if (!confirm(`Sei sicuro di voler cancellare la categoria "${category.name}"?`)) return
-
-    try {
-      const response = await fetch(`/api/categories/${category.id}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
-        await fetchData()
-      } else {
-        const errorData = await response.json()
-        setError(errorData.error || 'Errore nella cancellazione della categoria')
-      }
-    } catch (error) {
-      setError('Errore di connessione')
-    }
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('it-IT')
-  }
-
-  const getCurrentMonthName = () => {
-    return new Date().toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
-  }
-
-  // Componente grafico CSS semplice
+  // Componente per grafico semplice CSS
   const SimpleChart = ({ data, title }: { data: any[], title: string }) => {
     if (data.length === 0) {
       return (
-        <div className="h-64 flex items-center justify-center text-adaptive-600">
-          Nessuna transazione per {title.toLowerCase()}
+        <div className="text-center text-adaptive-600 py-8">
+          Nessun dato per {title.toLowerCase()}
         </div>
       )
     }
@@ -569,16 +584,22 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      {/* Layout a tre colonne */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Gestione Categorie */}
-        <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
-          <div className="p-6 border-b border-adaptive">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-adaptive-900 flex items-center gap-2">
-                <TagIcon className="w-6 h-6" />
-                Categorie
-              </h2>
+      {/* Sezione Unificata - Categorie, Filtri e Uscite */}
+      <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
+        <div className="p-6 border-b border-adaptive">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-adaptive-900 flex items-center gap-2">
+              <TagIcon className="w-6 h-6" />
+              Gestione Completa Uscite
+            </h2>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-8">
+          {/* Sezione Categorie */}
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-adaptive-900">Gestione Categorie</h3>
               <button
                 onClick={() => setShowCategoryForm(true)}
                 className="btn-primary px-3 py-1 rounded-lg text-sm"
@@ -586,18 +607,16 @@ export default function ExpensesPage() {
                 + Categoria
               </button>
             </div>
-          </div>
 
-          <div className="p-6 space-y-4">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
                 {error}
               </div>
             )}
 
             {/* Form Categoria */}
             {showCategoryForm && (
-              <div className="border-adaptive rounded-lg p-4 bg-gray-50">
+              <div className="border-adaptive rounded-lg p-4 bg-gray-50 mb-4">
                 <form onSubmit={handleCategorySubmit} className="space-y-4">
                   <input
                     type="text"
@@ -629,11 +648,11 @@ export default function ExpensesPage() {
 
             {/* Lista Categorie */}
             {categories.length === 0 ? (
-              <p className="text-adaptive-600 text-center py-8">
+              <p className="text-adaptive-600 text-center py-4">
                 Nessuna categoria per uscite. Creane una per iniziare!
               </p>
             ) : (
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                 {categories.map((category) => (
                   <div key={category.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <span className="font-medium text-adaptive-900">{category.name}</span>
@@ -658,16 +677,17 @@ export default function ExpensesPage() {
               </div>
             )}
           </div>
-        </div>
 
-        {/* Filtri e Ricerca */}
-        <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
-          <div className="p-6 border-b border-adaptive">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-adaptive-900 flex items-center gap-2">
-                <FunnelIcon className="w-6 h-6" />
+          {/* Divisore visivo */}
+          <div className="border-t border-adaptive"></div>
+
+          {/* Sezione Filtri e Ricerca */}
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
+                <FunnelIcon className="w-5 h-5" />
                 Filtri e Ricerca
-              </h2>
+              </h3>
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className="text-blue-600 hover:text-blue-800 text-sm"
@@ -675,11 +695,9 @@ export default function ExpensesPage() {
                 {showFilters ? 'Nascondi' : 'Mostra'} Filtri
               </button>
             </div>
-          </div>
 
-          <div className="p-6 space-y-4">
-            {/* Barra di ricerca */}
-            <div className="relative">
+            {/* Barra di ricerca sempre visibile */}
+            <div className="relative mb-4">
               <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-adaptive-500" />
               <input
                 type="text"
@@ -692,7 +710,7 @@ export default function ExpensesPage() {
 
             {/* Filtri avanzati */}
             {showFilters && (
-              <div className="space-y-4 pt-4 border-t border-adaptive">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-adaptive-700 mb-1">
                     Categoria
@@ -723,86 +741,85 @@ export default function ExpensesPage() {
                     <option value="">Tutti i conti</option>
                     {accounts.map((account) => (
                       <option key={account.id} value={account.id}>
-                        {account.name} {account.isDefault && '⭐'}
+                        {account.name}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                      Da
-                    </label>
-                    <input
-                      type="date"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
-                      className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                      A
-                    </label>
-                    <input
-                      type="date"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
-                      className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                    Data Da
+                  </label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
+                  />
                 </div>
 
-                <button
-                  onClick={() => {
-                    setSearchTerm('')
-                    setSelectedCategory('')
-                    setSelectedAccount('')
-                    setDateFrom('')
-                    setDateTo('')
-                  }}
-                  className="w-full btn-secondary py-2 rounded-lg"
-                >
-                  Azzera Filtri
-                </button>
+                <div>
+                  <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                    Data A
+                  </label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
+                  />
+                </div>
               </div>
             )}
 
-            {/* Riepilogo risultati */}
-            <div className="pt-4 border-t border-adaptive">
-              <p className="text-sm text-adaptive-600">
-                {filteredTransactions.length} uscite trovate
-                {searchTerm && (
-                  <span className="ml-1 text-blue-600">
-                    per "{searchTerm}"
+            {/* Risultati ricerca */}
+            {(searchTerm || selectedCategory || selectedAccount || dateFrom || dateTo) && (
+              <div className="mt-4 text-sm text-adaptive-600">
+                Mostrate {filteredTransactions.length} di {transactions.length} uscite
+                {(searchTerm || selectedCategory || selectedAccount || dateFrom || dateTo) && (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('')
+                      setSelectedCategory('')
+                      setSelectedAccount('')
+                      setDateFrom('')
+                      setDateTo('')
+                    }}
+                    className="ml-2 text-blue-600 hover:text-blue-800"
+                  >
+                    Cancella filtri
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Divisore visivo */}
+          <div className="border-t border-adaptive"></div>
+
+          {/* Sezione Lista Uscite */}
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
+                <CurrencyEuroIcon className="w-5 h-5" />
+                Lista Uscite
+                {selectedTransactions.length > 0 && (
+                  <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                    {selectedTransactions.length} selezionate
                   </span>
                 )}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Lista Transazioni */}
-        <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
-          <div className="p-6 border-b border-adaptive">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-adaptive-900 flex items-center gap-2">
-                <CurrencyEuroIcon className="w-6 h-6" />
-                Uscite
-              </h2>
+              </h3>
               {selectedTransactions.length > 0 && (
                 <button
-                  onClick={handleDeleteSelected}
+                  onClick={handleBatchDelete}
                   className="text-red-600 hover:text-red-800 text-sm"
                 >
-                  Cancella Selezionate ({selectedTransactions.length})
+                  Cancella Selezionate
                 </button>
               )}
             </div>
-          </div>
 
-          <div className="p-6">
             {filteredTransactions.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-adaptive-600 mb-4">
@@ -845,41 +862,51 @@ export default function ExpensesPage() {
                 {/* Lista transazioni */}
                 <div className="space-y-3">
                   {paginatedTransactions.map((transaction) => (
-                    <div key={transaction.id} className="border-adaptive rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-start gap-3">
+                    <div 
+                      key={transaction.id} 
+                      className={`border-adaptive rounded-lg p-4 hover:bg-gray-50 transition-colors ${
+                        selectedTransactions.includes(transaction.id) ? 'bg-blue-50 border-blue-200' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
                         <input
                           type="checkbox"
                           checked={selectedTransactions.includes(transaction.id)}
                           onChange={() => handleSelectTransaction(transaction.id)}
-                          className="mt-1 rounded border-adaptive"
+                          className="rounded border-adaptive"
                         />
-                        <div className="flex-1">
+                        
+                        <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-medium text-adaptive-900">
-                              {transaction.description || 'Uscita senza descrizione'}
-                            </h3>
-                            <span className="text-xl font-bold text-red-600">
-                              -€ {transaction.amount.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="text-sm text-adaptive-600 space-y-1">
-                            <p>📂 {transaction.category.name}</p>
-                            <p>🏦 {transaction.account.name}</p>
-                            <p>📅 {formatDate(transaction.date)}</p>
+                            <div className="flex-1">
+                              <p className="font-medium text-adaptive-900">
+                                {transaction.description || 'Nessuna descrizione'}
+                              </p>
+                              <p className="text-sm text-adaptive-600">
+                                {transaction.category.name} • {transaction.account.name}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-red-600">€ {transaction.amount.toFixed(2)}</p>
+                              <p className="text-xs text-adaptive-500">
+                                {new Date(transaction.date).toLocaleDateString('it-IT')}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        
+                        <div className="flex gap-1">
                           <button
                             onClick={() => handleEditTransaction(transaction)}
-                            className="text-blue-600 hover:text-blue-800"
-                            title="Modifica"
+                            className="text-blue-600 hover:text-blue-800 p-1"
+                            title="Modifica uscita"
                           >
                             <PencilIcon className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteTransaction(transaction)}
-                            className="text-red-600 hover:text-red-800"
-                            title="Cancella"
+                            className="text-red-600 hover:text-red-800 p-1"
+                            title="Cancella uscita"
                           >
                             <TrashIcon className="w-4 h-4" />
                           </button>
@@ -891,10 +918,10 @@ export default function ExpensesPage() {
 
                 {/* Paginazione */}
                 {totalPages > 1 && (
-                  <div className="flex justify-between items-center mt-6 p-4 bg-gray-50 rounded-lg">
-                    <div className="text-sm text-adaptive-600">
-                      Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredTransactions.length)} di {filteredTransactions.length} transazioni
-                    </div>
+                  <div className="flex justify-between items-center mt-6 pt-4 border-t border-adaptive">
+                    <p className="text-sm text-adaptive-600">
+                      Mostrate {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredTransactions.length)} di {filteredTransactions.length} uscite
+                    </p>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -945,7 +972,7 @@ export default function ExpensesPage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="Es. Spesa supermercato"
+                  placeholder="Es. Supermercato, Bollette, Carburante..."
                   value={transactionForm.description}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
@@ -954,11 +981,12 @@ export default function ExpensesPage() {
 
               <div>
                 <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Importo *
+                  Importo (€) *
                 </label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   placeholder="0.00"
                   value={transactionForm.amount}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, amount: e.target.value }))}
@@ -993,7 +1021,7 @@ export default function ExpensesPage() {
                   <option value="">Seleziona conto</option>
                   {accounts.map((account) => (
                     <option key={account.id} value={account.id}>
-                      {account.name} {account.isDefault && '⭐'}
+                      {account.name} {account.isDefault && '(Predefinito)'}
                     </option>
                   ))}
                 </select>
@@ -1018,21 +1046,20 @@ export default function ExpensesPage() {
                 </select>
               </div>
 
-              <div className="flex gap-2 pt-4">
-                <button
-                  type="button"
-                  onClick={resetTransactionForm}
-                  className="btn-secondary flex-1 py-2 rounded-lg"
-                  disabled={isSubmitting}
-                >
-                  Annulla
-                </button>
+              <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="btn-primary flex-1 py-2 rounded-lg disabled:opacity-50"
+                  className="flex-1 btn-primary px-4 py-2 rounded-lg disabled:opacity-50"
                 >
                   {isSubmitting ? 'Salvando...' : editingTransaction ? 'Aggiorna' : 'Salva'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetTransactionForm}
+                  className="flex-1 btn-secondary px-4 py-2 rounded-lg"
+                >
+                  Annulla
                 </button>
               </div>
             </form>
