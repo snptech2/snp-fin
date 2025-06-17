@@ -19,6 +19,7 @@ interface Category {
   id: number
   name: string
   type: 'income' | 'expense'
+  color?: string // 🎨 Campo colore aggiunto
 }
 
 interface Transaction {
@@ -35,10 +36,9 @@ interface Transaction {
     id: number
     name: string
     type: string
+    color?: string // 🎨 Campo colore aggiunto
   }
 }
-
-const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#F97316', '#06B6D4', '#84CC16']
 
 export default function IncomePage() {
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -60,7 +60,17 @@ export default function IncomePage() {
   // Stati per gestione categorie
   const [showCategoryForm, setShowCategoryForm] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
-  const [categoryForm, setCategoryForm] = useState({ name: '' })
+  const [categoryForm, setCategoryForm] = useState({ 
+    name: '', 
+    color: '#3B82F6' // 🎨 Colore default
+  })
+  
+  // 🎨 Colori disponibili per le categorie
+  const [availableColors] = useState([
+    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+    '#06B6D4', '#F97316', '#84CC16', '#EC4899', '#6366F1',
+    '#F43F5E', '#14B8A6'
+  ])
   
   // Stati per filtri e ricerca
   const [searchTerm, setSearchTerm] = useState('')
@@ -78,20 +88,11 @@ export default function IncomePage() {
   const [selectedTransactions, setSelectedTransactions] = useState<number[]>([])
   const [selectAll, setSelectAll] = useState(false)
   
-  // Stati per errori e caricamento
+  // Stati per gestione errori e caricamento
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Funzione per ottenere il nome del mese corrente
-  const getCurrentMonthName = () => {
-    const months = [
-      'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-      'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
-    ]
-    return months[new Date().getMonth()]
-  }
-
-  // Caricamento dati iniziale
+  // Caricamento iniziale
   useEffect(() => {
     fetchData()
   }, [])
@@ -105,56 +106,33 @@ export default function IncomePage() {
         fetch('/api/transactions?type=income')
       ])
 
-      if (accountsRes.ok && categoriesRes.ok && transactionsRes.ok) {
-        const [accountsData, categoriesData, transactionsData] = await Promise.all([
-          accountsRes.json(),
-          categoriesRes.json(),
-          transactionsRes.json()
-        ])
-
-        setAccounts(accountsData)
-        setCategories(categoriesData)
-        setTransactions(transactionsData)
-        
-        // Imposta conto predefinito se non selezionato
-        if (accountsData.length > 0 && !transactionForm.accountId) {
-          const defaultAccount = accountsData.find((acc: Account) => acc.isDefault)
-          if (defaultAccount) {
-            setTransactionForm(prev => ({
-              ...prev,
-              accountId: defaultAccount.id.toString()
-            }))
-          }
-        }
-      }
+      if (accountsRes.ok) setAccounts(await accountsRes.json())
+      if (categoriesRes.ok) setCategories(await categoriesRes.json())
+      if (transactionsRes.ok) setTransactions(await transactionsRes.json())
     } catch (error) {
-      console.error('Errore nel caricamento dati:', error)
       setError('Errore nel caricamento dei dati')
     } finally {
       setLoading(false)
     }
   }
 
-  // Reset form categoria
-  const resetCategoryForm = () => {
-    setCategoryForm({ name: '' })
-    setShowCategoryForm(false)
-    setEditingCategory(null)
-    setError('')
-  }
-
-  // Reset form transazione
+  // Funzioni di reset form
   const resetTransactionForm = () => {
     setTransactionForm({
       description: '',
       amount: '',
       date: new Date().toISOString().split('T')[0],
-      accountId: transactionForm.accountId, // Mantieni il conto selezionato
+      accountId: '',
       categoryId: ''
     })
-    setShowTransactionForm(false)
     setEditingTransaction(null)
-    setError('')
+    setShowTransactionForm(false)
+  }
+
+  const resetCategoryForm = () => {
+    setCategoryForm({ name: '', color: '#3B82F6' })
+    setEditingCategory(null)
+    setShowCategoryForm(false)
   }
 
   // Gestione submit categoria
@@ -175,7 +153,8 @@ export default function IncomePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: categoryForm.name.trim(),
-          type: 'income'
+          type: 'income',
+          color: categoryForm.color // 🎨 Includi il colore!
         })
       })
 
@@ -196,7 +175,10 @@ export default function IncomePage() {
   // Gestione modifica categoria
   const handleEditCategory = (category: Category) => {
     setEditingCategory(category)
-    setCategoryForm({ name: category.name })
+    setCategoryForm({ 
+      name: category.name,
+      color: category.color || '#3B82F6' // 🎨 Usa colore categoria
+    })
     setShowCategoryForm(true)
   }
 
@@ -352,32 +334,39 @@ export default function IncomePage() {
       return acc
     }, {} as Record<string, number>)
     
-    // Dati per grafici CSS
-    const thisMonthChartData = Object.entries(thisMonthByCategory).map(([name, value], index) => ({
-      name,
-      value,
-      percentage: thisMonthTotal > 0 ? (value / thisMonthTotal) * 100 : 0,
-      color: COLORS[index % COLORS.length]
-    }))
+    // 🎨 Dati per grafici CSS - MESE CORRENTE (usa colori categorie!)
+    const thisMonthChartData = Object.entries(thisMonthByCategory).map(([categoryName, value]) => {
+      const categoryData = thisMonthTransactions.find(t => t.category.name === categoryName)?.category
+      
+      return {
+        name: categoryName,
+        value,
+        percentage: thisMonthTotal > 0 ? (value / thisMonthTotal) * 100 : 0,
+        color: categoryData?.color || '#3B82F6' // 🎨 Usa il colore della categoria!
+      }
+    })
     
-    const otherChartData = Object.entries(otherByCategory).map(([name, value], index) => ({
-      name,
-      value,
-      percentage: otherTotal > 0 ? (value / otherTotal) * 100 : 0,
-      color: COLORS[index % COLORS.length]
-    }))
+    // 🎨 Dati per grafici CSS - ALTRI PERIODI (usa colori categorie!)
+    const otherChartData = Object.entries(otherByCategory).map(([categoryName, value]) => {
+      const categoryData = otherTransactions.find(t => t.category.name === categoryName)?.category
+      
+      return {
+        name: categoryName,
+        value,
+        percentage: otherTotal > 0 ? (value / otherTotal) * 100 : 0,
+        color: categoryData?.color || '#3B82F6' // 🎨 Usa il colore della categoria!
+      }
+    })
     
     return {
       thisMonth: {
         total: thisMonthTotal,
         count: thisMonthTransactions.length,
-        byCategory: thisMonthByCategory,
         chartData: thisMonthChartData
       },
       other: {
         total: otherTotal,
         count: otherTransactions.length,
-        byCategory: otherByCategory,
         chartData: otherChartData
       },
       grandTotal,
@@ -385,42 +374,29 @@ export default function IncomePage() {
     }
   }, [transactions])
 
-  // Transazioni filtrate
+  // Filtri e ricerca
   const filteredTransactions = useMemo(() => {
     return transactions.filter(transaction => {
-      // Filtro ricerca
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase()
-        const matchesDescription = transaction.description?.toLowerCase().includes(searchLower)
-        const matchesCategory = transaction.category.name.toLowerCase().includes(searchLower)
-        const matchesAccount = transaction.account.name.toLowerCase().includes(searchLower)
-        const matchesAmount = transaction.amount.toString().includes(searchTerm)
-        
-        if (!matchesDescription && !matchesCategory && !matchesAccount && !matchesAmount) {
-          return false
-        }
-      }
+      const matchesSearch = searchTerm === '' || 
+        transaction.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        transaction.category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        transaction.account.name.toLowerCase().includes(searchTerm.toLowerCase())
       
-      // Filtro categoria
-      if (selectedCategory && transaction.category.id.toString() !== selectedCategory) {
-        return false
-      }
+      const matchesCategory = selectedCategory === '' || 
+        transaction.category.id.toString() === selectedCategory
       
-      // Filtro conto
-      if (selectedAccount && transaction.account.id.toString() !== selectedAccount) {
-        return false
-      }
+      const matchesAccount = selectedAccount === '' || 
+        transaction.account.id.toString() === selectedAccount
       
-      // Filtro data
-      if (dateFrom && new Date(transaction.date) < new Date(dateFrom)) {
-        return false
-      }
+      const transactionDate = new Date(transaction.date)
+      const matchesDateFrom = dateFrom === '' || 
+        transactionDate >= new Date(dateFrom)
       
-      if (dateTo && new Date(transaction.date) > new Date(dateTo)) {
-        return false
-      }
+      const matchesDateTo = dateTo === '' || 
+        transactionDate <= new Date(dateTo + 'T23:59:59')
       
-      return true
+      return matchesSearch && matchesCategory && matchesAccount && 
+             matchesDateFrom && matchesDateTo
     })
   }, [transactions, searchTerm, selectedCategory, selectedAccount, dateFrom, dateTo])
 
@@ -431,14 +407,9 @@ export default function IncomePage() {
     currentPage * itemsPerPage
   )
 
-  // Reset paginazione quando cambiano i filtri
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchTerm, selectedCategory, selectedAccount, dateFrom, dateTo])
-
-  // Gestione selezione multipla
-  const handleSelectTransaction = (transactionId: number) => {
-    setSelectedTransactions(prev =>
+  // Gestione selezione
+  const handleTransactionSelect = (transactionId: number) => {
+    setSelectedTransactions(prev => 
       prev.includes(transactionId)
         ? prev.filter(id => id !== transactionId)
         : [...prev, transactionId]
@@ -477,7 +448,14 @@ export default function IncomePage() {
         {data.map((item, index) => (
           <div key={index} className="space-y-2">
             <div className="flex justify-between items-center text-sm">
-              <span className="font-medium text-adaptive-900">{item.name}</span>
+              <div className="flex items-center gap-2">
+                {/* 🎨 Cerchio colorato per la categoria nel grafico */}
+                <div 
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="font-medium text-adaptive-900">{item.name}</span>
+              </div>
               <span className="text-adaptive-700">€{item.value.toFixed(2)} ({item.percentage.toFixed(1)}%)</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3">
@@ -485,7 +463,7 @@ export default function IncomePage() {
                 className="h-3 rounded-full"
                 style={{ 
                   width: `${item.percentage}%`,
-                  backgroundColor: item.color
+                  backgroundColor: item.color // 🎨 Usa il colore della categoria!
                 }}
               />
             </div>
@@ -493,6 +471,15 @@ export default function IncomePage() {
         ))}
       </div>
     )
+  }
+
+  // Helper per nome mese
+  const getCurrentMonthName = () => {
+    const months = [
+      'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+      'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+    ]
+    return months[new Date().getMonth()]
   }
 
   if (loading) {
@@ -584,462 +571,375 @@ export default function IncomePage() {
         </div>
       </div>
 
-      {/* Sezione Unificata - Categorie, Filtri e Entrate */}
+      {/* Gestione Categorie */}
       <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
         <div className="p-6 border-b border-adaptive">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-adaptive-900 flex items-center gap-2">
-              <TagIcon className="w-6 h-6" />
-              Gestione Completa Entrate
-            </h2>
+            <h3 className="text-lg font-semibold text-adaptive-900 flex items-center gap-2">
+              <TagIcon className="w-5 h-5" />
+              Categorie Entrate
+            </h3>
+            <button
+              onClick={() => setShowCategoryForm(true)}
+              className="btn-primary px-3 py-1 text-sm rounded-lg flex items-center gap-1"
+            >
+              <PlusIcon className="w-4 h-4" />
+              Nuova Categoria
+            </button>
           </div>
         </div>
-
-        <div className="p-6 space-y-8">
-          {/* Sezione Categorie */}
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-adaptive-900">Gestione Categorie</h3>
-              <button
-                onClick={() => setShowCategoryForm(true)}
-                className="btn-primary px-3 py-1 rounded-lg text-sm"
-              >
-                + Categoria
-              </button>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-                {error}
-              </div>
-            )}
-
-            {/* Form Categoria */}
-            {showCategoryForm && (
-              <div className="border-adaptive rounded-lg p-4 bg-gray-50 mb-4">
-                <form onSubmit={handleCategorySubmit} className="space-y-4">
-                  <input
-                    type="text"
-                    placeholder="Nome categoria"
-                    value={categoryForm.name}
-                    onChange={(e) => setCategoryForm({ name: e.target.value })}
-                    className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
-                    required
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="btn-primary px-4 py-2 rounded-lg disabled:opacity-50"
-                    >
-                      {isSubmitting ? 'Salvando...' : editingCategory ? 'Aggiorna' : 'Crea'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={resetCategoryForm}
-                      className="btn-secondary px-4 py-2 rounded-lg"
-                    >
-                      Annulla
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {/* Lista Categorie */}
-            {categories.length === 0 ? (
-              <p className="text-adaptive-600 text-center py-4">
-                Nessuna categoria per entrate. Creane una per iniziare!
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                {categories.map((category) => (
-                  <div key={category.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="font-medium text-adaptive-900">{category.name}</span>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleEditCategory(category)}
-                        className="text-blue-600 hover:text-blue-800 p-1"
-                        title="Modifica categoria"
-                      >
-                        <PencilIcon className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCategory(category)}
-                        className="text-red-600 hover:text-red-800 p-1"
-                        title="Cancella categoria"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Divisore visivo */}
-          <div className="border-t border-adaptive"></div>
-
-          {/* Sezione Filtri e Ricerca */}
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
-                <FunnelIcon className="w-5 h-5" />
-                Filtri e Ricerca
-              </h3>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="text-blue-600 hover:text-blue-800 text-sm"
-              >
-                {showFilters ? 'Nascondi' : 'Mostra'} Filtri
-              </button>
-            </div>
-
-            {/* Barra di ricerca sempre visibile */}
-            <div className="relative mb-4">
-              <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-adaptive-500" />
-              <input
-                type="text"
-                placeholder="Cerca per descrizione, categoria, conto o importo..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border-adaptive rounded-lg focus:outline-none"
-              />
-            </div>
-
-            {/* Filtri avanzati */}
-            {showFilters && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                    Categoria
-                  </label>
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
-                  >
-                    <option value="">Tutte le categorie</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                    Conto
-                  </label>
-                  <select
-                    value={selectedAccount}
-                    onChange={(e) => setSelectedAccount(e.target.value)}
-                    className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
-                  >
-                    <option value="">Tutti i conti</option>
-                    {accounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                    Data Da
-                  </label>
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                    Data A
-                  </label>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Risultati ricerca */}
-            {(searchTerm || selectedCategory || selectedAccount || dateFrom || dateTo) && (
-              <div className="mt-4 text-sm text-adaptive-600">
-                Mostrate {filteredTransactions.length} di {transactions.length} entrate
-                {(searchTerm || selectedCategory || selectedAccount || dateFrom || dateTo) && (
-                  <button
-                    onClick={() => {
-                      setSearchTerm('')
-                      setSelectedCategory('')
-                      setSelectedAccount('')
-                      setDateFrom('')
-                      setDateTo('')
-                    }}
-                    className="ml-2 text-blue-600 hover:text-blue-800"
-                  >
-                    Cancella filtri
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Divisore visivo */}
-          <div className="border-t border-adaptive"></div>
-
-          {/* Sezione Lista Entrate */}
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
-                <CurrencyEuroIcon className="w-5 h-5" />
-                Lista Entrate
-                {selectedTransactions.length > 0 && (
-                  <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                    {selectedTransactions.length} selezionate
-                  </span>
-                )}
-              </h3>
-              {selectedTransactions.length > 0 && (
-                <button
-                  onClick={handleBatchDelete}
-                  className="text-red-600 hover:text-red-800 text-sm"
-                >
-                  Cancella Selezionate
-                </button>
-              )}
-            </div>
-
-            {filteredTransactions.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-adaptive-600 mb-4">
-                  {searchTerm || selectedCategory || selectedAccount || dateFrom || dateTo
-                    ? 'Nessuna entrata corrisponde ai filtri selezionati'
-                    : 'Nessuna entrata registrata'
-                  }
-                </p>
-                <button
-                  onClick={() => setShowTransactionForm(true)}
-                  className="btn-primary px-4 py-2 rounded-lg"
-                >
-                  Registra Prima Entrata
-                </button>
-              </div>
-            ) : (
-              <>
-                {/* Selezione multipla header */}
-                {paginatedTransactions.length > 0 && (
-                  <div className="flex items-center justify-between mb-4 p-3 bg-gray-50 rounded-lg">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectAll}
-                        onChange={handleSelectAll}
-                        className="rounded border-adaptive"
-                      />
-                      <span className="text-sm text-adaptive-600">
-                        Seleziona tutte ({paginatedTransactions.length})
-                      </span>
-                    </label>
-                    {selectedTransactions.length > 0 && (
-                      <span className="text-sm text-blue-600 font-medium">
-                        {selectedTransactions.length} selezionate
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Lista transazioni */}
-                <div className="space-y-3">
-                  {paginatedTransactions.map((transaction) => (
+        <div className="p-6">
+          {categories.length === 0 ? (
+            <p className="text-adaptive-600 text-center py-4">
+              Nessuna categoria per entrate. Creane una per iniziare!
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              {categories.map((category) => (
+                <div key={category.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    {/* 🎨 Cerchio colorato per la categoria */}
                     <div 
-                      key={transaction.id} 
-                      className={`border-adaptive rounded-lg p-4 hover:bg-gray-50 transition-colors ${
-                        selectedTransactions.includes(transaction.id) ? 'bg-blue-50 border-blue-200' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedTransactions.includes(transaction.id)}
-                          onChange={() => handleSelectTransaction(transaction.id)}
-                          className="rounded border-adaptive"
-                        />
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex-1">
-                              <p className="font-medium text-adaptive-900">
-                                {transaction.description || 'Nessuna descrizione'}
-                              </p>
-                              <p className="text-sm text-adaptive-600">
-                                {transaction.category.name} • {transaction.account.name}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-bold text-green-600">€ {transaction.amount.toFixed(2)}</p>
-                              <p className="text-xs text-adaptive-500">
-                                {new Date(transaction.date).toLocaleDateString('it-IT')}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => handleEditTransaction(transaction)}
-                            className="text-blue-600 hover:text-blue-800 p-1"
-                            title="Modifica entrata"
-                          >
-                            <PencilIcon className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTransaction(transaction)}
-                            className="text-red-600 hover:text-red-800 p-1"
-                            title="Cancella entrata"
-                          >
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Paginazione */}
-                {totalPages > 1 && (
-                  <div className="flex justify-between items-center mt-6 pt-4 border-t border-adaptive">
-                    <p className="text-sm text-adaptive-600">
-                      Mostrate {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredTransactions.length)} di {filteredTransactions.length} entrate
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1}
-                        className="flex items-center gap-1 px-3 py-2 border-adaptive rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <ChevronLeftIcon className="w-4 h-4" />
-                        Precedente
-                      </button>
-                      <span className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg">
-                        {currentPage} di {totalPages}
-                      </span>
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                        disabled={currentPage === totalPages}
-                        className="flex items-center gap-1 px-3 py-2 border-adaptive rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Successivo
-                        <ChevronRightIcon className="w-4 h-4" />
-                      </button>
-                    </div>
+                      className="w-4 h-4 rounded-full border-2 border-gray-300"
+                      style={{ backgroundColor: category.color || '#3B82F6' }}
+                      title={`Colore: ${category.color || '#3B82F6'}`}
+                    />
+                    <span className="font-medium text-adaptive-900">{category.name}</span>
                   </div>
-                )}
-              </>
-            )}
-          </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => handleEditCategory(category)}
+                      className="text-blue-600 hover:text-blue-800 p-1"
+                      title="Modifica categoria"
+                    >
+                      <PencilIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCategory(category)}
+                      className="text-red-600 hover:text-red-800 p-1"
+                      title="Cancella categoria"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Modal Form Transazione */}
-      {showTransactionForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="card-adaptive rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
-              {editingTransaction ? 'Modifica Entrata' : 'Nuova Entrata'}
+      {/* Sezione Filtri e Ricerca */}
+      <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
+        <div className="p-6 border-b border-adaptive">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
+              <FunnelIcon className="w-5 h-5" />
+              Filtri e Ricerca
             </h3>
-            
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-                {error}
-              </div>
-            )}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="text-blue-600 hover:text-blue-800 text-sm"
+            >
+              {showFilters ? 'Nascondi Filtri' : 'Mostra Filtri'}
+            </button>
+          </div>
+        </div>
+        
+        <div className="p-6">
+          {/* Barra di ricerca sempre visibile */}
+          <div className="mb-4">
+            <div className="relative">
+              <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-adaptive-500" />
+              <input
+                type="text"
+                placeholder="Cerca per descrizione, categoria o conto..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border-adaptive rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
 
-            <form onSubmit={handleTransactionSubmit} className="space-y-4">
+          {/* Filtri avanzati collassabili */}
+          {showFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-adaptive">
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Descrizione
-                </label>
-                <input
-                  type="text"
-                  placeholder="Es. Stipendio, Freelance..."
-                  value={transactionForm.description}
-                  onChange={(e) => setTransactionForm(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Importo (€) *
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={transactionForm.amount}
-                  onChange={(e) => setTransactionForm(prev => ({ ...prev, amount: e.target.value }))}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Data *
-                </label>
-                <input
-                  type="date"
-                  value={transactionForm.date}
-                  onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Conto *
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Categoria</label>
                 <select
-                  value={transactionForm.accountId}
-                  onChange={(e) => setTransactionForm(prev => ({ ...prev, accountId: e.target.value }))}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
-                  required
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Seleziona conto</option>
-                  {accounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name} {account.isDefault && '(Predefinito)'}
+                  <option value="">Tutte le categorie</option>
+                  {categories.map(category => (
+                    <option key={category.id} value={category.id.toString()}>
+                      {category.name}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Conto</label>
+                <select
+                  value={selectedAccount}
+                  onChange={(e) => setSelectedAccount(e.target.value)}
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Tutti i conti</option>
+                  {accounts.map(account => (
+                    <option key={account.id} value={account.id.toString()}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Data Da</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Data A</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Lista Transazioni */}
+      <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
+        <div className="p-6 border-b border-adaptive">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold text-adaptive-900 flex items-center gap-2">
+              <CurrencyEuroIcon className="w-5 h-5" />
+              Transazioni ({filteredTransactions.length})
+            </h3>
+            {selectedTransactions.length > 0 && (
+              <button
+                onClick={handleBatchDelete}
+                className="bg-red-600 text-white px-3 py-1 text-sm rounded-lg hover:bg-red-700"
+              >
+                Cancella Selezionate ({selectedTransactions.length})
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="p-6">
+          {paginatedTransactions.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-adaptive-600">
+                {filteredTransactions.length === 0 
+                  ? 'Nessuna entrata trovata'
+                  : 'Nessuna transazione in questa pagina'
+                }
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Header con selezione multipla */}
+              <div className="flex items-center gap-3 pb-2 border-b border-adaptive">
+                <input
+                  type="checkbox"
+                  checked={selectAll}
+                  onChange={handleSelectAll}
+                  className="rounded"
+                />
+                <span className="text-sm text-adaptive-600">
+                  Seleziona tutto ({paginatedTransactions.length})
+                </span>
+              </div>
+
+              {/* Lista transazioni */}
+              {paginatedTransactions.map(transaction => (
+                <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedTransactions.includes(transaction.id)}
+                      onChange={() => handleTransactionSelect(transaction.id)}
+                      className="rounded"
+                    />
+                    <div className="flex items-center gap-3">
+                      {/* 🎨 Cerchio colorato per la categoria */}
+                      <div 
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: transaction.category.color || '#3B82F6' }}
+                        title={transaction.category.name}
+                      />
+                      <div>
+                        <div className="font-medium text-adaptive-900">
+                          {transaction.description || 'Entrata senza descrizione'}
+                        </div>
+                        <div className="text-sm text-adaptive-600">
+                          {transaction.category.name} • {transaction.account.name}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <div className="font-bold text-green-600">
+                        +€ {transaction.amount.toFixed(2)}
+                      </div>
+                      <div className="text-sm text-adaptive-600">
+                        {new Date(transaction.date).toLocaleDateString('it-IT')}
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleEditTransaction(transaction)}
+                        className="text-blue-600 hover:text-blue-800 p-1"
+                        title="Modifica transazione"
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTransaction(transaction)}
+                        className="text-red-600 hover:text-red-800 p-1"
+                        title="Cancella transazione"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Paginazione */}
+              {totalPages > 1 && (
+                <div className="flex justify-between items-center pt-4 border-t border-adaptive">
+                  <div className="text-sm text-adaptive-600">
+                    Pagina {currentPage} di {totalPages} ({filteredTransactions.length} totali)
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="p-2 rounded-lg border-adaptive disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      <ChevronLeftIcon className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="p-2 rounded-lg border-adaptive disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      <ChevronRightIcon className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal Form Transazione */}
+      {showTransactionForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
+              {editingTransaction ? 'Modifica Entrata' : 'Nuova Entrata'}
+            </h3>
+            
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+            
+            <form onSubmit={handleTransactionSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                  Descrizione
+                </label>
+                <input
+                  type="text"
+                  value={transactionForm.description}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Es: Stipendio Giugno"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                  Importo (€) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={transactionForm.amount}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, amount: e.target.value }))}
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                  Data *
+                </label>
+                <input
+                  type="date"
+                  value={transactionForm.date}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                  Conto *
+                </label>
+                <select
+                  value={transactionForm.accountId}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, accountId: e.target.value }))}
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Seleziona conto</option>
+                  {accounts.map(account => (
+                    <option key={account.id} value={account.id.toString()}>
+                      {account.name} (€ {account.balance.toFixed(2)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-adaptive-900 mb-1">
                   Categoria *
                 </label>
                 <select
                   value={transactionForm.categoryId}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, categoryId: e.target.value }))}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none"
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 >
                   <option value="">Seleziona categoria</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
+                  {categories.map(category => (
+                    <option key={category.id} value={category.id.toString()}>
                       {category.name}
                     </option>
                   ))}
@@ -1048,18 +948,91 @@ export default function IncomePage() {
 
               <div className="flex gap-3 pt-4">
                 <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 btn-primary px-4 py-2 rounded-lg disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Salvando...' : editingTransaction ? 'Aggiorna' : 'Salva'}
-                </button>
-                <button
                   type="button"
                   onClick={resetTransactionForm}
                   className="flex-1 btn-secondary px-4 py-2 rounded-lg"
                 >
                   Annulla
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 btn-primary px-4 py-2 rounded-lg disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Salvando...' : editingTransaction ? 'Aggiorna' : 'Crea'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Form Categoria */}
+      {showCategoryForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
+              {editingCategory ? 'Modifica Categoria' : 'Nuova Categoria'}
+            </h3>
+            
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+            
+            <form onSubmit={handleCategorySubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                  Nome Categoria *
+                </label>
+                <input
+                  type="text"
+                  value={categoryForm.name}
+                  onChange={(e) => setCategoryForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Es: Stipendio"
+                  required
+                />
+              </div>
+
+              {/* 🎨 Selettore Colori */}
+              <div>
+                <label className="block text-sm font-medium text-adaptive-900 mb-2">
+                  🎨 Colore Categoria
+                </label>
+                <div className="grid grid-cols-6 gap-2">
+                  {availableColors.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setCategoryForm(prev => ({ ...prev, color }))}
+                      className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                        categoryForm.color === color 
+                          ? 'border-gray-900 scale-110' 
+                          : 'border-gray-300 hover:border-gray-500'
+                      }`}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={resetCategoryForm}
+                  className="flex-1 btn-secondary px-4 py-2 rounded-lg"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 btn-primary px-4 py-2 rounded-lg disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Salvando...' : editingCategory ? 'Aggiorna' : 'Crea'}
                 </button>
               </div>
             </form>

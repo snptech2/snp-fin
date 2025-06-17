@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
           select: { id: true, name: true }
         },
         category: {
-          select: { id: true, name: true, type: true }
+          select: { id: true, name: true, type: true, color: true } // 🎨 Includi il colore!
         }
       },
       orderBy: { date: 'desc' },
@@ -70,20 +70,15 @@ export async function POST(request: NextRequest) {
     const parsedAmount = parseFloat(amount)
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       return NextResponse.json(
-        { error: 'Importo deve essere un numero positivo' },
+        { error: 'L\'importo deve essere un numero positivo' },
         { status: 400 }
       )
     }
 
     // Verifica che account e categoria esistano
-    const [account, category] = await Promise.all([
-      prisma.account.findFirst({
-        where: { id: parseInt(accountId), userId: 1 }
-      }),
-      prisma.category.findFirst({
-        where: { id: parseInt(categoryId), userId: 1, type }
-      })
-    ])
+    const account = await prisma.account.findFirst({
+      where: { id: parseInt(accountId), userId: 1 }
+    })
 
     if (!account) {
       return NextResponse.json(
@@ -92,6 +87,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const category = await prisma.category.findFirst({
+      where: { id: parseInt(categoryId), userId: 1, type }
+    })
+
     if (!category) {
       return NextResponse.json(
         { error: 'Categoria non trovata o tipo non corrispondente' },
@@ -99,10 +98,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Inizia transazione database
-    const result = await prisma.$transaction(async (tx) => {
-      // Crea transazione
-      const transaction = await tx.transaction.create({
+    // Calcola nuovo saldo
+    const balanceChange = type === 'income' ? parsedAmount : -parsedAmount
+    const newBalance = account.balance + balanceChange
+
+    // Crea transazione e aggiorna saldo in una transazione atomica
+    const [transaction] = await prisma.$transaction([
+      prisma.transaction.create({
         data: {
           description: description?.trim() || null,
           amount: parsedAmount,
@@ -117,27 +119,17 @@ export async function POST(request: NextRequest) {
             select: { id: true, name: true }
           },
           category: {
-            select: { id: true, name: true, type: true }
+            select: { id: true, name: true, type: true, color: true } // 🎨 Includi il colore!
           }
         }
-      })
-
-      // Aggiorna saldo del conto
-      const balanceChange = type === 'income' ? parsedAmount : -parsedAmount
-      await tx.account.update({
+      }),
+      prisma.account.update({
         where: { id: parseInt(accountId) },
-        data: {
-          balance: {
-            increment: balanceChange
-          },
-          updatedAt: new Date()
-        }
+        data: { balance: newBalance }
       })
+    ])
 
-      return transaction
-    })
-
-    return NextResponse.json(result, { status: 201 })
+    return NextResponse.json(transaction, { status: 201 })
   } catch (error) {
     console.error('Errore nella creazione transazione:', error)
     return NextResponse.json(
