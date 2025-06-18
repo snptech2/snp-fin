@@ -286,24 +286,24 @@ export default function InvestmentDetailPage() {
 
   // Fetch Bitcoin price
   const fetchBitcoinPrice = async (forceRefresh: boolean = false) => {
-  try {
-    setPriceLoading(true)
-    
-    const url = forceRefresh 
-      ? '/api/bitcoin-price?force=true' 
-      : '/api/bitcoin-price'
-    
-    const response = await fetch(url)
-    if (response.ok) {
-      const data = await response.json()
-      setBtcPrice(data)
+    try {
+      setPriceLoading(true)
+      
+      const url = forceRefresh 
+        ? '/api/bitcoin-price?force=true' 
+        : '/api/bitcoin-price'
+      
+      const response = await fetch(url)
+      if (response.ok) {
+        const data = await response.json()
+        setBtcPrice(data)
+      }
+    } catch (error) {
+      console.error('Errore nel caricamento prezzo Bitcoin:', error)
+    } finally {
+      setPriceLoading(false)
     }
-  } catch (error) {
-    console.error('Errore nel caricamento prezzo Bitcoin:', error)
-  } finally {
-    setPriceLoading(false)
   }
-}
 
   // Gestione transazioni
   const editTransaction = (transaction: DCATransaction) => {
@@ -654,12 +654,12 @@ export default function InvestmentDetailPage() {
           
           <div className="flex space-x-2 mt-2">
             <button
-  onClick={() => fetchBitcoinPrice(true)} // ✅ Aggiungi true qui
-  className="px-3 py-1 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-sm"
-  disabled={priceLoading}
->
-  🔄 Aggiorna Prezzo
-</button>
+              onClick={() => fetchBitcoinPrice(true)}
+              className="px-3 py-1 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-sm"
+              disabled={priceLoading}
+            >
+              🔄 Aggiorna Prezzo
+            </button>
           </div>
         </div>
       </div>
@@ -993,76 +993,76 @@ export default function InvestmentDetailPage() {
       {/* Modal Aggiungi/Modifica Transazione */}
       {(showAddTransaction || showEditTransaction) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-screen overflow-y-auto">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
+          <div className="bg-gray-900 rounded-lg p-6 w-full max-w-md mx-4 max-h-screen overflow-y-auto">
+            <h3 className="text-lg font-semibold text-white mb-4">
               {showEditTransaction ? 'Modifica Transazione' : 'Aggiungi Transazione'}
             </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Data</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Data</label>
                 <input
                   type="date"
                   value={transactionForm.date}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full px-3 py-2 border border-adaptive rounded-md"
+                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Broker *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Broker *</label>
                 <input
                   type="text"
                   value={transactionForm.broker}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, broker: e.target.value }))}
                   placeholder="es. Binance, Kraken..."
-                  className="w-full px-3 py-2 border border-adaptive rounded-md"
+                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Info *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Info *</label>
                 <input
                   type="text"
                   value={transactionForm.info}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, info: e.target.value }))}
                   placeholder="es. DCA, Regalo, Acquisto..."
-                  className="w-full px-3 py-2 border border-adaptive rounded-md"
+                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Quantità BTC *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Quantità BTC *</label>
                 <input
                   type="number"
                   step="0.00000001"
                   value={transactionForm.btcQuantity}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, btcQuantity: e.target.value }))}
                   placeholder="0.01012503"
-                  className="w-full px-3 py-2 border border-adaptive rounded-md"
+                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">EUR Pagati *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">EUR Pagati *</label>
                 <input
                   type="number"
                   step="0.01"
                   value={transactionForm.eurPaid}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, eurPaid: e.target.value }))}
                   placeholder="275.00"
-                  className="w-full px-3 py-2 border border-adaptive rounded-md"
+                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Note</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Note</label>
                 <input
                   type="text"
                   value={transactionForm.notes}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, notes: e.target.value }))}
                   placeholder="Verificato, etc..."
-                  className="w-full px-3 py-2 border border-adaptive rounded-md"
+                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white"
                 />
               </div>
             </div>
@@ -1093,41 +1093,41 @@ export default function InvestmentDetailPage() {
       {/* Modal Aggiungi/Modifica Fee */}
       {(showAddFee || showEditFee) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-screen overflow-y-auto">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
+          <div className="bg-gray-900 rounded-lg p-6 w-full max-w-md mx-4 max-h-screen overflow-y-auto">
+            <h3 className="text-lg font-semibold text-white mb-4">
               {showEditFee ? 'Modifica Fee Rete' : 'Aggiungi Fee Rete'}
             </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Data</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Data</label>
                 <input
                   type="date"
                   value={feeForm.date}
                   onChange={(e) => setFeeForm(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full px-3 py-2 border border-adaptive rounded-md"
+                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Sats *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Sats *</label>
                 <input
                   type="number"
                   value={feeForm.sats}
                   onChange={(e) => setFeeForm(prev => ({ ...prev, sats: e.target.value }))}
                   placeholder="2000"
-                  className="w-full px-3 py-2 border border-adaptive rounded-md"
+                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Descrizione</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Descrizione</label>
                 <input
                   type="text"
                   value={feeForm.description}
                   onChange={(e) => setFeeForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Transfer to cold wallet"
-                  className="w-full px-3 py-2 border border-adaptive rounded-md"
+                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white"
                 />
               </div>
             </div>
@@ -1158,20 +1158,20 @@ export default function InvestmentDetailPage() {
       {/* Modal Modifica Nome Portfolio */}
       {showEditPortfolio && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
+          <div className="bg-gray-900 rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-white mb-4">
               Modifica Nome Portfolio
             </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Nome *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Nome *</label>
                 <input
                   type="text"
                   value={portfolioName}
                   onChange={(e) => setPortfolioName(e.target.value)}
                   placeholder="DCA Bitcoin 2024"
-                  className="w-full px-3 py-2 border border-adaptive rounded-md"
+                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white"
                 />
               </div>
             </div>

@@ -188,35 +188,7 @@ export default function InvestmentsPage() {
           <p className="text-adaptive-600">Gestione portafogli di investimento</p>
         </div>
         
-        {/* Prezzo Bitcoin con styling standard */}
-        <div className="card-adaptive p-4 rounded-lg border-adaptive">
-          <div className="flex items-center space-x-3">
-            <span className="text-2xl">₿</span>
-            <div>
-              {priceLoading ? (
-                <div className="text-sm text-adaptive-600">Caricamento...</div>
-              ) : btcPrice ? (
-                <>
-                  <div className="text-lg font-bold text-adaptive-900">
-                    {formatCurrency(btcPrice.btcEur)}
-                  </div>
-                  <div className="text-xs text-adaptive-500">
-                    ${btcPrice.btcUsd.toLocaleString('en-US')} • {btcPrice.cached ? 'Cache' : 'Live'}
-                  </div>
-                </>
-              ) : (
-                <div className="text-sm text-adaptive-600">Non disponibile</div>
-              )}
-            </div>
-            <button
-              onClick={fetchBitcoinPrice}
-              className="text-adaptive-600 hover:text-adaptive-800 p-1"
-              disabled={priceLoading}
-            >
-              🔄
-            </button>
-          </div>
-        </div>
+        
       </div>
 
       {/* Lista Portafogli Esistenti */}
