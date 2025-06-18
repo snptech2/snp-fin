@@ -41,3 +41,47 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# 🚨 DATABASE E DATI SENSIBILI (AGGIUNTO PER SICUREZZA)
+# Database SQLite - MAI includere dati finanziari!
+*.db
+*.sqlite
+*.sqlite3
+dev.db
+prisma/dev.db
+/prisma/dev.db
+
+# Prisma migrations (possono contenere dati sensibili)
+/prisma/migrations/
+
+# File di backup database
+*.db.backup
+*.sqlite.backup
+
+# Logs che potrebbero contenere dati sensibili
+*.log
+logs/
+/logs
+
+# File temporanei
+.tmp/
+temp/
+*.tmp
+*.temp
+
+# File di sistema
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store?
+.Spotlight-V100
+.Trashes
