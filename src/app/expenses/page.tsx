@@ -1,4 +1,4 @@
-// src/app/expenses/page.tsx
+// src/app/expenses/page.tsx - VERSIONE COMPLETA CON FIX
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
@@ -19,7 +19,7 @@ interface Category {
   id: number
   name: string
   type: 'income' | 'expense'
-  color?: string // 🎨 Campo colore aggiunto
+  color?: string
 }
 
 interface Transaction {
@@ -36,7 +36,7 @@ interface Transaction {
     id: number
     name: string
     type: string
-    color?: string // 🎨 Campo colore aggiunto
+    color?: string
   }
 }
 
@@ -62,14 +62,13 @@ export default function ExpensesPage() {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [categoryForm, setCategoryForm] = useState({ 
     name: '', 
-    color: '#EF4444' // 🎨 Colore default rosso per le uscite
+    color: '#EF4444'  // Rosso per le uscite
   })
   
-  // 🎨 Colori disponibili per le categorie (iniziano con rossi per le uscite)
+  // Colori disponibili per le categorie
   const [availableColors] = useState([
-    '#EF4444', '#F59E0B', '#8B5CF6', '#3B82F6', '#10B981', 
-    '#F97316', '#06B6D4', '#84CC16', '#EC4899', '#6366F1',
-    '#F43F5E', '#14B8A6'
+    '#EF4444', '#F97316', '#F59E0B', '#84CC16', '#10B981', '#06B6D4',
+    '#3B82F6', '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6', '#DC2626'
   ])
   
   // Stati per filtri e ricerca
@@ -92,10 +91,28 @@ export default function ExpensesPage() {
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // 🔥 TROVA CONTO PREDEFINITO
+  const getDefaultAccount = () => {
+    return accounts.find(account => account.isDefault) || accounts[0]
+  }
+
   // Caricamento iniziale
   useEffect(() => {
     fetchData()
   }, [])
+
+  // 🔥 IMPOSTA CONTO PREDEFINITO QUANDO APRONO I FORM
+  useEffect(() => {
+    if (showTransactionForm && !editingTransaction && accounts.length > 0) {
+      const defaultAccount = getDefaultAccount()
+      if (defaultAccount) {
+        setTransactionForm(prev => ({
+          ...prev,
+          accountId: defaultAccount.id.toString()
+        }))
+      }
+    }
+  }, [showTransactionForm, editingTransaction, accounts])
 
   const fetchData = async () => {
     setLoading(true)
@@ -118,21 +135,24 @@ export default function ExpensesPage() {
 
   // Funzioni di reset form
   const resetTransactionForm = () => {
+    const defaultAccount = getDefaultAccount()
     setTransactionForm({
       description: '',
       amount: '',
       date: new Date().toISOString().split('T')[0],
-      accountId: '',
+      accountId: defaultAccount ? defaultAccount.id.toString() : '',
       categoryId: ''
     })
     setEditingTransaction(null)
     setShowTransactionForm(false)
+    setError('')
   }
 
   const resetCategoryForm = () => {
     setCategoryForm({ name: '', color: '#EF4444' })
     setEditingCategory(null)
     setShowCategoryForm(false)
+    setError('')
   }
 
   // Gestione submit categoria
@@ -154,7 +174,7 @@ export default function ExpensesPage() {
         body: JSON.stringify({
           name: categoryForm.name.trim(),
           type: 'expense',
-          color: categoryForm.color // 🎨 Includi il colore!
+          color: categoryForm.color
         })
       })
 
@@ -177,7 +197,7 @@ export default function ExpensesPage() {
     setEditingCategory(category)
     setCategoryForm({ 
       name: category.name,
-      color: category.color || '#EF4444' // 🎨 Usa colore categoria
+      color: category.color || '#EF4444'
     })
     setShowCategoryForm(true)
   }
@@ -233,7 +253,7 @@ export default function ExpensesPage() {
         fetchData()
       } else {
         const errorData = await response.json()
-        setError(errorData.error || 'Errore durante il salvataggio della transazione')
+        setError(errorData.error || 'Errore durante il salvataggio')
       }
     } catch (error) {
       setError('Errore di rete durante il salvataggio')
@@ -256,11 +276,11 @@ export default function ExpensesPage() {
   }
 
   // Gestione cancellazione transazione
-  const handleDeleteTransaction = async (transaction: Transaction) => {
-    if (!confirm(`Sei sicuro di voler cancellare questa uscita di €${transaction.amount}?`)) return
+  const handleDeleteTransaction = async (transactionId: number) => {
+    if (!confirm('Sei sicuro di voler cancellare questa uscita?')) return
 
     try {
-      const response = await fetch(`/api/transactions/${transaction.id}`, {
+      const response = await fetch(`/api/transactions/${transactionId}`, {
         method: 'DELETE'
       })
 
@@ -274,105 +294,6 @@ export default function ExpensesPage() {
       setError('Errore di rete durante la cancellazione')
     }
   }
-
-  // Gestione cancellazione batch
-  const handleBatchDelete = async () => {
-    if (selectedTransactions.length === 0) return
-    
-    if (!confirm(`Sei sicuro di voler cancellare ${selectedTransactions.length} uscite selezionate?`)) return
-
-    try {
-      await Promise.all(
-        selectedTransactions.map(id => 
-          fetch(`/api/transactions/${id}`, { method: 'DELETE' })
-        )
-      )
-      
-      setSelectedTransactions([])
-      setSelectAll(false)
-      fetchData()
-    } catch (error) {
-      setError('Errore durante la cancellazione multipla')
-    }
-  }
-
-  // Calcolo statistiche
-  const statistiche = useMemo(() => {
-    const currentDate = new Date()
-    const currentMonth = currentDate.getMonth()
-    const currentYear = currentDate.getFullYear()
-    
-    // Dividi transazioni per mese corrente e altri periodi
-    const thisMonthTransactions = transactions.filter(transaction => {
-      const transactionDate = new Date(transaction.date)
-      return (transactionDate.getMonth() === currentMonth && 
-               transactionDate.getFullYear() === currentYear)
-    })
-    
-    const otherTransactions = transactions.filter(transaction => {
-      const transactionDate = new Date(transaction.date)
-      return !(transactionDate.getMonth() === currentMonth && 
-               transactionDate.getFullYear() === currentYear)
-    })
-    
-    // Totali
-    const thisMonthTotal = thisMonthTransactions.reduce((sum, t) => sum + t.amount, 0)
-    const otherTotal = otherTransactions.reduce((sum, t) => sum + t.amount, 0)
-    const grandTotal = thisMonthTotal + otherTotal
-    
-    // Statistiche per categoria - mese corrente
-    const thisMonthByCategory = thisMonthTransactions.reduce((acc, t) => {
-      const categoryName = t.category.name
-      acc[categoryName] = (acc[categoryName] || 0) + t.amount
-      return acc
-    }, {} as Record<string, number>)
-    
-    // Statistiche per categoria - altri periodi
-    const otherByCategory = otherTransactions.reduce((acc, t) => {
-      const categoryName = t.category.name
-      acc[categoryName] = (acc[categoryName] || 0) + t.amount
-      return acc
-    }, {} as Record<string, number>)
-    
-    // 🎨 Dati per grafici CSS - MESE CORRENTE (usa colori categorie!)
-    const thisMonthChartData = Object.entries(thisMonthByCategory).map(([categoryName, value]) => {
-      const categoryData = thisMonthTransactions.find(t => t.category.name === categoryName)?.category
-      
-      return {
-        name: categoryName,
-        value,
-        percentage: thisMonthTotal > 0 ? (value / thisMonthTotal) * 100 : 0,
-        color: categoryData?.color || '#EF4444' // 🎨 Usa il colore della categoria!
-      }
-    })
-    
-    // 🎨 Dati per grafici CSS - ALTRI PERIODI (usa colori categorie!)
-    const otherChartData = Object.entries(otherByCategory).map(([categoryName, value]) => {
-      const categoryData = otherTransactions.find(t => t.category.name === categoryName)?.category
-      
-      return {
-        name: categoryName,
-        value,
-        percentage: otherTotal > 0 ? (value / otherTotal) * 100 : 0,
-        color: categoryData?.color || '#EF4444' // 🎨 Usa il colore della categoria!
-      }
-    })
-    
-    return {
-      thisMonth: {
-        total: thisMonthTotal,
-        count: thisMonthTransactions.length,
-        chartData: thisMonthChartData
-      },
-      other: {
-        total: otherTotal,
-        count: otherTransactions.length,
-        chartData: otherChartData
-      },
-      grandTotal,
-      totalCount: transactions.length
-    }
-  }, [transactions])
 
   // Filtri e ricerca
   const filteredTransactions = useMemo(() => {
@@ -433,6 +354,103 @@ export default function ExpensesPage() {
     }
   }, [selectedTransactions, paginatedTransactions])
 
+  // Cancellazione multipla
+  const handleBulkDelete = async () => {
+    if (!confirm(`Sei sicuro di voler cancellare ${selectedTransactions.length} uscite selezionate?`)) return
+
+    try {
+      await Promise.all(
+        selectedTransactions.map(id => 
+          fetch(`/api/transactions/${id}`, { method: 'DELETE' })
+        )
+      )
+      
+      setSelectedTransactions([])
+      setSelectAll(false)
+      fetchData()
+    } catch (error) {
+      setError('Errore durante la cancellazione multipla')
+    }
+  }
+
+  // Calcolo statistiche
+  const statistiche = useMemo(() => {
+    const currentDate = new Date()
+    const currentMonth = currentDate.getMonth()
+    const currentYear = currentDate.getFullYear()
+    
+    // Dividi transazioni per mese corrente e altri periodi
+    const thisMonthTransactions = transactions.filter(transaction => {
+      const transactionDate = new Date(transaction.date)
+      return (transactionDate.getMonth() === currentMonth && 
+               transactionDate.getFullYear() === currentYear)
+    })
+    
+    const otherTransactions = transactions.filter(transaction => {
+      const transactionDate = new Date(transaction.date)
+      return !(transactionDate.getMonth() === currentMonth && 
+               transactionDate.getFullYear() === currentYear)
+    })
+    
+    // Totali
+    const thisMonthTotal = thisMonthTransactions.reduce((sum, t) => sum + t.amount, 0)
+    const otherTotal = otherTransactions.reduce((sum, t) => sum + t.amount, 0)
+    const grandTotal = thisMonthTotal + otherTotal
+    
+    // Statistiche per categoria - mese corrente
+    const thisMonthByCategory = thisMonthTransactions.reduce((acc, t) => {
+      const categoryName = t.category.name
+      acc[categoryName] = (acc[categoryName] || 0) + t.amount
+      return acc
+    }, {} as Record<string, number>)
+    
+    // Statistiche per categoria - altri periodi
+    const otherByCategory = otherTransactions.reduce((acc, t) => {
+      const categoryName = t.category.name
+      acc[categoryName] = (acc[categoryName] || 0) + t.amount
+      return acc
+    }, {} as Record<string, number>)
+    
+    // Dati per grafici CSS - MESE CORRENTE (usa colori categorie!)
+    const thisMonthChartData = Object.entries(thisMonthByCategory).map(([categoryName, value]) => {
+      const categoryData = thisMonthTransactions.find(t => t.category.name === categoryName)?.category
+      
+      return {
+        name: categoryName,
+        value,
+        percentage: thisMonthTotal > 0 ? (value / thisMonthTotal) * 100 : 0,
+        color: categoryData?.color || '#EF4444'
+      }
+    })
+    
+    // Dati per grafici CSS - ALTRI PERIODI (usa colori categorie!)
+    const otherChartData = Object.entries(otherByCategory).map(([categoryName, value]) => {
+      const categoryData = otherTransactions.find(t => t.category.name === categoryName)?.category
+      
+      return {
+        name: categoryName,
+        value,
+        percentage: otherTotal > 0 ? (value / otherTotal) * 100 : 0,
+        color: categoryData?.color || '#EF4444'
+      }
+    })
+    
+    return {
+      thisMonth: {
+        total: thisMonthTotal,
+        count: thisMonthTransactions.length,
+        chartData: thisMonthChartData
+      },
+      other: {
+        total: otherTotal,
+        count: otherTransactions.length,
+        chartData: otherChartData
+      },
+      grandTotal,
+      totalCount: transactions.length
+    }
+  }, [transactions])
+
   // Componente per grafico semplice CSS
   const SimpleChart = ({ data, title }: { data: any[], title: string }) => {
     if (data.length === 0) {
@@ -449,7 +467,6 @@ export default function ExpensesPage() {
           <div key={index} className="space-y-2">
             <div className="flex justify-between items-center text-sm">
               <div className="flex items-center gap-2">
-                {/* 🎨 Cerchio colorato per la categoria nel grafico */}
                 <div 
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: item.color }}
@@ -463,7 +480,7 @@ export default function ExpensesPage() {
                 className="h-3 rounded-full"
                 style={{ 
                   width: `${item.percentage}%`,
-                  backgroundColor: item.color // 🎨 Usa il colore della categoria!
+                  backgroundColor: item.color
                 }}
               />
             </div>
@@ -538,7 +555,8 @@ export default function ExpensesPage() {
         <div className="card-adaptive p-4 rounded-lg border-adaptive">
           <h3 className="text-sm font-medium text-adaptive-500">Media Mensile</h3>
           <p className="text-2xl font-bold text-purple-600">
-            € {statistiche.totalCount > 0 ? (statistiche.grandTotal / Math.max(1, statistiche.totalCount / 12)).toFixed(2) : '0.00'}
+            € {statistiche.totalCount > 0 ? 
+              (statistiche.grandTotal / Math.max(1, statistiche.totalCount / 12)).toFixed(2) : '0.00'}
           </p>
           <p className="text-sm text-adaptive-600">Stima approssimativa</p>
         </div>
@@ -598,11 +616,9 @@ export default function ExpensesPage() {
               {categories.map((category) => (
                 <div key={category.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    {/* 🎨 Cerchio colorato per la categoria */}
                     <div 
                       className="w-4 h-4 rounded-full border-2 border-gray-300"
                       style={{ backgroundColor: category.color || '#EF4444' }}
-                      title={`Colore: ${category.color || '#EF4444'}`}
                     />
                     <span className="font-medium text-adaptive-900">{category.name}</span>
                   </div>
@@ -610,14 +626,12 @@ export default function ExpensesPage() {
                     <button
                       onClick={() => handleEditCategory(category)}
                       className="text-blue-600 hover:text-blue-800 p-1"
-                      title="Modifica categoria"
                     >
                       <PencilIcon className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDeleteCategory(category)}
                       className="text-red-600 hover:text-red-800 p-1"
-                      title="Cancella categoria"
                     >
                       <TrashIcon className="w-4 h-4" />
                     </button>
@@ -641,29 +655,28 @@ export default function ExpensesPage() {
               onClick={() => setShowFilters(!showFilters)}
               className="text-blue-600 hover:text-blue-800 text-sm"
             >
-              {showFilters ? 'Nascondi Filtri' : 'Mostra Filtri'}
+              {showFilters ? 'Nascondi' : 'Mostra'} Filtri
             </button>
           </div>
         </div>
-        
-        <div className="p-6">
-          {/* Barra di ricerca sempre visibile */}
-          <div className="mb-4">
-            <div className="relative">
-              <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-adaptive-500" />
-              <input
-                type="text"
-                placeholder="Cerca per descrizione, categoria o conto..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border-adaptive rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
 
-          {/* Filtri avanzati collassabili */}
-          {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-adaptive">
+        {showFilters && (
+          <div className="p-6 bg-gray-50 border-b border-adaptive">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                  <MagnifyingGlassIcon className="w-4 h-4 inline mr-1" />
+                  Ricerca
+                </label>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Descrizione, categoria, conto..."
+                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
               <div>
                 <label className="block text-sm font-medium text-adaptive-700 mb-1">Categoria</label>
                 <select
@@ -679,7 +692,7 @@ export default function ExpensesPage() {
                   ))}
                 </select>
               </div>
-
+              
               <div>
                 <label className="block text-sm font-medium text-adaptive-700 mb-1">Conto</label>
                 <select
@@ -695,7 +708,7 @@ export default function ExpensesPage() {
                   ))}
                 </select>
               </div>
-
+              
               <div>
                 <label className="block text-sm font-medium text-adaptive-700 mb-1">Data Da</label>
                 <input
@@ -705,7 +718,7 @@ export default function ExpensesPage() {
                   className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-
+              
               <div>
                 <label className="block text-sm font-medium text-adaptive-700 mb-1">Data A</label>
                 <input
@@ -716,31 +729,46 @@ export default function ExpensesPage() {
                 />
               </div>
             </div>
-          )}
-        </div>
+            
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => {
+                  setSearchTerm('')
+                  setSelectedCategory('')
+                  setSelectedAccount('')
+                  setDateFrom('')
+                  setDateTo('')
+                }}
+                className="btn-secondary px-4 py-2 rounded-lg text-sm"
+              >
+                Pulisci Filtri
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Lista Transazioni */}
       <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
         <div className="p-6 border-b border-adaptive">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-adaptive-900 flex items-center gap-2">
+            <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
               <CurrencyEuroIcon className="w-5 h-5" />
               Transazioni ({filteredTransactions.length})
             </h3>
             {selectedTransactions.length > 0 && (
               <button
-                onClick={handleBatchDelete}
-                className="bg-red-600 text-white px-3 py-1 text-sm rounded-lg hover:bg-red-700"
+                onClick={handleBulkDelete}
+                className="bg-red-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-700"
               >
-                Cancella Selezionate ({selectedTransactions.length})
+                Cancella {selectedTransactions.length} selezionate
               </button>
             )}
           </div>
         </div>
-
+        
         <div className="p-6">
-          {paginatedTransactions.length === 0 ? (
+          {filteredTransactions.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-adaptive-600">
                 {filteredTransactions.length === 0 
@@ -775,45 +803,40 @@ export default function ExpensesPage() {
                       className="rounded"
                     />
                     <div className="flex items-center gap-3">
-                      {/* 🎨 Cerchio colorato per la categoria */}
                       <div 
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: transaction.category.color || '#EF4444' }}
                         title={transaction.category.name}
                       />
                       <div>
-                        <div className="font-medium text-adaptive-900">
+                        <p className="font-medium text-adaptive-900">
                           {transaction.description || 'Uscita senza descrizione'}
-                        </div>
-                        <div className="text-sm text-adaptive-600">
-                          {transaction.category.name} • {transaction.account.name}
-                        </div>
+                        </p>
+                        <p className="text-sm text-adaptive-600">
+                          {transaction.category.name} • {transaction.account.name} • {
+                            new Date(transaction.date).toLocaleDateString('it-IT')
+                          }
+                        </p>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <div className="font-bold text-red-600">
-                        -€ {transaction.amount.toFixed(2)}
-                      </div>
-                      <div className="text-sm text-adaptive-600">
-                        {new Date(transaction.date).toLocaleDateString('it-IT')}
-                      </div>
+                      <p className="font-bold text-red-600">€ {transaction.amount.toFixed(2)}</p>
                     </div>
-                    
                     <div className="flex gap-1">
                       <button
                         onClick={() => handleEditTransaction(transaction)}
                         className="text-blue-600 hover:text-blue-800 p-1"
-                        title="Modifica transazione"
+                        title="Modifica"
                       >
                         <PencilIcon className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDeleteTransaction(transaction)}
+                        onClick={() => handleDeleteTransaction(transaction.id)}
                         className="text-red-600 hover:text-red-800 p-1"
-                        title="Cancella transazione"
+                        title="Cancella"
                       >
                         <TrashIcon className="w-4 h-4" />
                       </button>
@@ -851,11 +874,11 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      {/* Modal Form Transazione */}
+      {/* 🔥 MODAL TRANSAZIONE - CON CLASSE .modal-content */}
       {showTransactionForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
+          <div className="modal-content rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">
               {editingTransaction ? 'Modifica Uscita' : 'Nuova Uscita'}
             </h3>
             
@@ -867,20 +890,19 @@ export default function ExpensesPage() {
             
             <form onSubmit={handleTransactionSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                <label className="block text-sm font-medium mb-1">
                   Descrizione
                 </label>
                 <input
                   type="text"
                   value={transactionForm.description}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Es: Spesa supermercato"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                <label className="block text-sm font-medium mb-1">
                   Importo (€) *
                 </label>
                 <input
@@ -889,52 +911,48 @@ export default function ExpensesPage() {
                   min="0"
                   value={transactionForm.amount}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, amount: e.target.value }))}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="0.00"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                <label className="block text-sm font-medium mb-1">
                   Data *
                 </label>
                 <input
                   type="date"
                   value={transactionForm.date}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                <label className="block text-sm font-medium mb-1">
                   Conto *
                 </label>
                 <select
                   value={transactionForm.accountId}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, accountId: e.target.value }))}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 >
                   <option value="">Seleziona conto</option>
                   {accounts.map(account => (
                     <option key={account.id} value={account.id.toString()}>
-                      {account.name} (€ {account.balance.toFixed(2)})
+                      {account.name} {account.isDefault ? '⭐' : ''} (€ {account.balance.toFixed(2)})
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                <label className="block text-sm font-medium mb-1">
                   Categoria *
                 </label>
                 <select
                   value={transactionForm.categoryId}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, categoryId: e.target.value }))}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 >
                   <option value="">Seleziona categoria</option>
@@ -967,11 +985,11 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {/* Modal Form Categoria */}
+      {/* 🔥 MODAL CATEGORIA - CON CLASSE .modal-content */}
       {showCategoryForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
+          <div className="modal-content rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">
               {editingCategory ? 'Modifica Categoria' : 'Nuova Categoria'}
             </h3>
             
@@ -983,14 +1001,13 @@ export default function ExpensesPage() {
             
             <form onSubmit={handleCategorySubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                <label className="block text-sm font-medium mb-1">
                   Nome Categoria *
                 </label>
                 <input
                   type="text"
                   value={categoryForm.name}
                   onChange={(e) => setCategoryForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Es: Alimentari"
                   required
                 />
@@ -998,7 +1015,7 @@ export default function ExpensesPage() {
 
               {/* 🎨 Selettore Colori */}
               <div>
-                <label className="block text-sm font-medium text-adaptive-900 mb-2">
+                <label className="block text-sm font-medium mb-2">
                   🎨 Colore Categoria
                 </label>
                 <div className="grid grid-cols-6 gap-2">

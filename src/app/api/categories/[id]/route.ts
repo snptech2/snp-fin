@@ -1,4 +1,4 @@
-// src/app/api/categories/[id]/route.ts
+// src/app/api/categories/[id]/route.ts - VERSIONE CORRETTA
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
@@ -7,12 +7,13 @@ const prisma = new PrismaClient()
 // PUT - Aggiorna categoria
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const categoryId = parseInt(params.id)
+    const resolvedParams = await params
+    const categoryId = parseInt(resolvedParams.id)
     const body = await request.json()
-    const { name, type } = body
+    const { name, type, color } = body  // 🔥 AGGIUNTO CAMPO COLOR
 
     // Validazione
     if (!name || !type) {
@@ -25,6 +26,14 @@ export async function PUT(
     if (type !== 'income' && type !== 'expense') {
       return NextResponse.json(
         { error: 'Il tipo deve essere "income" o "expense"' },
+        { status: 400 }
+      )
+    }
+
+    // 🔥 VALIDAZIONE COLORE
+    if (color && !color.match(/^#[0-9A-F]{6}$/i)) {
+      return NextResponse.json(
+        { error: 'Colore deve essere in formato esadecimale' },
         { status: 400 }
       )
     }
@@ -61,14 +70,21 @@ export async function PUT(
       )
     }
 
-    // Aggiorna categoria
+    // 🔥 AGGIORNA CATEGORIA CON COLORE
+    const updateData: any = {
+      name: name.trim(),
+      type,
+      updatedAt: new Date()
+    }
+
+    // Include il colore solo se fornito
+    if (color) {
+      updateData.color = color
+    }
+
     const updatedCategory = await prisma.category.update({
       where: { id: categoryId },
-      data: {
-        name: name.trim(),
-        type,
-        updatedAt: new Date()
-      }
+      data: updateData
     })
 
     return NextResponse.json(updatedCategory)
@@ -84,10 +100,11 @@ export async function PUT(
 // DELETE - Cancella categoria
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const categoryId = parseInt(params.id)
+    const resolvedParams = await params
+    const categoryId = parseInt(resolvedParams.id)
 
     // Verifica se categoria esiste
     const existingCategory = await prisma.category.findFirst({

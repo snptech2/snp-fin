@@ -1,5 +1,3 @@
-/* 🔥 SOSTITUISCI TUTTO IL CONTENUTO DI src/app/globals.css con questo: */
-
 @import "tailwindcss";
 
 :root {
@@ -35,7 +33,7 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* 🔥 FIX CONTRASTO INPUT E FORM */
+/* 🔥 FIX CONTRASTO PERFETTO MODALI E FORM */
 input[type="text"],
 input[type="number"],
 input[type="date"],
@@ -44,11 +42,14 @@ input[type="password"],
 input[type="checkbox"],
 textarea,
 select {
-  background-color: var(--input-bg) !important;
-  color: var(--input-text) !important;
-  border-color: var(--border-color) !important;
+  background-color: #ffffff !important;
+  color: #171717 !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px;
+  padding: 8px 12px;
 }
 
+/* Focus states con colori sempre visibili */
 input[type="text"]:focus,
 input[type="number"]:focus,
 input[type="date"]:focus,
@@ -56,20 +57,104 @@ input[type="email"]:focus,
 input[type="password"]:focus,
 textarea:focus,
 select:focus {
-  background-color: var(--input-bg) !important;
-  color: var(--input-text) !important;
+  background-color: #ffffff !important;
+  color: #171717 !important;
   outline: none !important;
   border-color: #3b82f6 !important;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3) !important;
 }
 
-/* Fix placeholder */
+/* Dark mode - input sempre leggibili */
+@media (prefers-color-scheme: dark) {
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  input[type="email"],
+  input[type="password"],
+  input[type="checkbox"],
+  textarea,
+  select {
+    background-color: #2a2a2a !important;
+    color: #ededed !important;
+    border-color: #404040 !important;
+  }
+
+  input[type="text"]:focus,
+  input[type="number"]:focus,
+  input[type="date"]:focus,
+  input[type="email"]:focus,
+  input[type="password"]:focus,
+  textarea:focus,
+  select:focus {
+    background-color: #2a2a2a !important;
+    color: #ededed !important;
+    border-color: #3b82f6 !important;
+  }
+}
+
+/* Fix placeholder sempre visibili */
 input::placeholder,
 textarea::placeholder {
   color: #9ca3af !important;
 }
 
-/* 🔥 NUOVE CLASSI ADAPTIVE */
+@media (prefers-color-scheme: dark) {
+  input::placeholder,
+  textarea::placeholder {
+    color: #6b7280 !important;
+  }
+}
+
+/* 🔥 MODALI - BACKGROUND SEMPRE BIANCO CON TESTO NERO */
+.modal-content {
+  background-color: #ffffff !important;
+  color: #171717 !important;
+}
+
+.modal-content * {
+  color: #171717 !important;
+}
+
+.modal-content h1,
+.modal-content h2,
+.modal-content h3,
+.modal-content h4,
+.modal-content h5,
+.modal-content h6 {
+  color: #171717 !important;
+}
+
+.modal-content label {
+  color: #374151 !important;
+  font-weight: 500;
+}
+
+/* Dark mode - modali sempre chiari e leggibili */
+@media (prefers-color-scheme: dark) {
+  .modal-content {
+    background-color: #2a2a2a !important;
+    color: #ededed !important;
+  }
+
+  .modal-content * {
+    color: #ededed !important;
+  }
+
+  .modal-content h1,
+  .modal-content h2,
+  .modal-content h3,
+  .modal-content h4,
+  .modal-content h5,
+  .modal-content h6 {
+    color: #ededed !important;
+  }
+
+  .modal-content label {
+    color: #d1d5db !important;
+  }
+}
+
+/* 🔥 CLASSI ADAPTIVE - SEMPRE LEGGIBILI */
 .card-adaptive {
   background-color: var(--card-bg) !important;
   color: var(--foreground) !important;
@@ -78,7 +163,6 @@ textarea::placeholder {
 .sidebar-adaptive {
   background-color: var(--card-bg) !important;
   color: var(--foreground) !important;
-  border-color: var(--border-color) !important;
 }
 
 .text-adaptive-900 {
@@ -104,10 +188,12 @@ textarea::placeholder {
   border-color: var(--border-color) !important;
 }
 
-/* 🔥 BOTTONI CON CONTRASTO PERFETTO */
+/* 🔥 BOTTONI SEMPRE CON CONTRASTO PERFETTO */
 .btn-primary {
   background-color: #2563eb !important;
   color: #ffffff !important;
+  border: none !important;
+  font-weight: 500;
 }
 
 .btn-primary:hover {
@@ -117,63 +203,56 @@ textarea::placeholder {
 .btn-secondary {
   background-color: #6b7280 !important;
   color: #ffffff !important;
+  border: none !important;
+  font-weight: 500;
 }
 
 .btn-secondary:hover {
   background-color: #4b5563 !important;
 }
 
-/* 🔥 MANTIENI COLORI DISTINTIVI */
-.bg-blue-50 { background-color: #eff6ff !important; }
-.bg-green-50 { background-color: #f0fdf4 !important; }
-.bg-red-50 { background-color: #fef2f2 !important; }
+/* 🔥 COLORI DISTINTIVI SEMPRE VISIBILI */
+.bg-blue-50 { 
+  background-color: #eff6ff !important; 
+  color: #1d4ed8 !important;
+}
+
+.bg-green-50 { 
+  background-color: #f0fdf4 !important; 
+  color: #15803d !important;
+}
+
+.bg-red-50 { 
+  background-color: #fef2f2 !important; 
+  color: #b91c1c !important;
+}
+
 .text-blue-700 { color: #1d4ed8 !important; }
 .text-green-700 { color: #15803d !important; }
 .text-red-700 { color: #b91c1c !important; }
 
-/* Fix form in contenitori colorati */
-.bg-gray-50 input,
-.bg-gray-50 select,
-.bg-gray-50 textarea {
-  background-color: #ffffff !important;
-  color: #171717 !important;
-  border-color: #d1d5db !important;
-}
-
 @media (prefers-color-scheme: dark) {
-  .bg-gray-50 input,
-  .bg-gray-50 select,
-  .bg-gray-50 textarea {
-    background-color: #2a2a2a !important;
-    color: #ededed !important;
-    border-color: #404040 !important;
-  }
-}
-
-/* 🔥 FIX STATI HOVER - PROBLEMA PRINCIPALE */
-.hover\:bg-gray-50:hover {
-  background-color: #f9fafb !important;
-  color: #171717 !important;
-}
-
-.hover\:bg-white:hover {
-  background-color: #ffffff !important;
-  color: #171717 !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .hover\:bg-gray-50:hover {
-    background-color: #374151 !important;
-    color: #ededed !important;
+  .bg-blue-50 { 
+    background-color: #1e40af !important; 
+    color: #dbeafe !important;
   }
   
-  .hover\:bg-white:hover {
-    background-color: #4b5563 !important;
-    color: #ededed !important;
+  .bg-green-50 { 
+    background-color: #166534 !important; 
+    color: #dcfce7 !important;
   }
+  
+  .bg-red-50 { 
+    background-color: #991b1b !important; 
+    color: #fecaca !important;
+  }
+
+  .text-blue-700 { color: #dbeafe !important; }
+  .text-green-700 { color: #dcfce7 !important; }
+  .text-red-700 { color: #fecaca !important; }
 }
 
-/* 🔥 FIX SIDEBAR HOVER STATES */
+/* 🔥 SIDEBAR E NAVIGATION FIX */
 .sidebar-adaptive a:hover {
   background-color: #f3f4f6 !important;
   color: #111827 !important;
@@ -186,36 +265,9 @@ textarea::placeholder {
   }
 }
 
-/* 🔥 FIX SIDEBAR ACTIVE STATE */
-.bg-blue-50 {
-  background-color: #dbeafe !important;
-  color: #1d4ed8 !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .bg-blue-50 {
-    background-color: #1e40af !important;
-    color: #dbeafe !important;
-  }
-}
-
-.text-blue-700 {
-  color: #1d4ed8 !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .text-blue-700 {
-    color: #dbeafe !important;
-  }
-}
-
-/* 🔥 FIX CARD E FORM CONTENITORI */
+/* Container grigi - sempre leggibili */
 .bg-gray-50 {
   background-color: #f9fafb !important;
-  color: #111827 !important;
-}
-
-.bg-gray-50 * {
   color: #111827 !important;
 }
 
@@ -224,30 +276,4 @@ textarea::placeholder {
     background-color: #374151 !important;
     color: #f9fafb !important;
   }
-  
-  .bg-gray-50 * {
-    color: #f9fafb !important;
-  }
-}
-
-/* 🔥 FORZA CONTRASTO SU TUTTI I CARD */
-.card-adaptive,
-.card-adaptive * {
-  color: var(--input-text) !important;
-}
-
-.card-adaptive .text-adaptive-900,
-.card-adaptive .text-adaptive-700,
-.card-adaptive .text-adaptive-600,
-.card-adaptive .text-adaptive-500 {
-  color: var(--input-text) !important;
-}
-
-/* 🔥 FIX PLACEHOLDER E ELEMENTI FORM */
-.card-adaptive input::placeholder,
-.card-adaptive textarea::placeholder,
-.bg-gray-50 input::placeholder,
-.bg-gray-50 textarea::placeholder {
-  color: #9ca3af !important;
-  opacity: 0.8 !important;
 }
