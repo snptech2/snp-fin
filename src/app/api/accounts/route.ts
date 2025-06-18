@@ -1,58 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
-// Evita multiple istanze di Prisma in development
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
-}
+const prisma = new PrismaClient()
 
-const prisma = globalForPrisma.prisma ?? new PrismaClient()
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
-
-// GET - Ottieni tutti i conti
 export async function GET() {
   try {
-    // Per ora usiamo userId = 1 (poi aggiungeremo autenticazione)
     const accounts = await prisma.account.findMany({
       where: { userId: 1 },
-      orderBy: { createdAt: 'asc' }
+      orderBy: { createdAt: 'desc' }
     })
     
     return NextResponse.json(accounts)
   } catch (error) {
-    console.error('Errore nel recupero conti:', error)
-    return NextResponse.json({ error: 'Errore nel recupero conti' }, { status: 500 })
+    console.error('Error fetching accounts:', error)
+    return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 })
   }
 }
 
-// POST - Crea nuovo conto
 export async function POST(request: NextRequest) {
   try {
-    const { name, balance } = await request.json()
+    const { name, makeDefault, type } = await request.json()
+    const accountType = type || 'bank' // Default to bank account
     
-    // Validazione input
-    if (!name || name.trim().length === 0) {
-      return NextResponse.json({ error: 'Nome conto obbligatorio' }, { status: 400 })
+    if (!name) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
-    
-    // Controlla se è il primo conto (diventa predefinito)
-    const existingAccounts = await prisma.account.findMany({
-      where: { userId: 1 }
-    })
-    
-    const newAccount = await prisma.account.create({
-      data: {
-        name: name.trim(),
-        balance: parseFloat(balance) || 0,
-        isDefault: existingAccounts.length === 0,
+
+    // Check if name already exists for this user
+    const existingAccount = await prisma.account.findFirst({
+      where: {
+        name,
         userId: 1
       }
     })
-    
-    return NextResponse.json(newAccount)
+
+    if (existingAccount) {
+      return NextResponse.json({ error: 'Account name already exists' }, { status: 400 })
+    }
+
+    // If making this default, unset other defaults first
+    if (makeDefault) {
+      await prisma.account.updateMany({
+        where: { 
+          userId: 1,
+          type: accountType // Only within the same type
+        },
+        data: { isDefault: false }
+      })
+    }
+
+    const account = await prisma.account.create({
+      data: {
+        name,
+        type: accountType,
+        userId: 1,
+        isDefault: makeDefault || false
+      }
+    })
+
+    return NextResponse.json(account, { status: 201 })
   } catch (error) {
-    console.error('Errore nella creazione conto:', error)
-    return NextResponse.json({ error: 'Errore nella creazione conto' }, { status: 500 })
+    console.error('Error creating account:', error)
+    return NextResponse.json({ error: 'Failed to create account' }, { status: 500 })
   }
 }

@@ -12,6 +12,7 @@ export async function GET() {
       include: {
         transactions: true,
         networkFees: true,
+        account: true, // ← Include account data
         _count: {
           select: {
             transactions: true,
@@ -60,7 +61,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, type = 'dca_bitcoin' } = body
+    const { name, type = 'dca_bitcoin', accountId } = body
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -84,15 +85,35 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Se specificato accountId, verifica che sia un conto di investimento
+    if (accountId) {
+      const account = await prisma.account.findFirst({
+        where: {
+          id: accountId,
+          userId: 1,
+          type: 'investment'
+        }
+      })
+
+      if (!account) {
+        return NextResponse.json(
+          { error: 'Account di investimento non valido' },
+          { status: 400 }
+        )
+      }
+    }
+
     const portfolio = await prisma.dCAPortfolio.create({
       data: {
         name: name.trim(),
         type,
-        userId: 1
+        userId: 1,
+        accountId: accountId || null
       },
       include: {
         transactions: true,
-        networkFees: true
+        networkFees: true,
+        account: true
       }
     })
 

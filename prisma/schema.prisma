@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:./dev.db"
 }
 
 model User {
@@ -23,12 +23,14 @@ model User {
   transactions Transaction[]
   categories   Category[]
   budgets      Budget[]
-  dcaPortfolios DCAPortfolio[] // 🎉 NUOVO: Portafogli DCA
+  transfers    Transfer[]
+  dcaPortfolios DCAPortfolio[]
 }
 
 model Account {
   id              Int           @id @default(autoincrement())
   name            String
+  type            String        @default("bank") // "bank" | "investment"
   balance         Float         @default(0)
   isDefault       Boolean       @default(false)
   createdAt       DateTime      @default(now())
@@ -40,6 +42,8 @@ model Account {
   transactions    Transaction[]
   transfersFrom   Transfer[]    @relation("FromAccount")
   transfersTo     Transfer[]    @relation("ToAccount")
+  dcaTransactions DCATransaction[]
+  dcaPortfolios   DCAPortfolio[]
 }
 
 model Category {
@@ -75,20 +79,6 @@ model Transaction {
   category    Category @relation(fields: [categoryId], references: [id])
 }
 
-model Budget {
-  id          Int      @id @default(autoincrement())
-  name        String
-  targetAmount Float
-  type        String   // "fixed" o "unlimited"
-  order       Int      @default(0)
-  color       String   @default("#3B82F6") // 🎨 Campo colore utilizzato nell'UI
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-}
-
 model Transfer {
   id          Int      @id @default(autoincrement())
   amount      Float
@@ -97,6 +87,9 @@ model Transfer {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  
   fromAccountId Int
   fromAccount   Account @relation("FromAccount", fields: [fromAccountId], references: [id])
   
@@ -104,18 +97,34 @@ model Transfer {
   toAccount     Account @relation("ToAccount", fields: [toAccountId], references: [id])
 }
 
-// 🎉 NUOVI MODELLI - INVESTIMENTI DCA BITCOIN
+model Budget {
+  id          Int      @id @default(autoincrement())
+  name        String
+  targetAmount Float
+  type        String   // "fixed" o "unlimited"
+  order       Int      @default(0)
+  color       String   @default("#3B82F6")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+}
 
 model DCAPortfolio {
   id          Int      @id @default(autoincrement())
   name        String   // "DCA Bitcoin 2024"
-  type        String   // "dca_bitcoin", "crypto_wallet", "stocks" (per futuro)
+  type        String   // "dca_bitcoin", "crypto_wallet", "stocks"
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
+  
+  // Collegamento opzionale a conto investimento
+  accountId   Int?
+  account     Account? @relation(fields: [accountId], references: [id])
   
   // Relazioni
   transactions DCATransaction[]
@@ -125,7 +134,7 @@ model DCAPortfolio {
 model DCATransaction {
   id           Int      @id @default(autoincrement())
   date         DateTime @default(now())
-  broker       String   // "Binance", "Kraken", etc. (campo libero)
+  broker       String   // "Binance", "Kraken", etc.
   info         String   // "Regalo", "DCA", "Acquisto", etc.
   btcQuantity  Float    // 0.01012503
   eurPaid      Float    // 275.00
@@ -135,6 +144,10 @@ model DCATransaction {
   
   portfolioId  Int
   portfolio    DCAPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  
+  // Collegamento opzionale per scalare dal conto
+  accountId    Int?
+  account      Account? @relation(fields: [accountId], references: [id])
 }
 
 model NetworkFee {

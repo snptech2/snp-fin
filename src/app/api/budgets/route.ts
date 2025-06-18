@@ -1,196 +1,125 @@
-// src/app/api/budgets/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// Lista colori predefiniti per i budget
-const BUDGET_COLORS = [
-  '#3B82F6', // Blu
-  '#10B981', // Verde
-  '#F59E0B', // Giallo/Arancione
-  '#EF4444', // Rosso
-  '#8B5CF6', // Viola
-  '#06B6D4', // Turchese
-  '#F97316', // Arancione
-  '#84CC16', // Verde Lime
-  '#EC4899', // Rosa
-  '#6366F1'  // Indaco
-]
-
-// GET /api/budgets - Lista tutti i budget ordinati per priorità
 export async function GET() {
   try {
+    // Get all budgets for the user
     const budgets = await prisma.budget.findMany({
-      where: { userId: 1 }, // TODO: Usare userId reale dall'auth
-      orderBy: { order: 'asc' }, // Ordina per priorità
-      include: {
-        user: {
-          select: { currency: true }
-        }
+      where: { userId: 1 },
+      orderBy: { order: 'asc' }
+    })
+
+    // Calculate total liquidity from BANK accounts only
+    const accounts = await prisma.account.findMany({
+      where: { 
+        userId: 1,
+        type: 'bank'
       }
     })
 
-    // Calcola liquidità totale da tutti i conti
-    const accounts = await prisma.account.findMany({
-      where: { userId: 1 },
-      select: { balance: true }
-    })
-    
     const totalLiquidity = accounts.reduce((sum, account) => sum + account.balance, 0)
 
-    // Calcola allocazione a cascata
+    // Calculate allocations
     let remainingAmount = totalLiquidity
-    const allocations = []
+    const allocatedBudgets = []
 
-    for (const budget of budgets) {
-      let allocatedAmount = 0
+    // First pass: allocate fixed budgets in order
+    for (const budget of budgets.filter(b => b.type === 'fixed')) {
+      const allocated = Math.min(budget.targetAmount, remainingAmount)
+      remainingAmount -= allocated
       
-      if (budget.type === 'fixed') {
-        // Budget fisso: alloca fino al target o quello che rimane
-        allocatedAmount = Math.min(budget.targetAmount, Math.max(0, remainingAmount))
-      } else if (budget.type === 'unlimited') {
-        // Budget illimitato: prende tutto quello che rimane
-        allocatedAmount = Math.max(0, remainingAmount)
-      }
-      
-      allocations.push({
+      allocatedBudgets.push({
         ...budget,
-        allocatedAmount,
-        progress: budget.type === 'fixed' 
-          ? Math.min(100, (allocatedAmount / budget.targetAmount) * 100)
-          : 100,
-        isCompleted: budget.type === 'fixed' 
-          ? allocatedAmount >= budget.targetAmount 
-          : true,
-        deficit: budget.type === 'fixed' 
-          ? Math.max(0, budget.targetAmount - allocatedAmount)
-          : 0
+        allocatedAmount: allocated,
+        percentage: totalLiquidity > 0 ? (allocated / budget.targetAmount) * 100 : 0,
+        isDeficit: allocated < budget.targetAmount
       })
+    }
+
+    // Second pass: allocate unlimited budgets
+    const unlimitedBudgets = budgets.filter(b => b.type === 'unlimited')
+    if (unlimitedBudgets.length > 0) {
+      const amountPerUnlimited = remainingAmount / unlimitedBudgets.length
       
-      remainingAmount -= allocatedAmount
+      for (const budget of unlimitedBudgets) {
+        allocatedBudgets.push({
+          ...budget,
+          allocatedAmount: amountPerUnlimited,
+          percentage: 100, // Unlimited budgets are always "complete"
+          isDeficit: false
+        })
+      }
     }
 
     return NextResponse.json({
-      budgets: allocations,
+      budgets: allocatedBudgets,
       totalLiquidity,
-      unallocated: Math.max(0, remainingAmount),
-      availableColors: BUDGET_COLORS // 🎨 Restituisco colori disponibili
+      totalAllocated: totalLiquidity,
+      summary: {
+        totalBudgets: budgets.length,
+        fixedBudgets: budgets.filter(b => b.type === 'fixed').length,
+        unlimitedBudgets: budgets.filter(b => b.type === 'unlimited').length,
+        hasDeficit: allocatedBudgets.some(b => b.isDeficit)
+      }
     })
-    
   } catch (error) {
-    console.error('Errore nel recupero budget:', error)
-    return NextResponse.json(
-      { error: 'Errore nel recupero dei budget' },
-      { status: 500 }
-    )
+    console.error('Error fetching budgets:', error)
+    return NextResponse.json({ error: 'Failed to fetch budgets' }, { status: 500 })
   }
 }
 
-// POST /api/budgets - Crea nuovo budget
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { name, targetAmount, type, order, color } = body
+    const { name, targetAmount, type, color } = await request.json()
 
-    // Validazioni
-    if (!name?.trim()) {
-      return NextResponse.json(
-        { error: 'Nome budget obbligatorio' },
-        { status: 400 }
-      )
+    if (!name || !targetAmount || !type) {
+      return NextResponse.json({ error: 'Name, target amount, and type are required' }, { status: 400 })
     }
 
-    if (!type || !['fixed', 'unlimited'].includes(type)) {
-      return NextResponse.json(
-        { error: 'Tipo budget deve essere "fixed" o "unlimited"' },
-        { status: 400 }
-      )
+    if (type !== 'fixed' && type !== 'unlimited') {
+      return NextResponse.json({ error: 'Type must be fixed or unlimited' }, { status: 400 })
     }
 
-    if (type === 'fixed') {
-      const parsedAmount = parseFloat(targetAmount)
-      if (isNaN(parsedAmount) || parsedAmount <= 0) {
-        return NextResponse.json(
-          { error: 'Importo deve essere un numero positivo per budget fissi' },
-          { status: 400 }
-        )
-      }
+    if (targetAmount <= 0) {
+      return NextResponse.json({ error: 'Target amount must be positive' }, { status: 400 })
     }
 
-    const parsedOrder = parseInt(order)
-    if (isNaN(parsedOrder) || parsedOrder < 1) {
-      return NextResponse.json(
-        { error: 'Priorità deve essere un numero positivo' },
-        { status: 400 }
-      )
-    }
-
-    // 🎨 Validazione colore
-    const budgetColor = color || BUDGET_COLORS[0] // Default al primo colore se non specificato
-    if (budgetColor && !budgetColor.match(/^#[0-9A-F]{6}$/i)) {
-      return NextResponse.json(
-        { error: 'Colore deve essere in formato esadecimale (#RRGGBB)' },
-        { status: 400 }
-      )
-    }
-
-    // Verifica che non esista già un budget con la stessa priorità
-    const existingBudgetWithOrder = await prisma.budget.findFirst({
-      where: { 
-        userId: 1,
-        order: parsedOrder
+    // Check if name already exists for this user
+    const existingBudget = await prisma.budget.findFirst({
+      where: {
+        name,
+        userId: 1
       }
     })
 
-    if (existingBudgetWithOrder) {
-      return NextResponse.json(
-        { error: 'Esiste già un budget con questa priorità' },
-        { status: 400 }
-      )
+    if (existingBudget) {
+      return NextResponse.json({ error: 'Budget name already exists' }, { status: 400 })
     }
 
-    // Verifica che non esista già un budget con lo stesso nome
-    const existingBudgetWithName = await prisma.budget.findFirst({
-      where: { 
-        userId: 1,
-        name: name.trim()
-      }
+    // Get next order number
+    const lastBudget = await prisma.budget.findFirst({
+      where: { userId: 1 },
+      orderBy: { order: 'desc' }
     })
 
-    if (existingBudgetWithName) {
-      return NextResponse.json(
-        { error: 'Esiste già un budget con questo nome' },
-        { status: 400 }
-      )
-    }
+    const nextOrder = lastBudget ? lastBudget.order + 1 : 1
 
-    // Prepara i dati per la creazione
-    const createData: any = {
-      name: name.trim(),
-      targetAmount: type === 'fixed' ? parseFloat(targetAmount) : 0,
-      type,
-      order: parsedOrder,
-      userId: 1
-    }
-
-    // Aggiungi il colore se fornito
-    if (budgetColor) {
-      createData.color = budgetColor
-    }
-
-    // Crea il budget
     const budget = await prisma.budget.create({
-      data: createData
+      data: {
+        name,
+        targetAmount,
+        type,
+        order: nextOrder,
+        color: color || '#3B82F6',
+        userId: 1
+      }
     })
 
     return NextResponse.json(budget, { status: 201 })
-    
   } catch (error) {
-    console.error('Errore nella creazione budget:', error)
-    return NextResponse.json(
-      { error: 'Errore nella creazione del budget' },
-      { status: 500 }
-    )
+    console.error('Error creating budget:', error)
+    return NextResponse.json({ error: 'Failed to create budget' }, { status: 500 })
   }
 }
