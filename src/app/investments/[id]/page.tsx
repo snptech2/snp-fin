@@ -119,7 +119,7 @@ export default function InvestmentDetailPage() {
     return new Date(dateString).toLocaleDateString('it-IT')
   }
 
-  const satsTobtc = (sats: number) => {
+  const satsToBTC = (sats: number) => {
     return sats / 100000000
   }
 
@@ -128,7 +128,19 @@ export default function InvestmentDetailPage() {
     return portfolio.stats.totalEUR / portfolio.stats.netBTC
   }
 
-  // Filtri transazioni
+  // Calcoli con useMemo per performance e evitare errori
+  const currentValue = useMemo(() => {
+    if (!portfolio || !btcPrice || portfolio.stats.netBTC <= 0) return 0
+    return portfolio.stats.netBTC * btcPrice.btcEur
+  }, [portfolio, btcPrice])
+
+  const roi = useMemo(() => {
+    if (!portfolio || portfolio.stats.totalEUR <= 0 || !btcPrice) return 0
+    const value = portfolio.stats.netBTC * btcPrice.btcEur
+    return ((value - portfolio.stats.totalEUR) / portfolio.stats.totalEUR) * 100
+  }, [portfolio, btcPrice])
+
+  // Filtri transazioni con controlli completi
   const filteredTransactions = useMemo(() => {
     if (!portfolio) return []
     
@@ -137,48 +149,40 @@ export default function InvestmentDetailPage() {
         transaction.broker.toLowerCase().includes(searchTerm.toLowerCase()) ||
         transaction.info.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (transaction.notes && transaction.notes.toLowerCase().includes(searchTerm.toLowerCase()))
-      
+
       const matchesBroker = brokerFilter === '' || transaction.broker === brokerFilter
       const matchesInfo = infoFilter === '' || transaction.info === infoFilter
       
-      const transactionDate = new Date(transaction.date)
-      const matchesDateFrom = dateFrom === '' || transactionDate >= new Date(dateFrom)
-      const matchesDateTo = dateTo === '' || transactionDate <= new Date(dateTo)
-      
-      return matchesSearch && matchesBroker && matchesInfo && matchesDateFrom && matchesDateTo
-    })
+      let matchesDate = true
+      if (dateFrom && dateTo) {
+        const transactionDate = new Date(transaction.date)
+        const fromDate = new Date(dateFrom)
+        const toDate = new Date(dateTo)
+        matchesDate = transactionDate >= fromDate && transactionDate <= toDate
+      }
+
+      return matchesSearch && matchesBroker && matchesInfo && matchesDate
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [portfolio, searchTerm, brokerFilter, infoFilter, dateFrom, dateTo])
 
   // Filtri fee
   const filteredFees = useMemo(() => {
     if (!portfolio) return []
-    
-    return portfolio.networkFees.filter(fee => {
-      const matchesSearch = searchTerm === '' || 
-        (fee.description && fee.description.toLowerCase().includes(searchTerm.toLowerCase()))
-      
-      const feeDate = new Date(fee.date)
-      const matchesDateFrom = dateFrom === '' || feeDate >= new Date(dateFrom)
-      const matchesDateTo = dateTo === '' || feeDate <= new Date(dateTo)
-      
-      return matchesSearch && matchesDateFrom && matchesDateTo
-    })
-  }, [portfolio, searchTerm, dateFrom, dateTo])
-
-  // Opzioni per filtri
-  const brokerOptions = useMemo(() => {
-    if (!portfolio) return []
-    const brokers = [...new Set(portfolio.transactions.map(t => t.broker))]
-    return brokers.sort()
+    return portfolio.networkFees.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [portfolio])
 
-  const infoOptions = useMemo(() => {
+  // Broker e info unici per i filtri
+  const uniqueBrokers = useMemo(() => {
     if (!portfolio) return []
-    const infos = [...new Set(portfolio.transactions.map(t => t.info))]
-    return infos.sort()
+    return Array.from(new Set(portfolio.transactions.map(t => t.broker))).sort()
   }, [portfolio])
 
-  // Selezione multipla transazioni
+  const uniqueInfos = useMemo(() => {
+    if (!portfolio) return []
+    return Array.from(new Set(portfolio.transactions.map(t => t.info))).sort()
+  }, [portfolio])
+
+  // Gestione selezione multipla transazioni
   const handleTransactionSelect = (transactionId: number) => {
     setSelectedTransactions(prev => 
       prev.includes(transactionId) 
@@ -196,7 +200,30 @@ export default function InvestmentDetailPage() {
     setSelectAllTransactions(!selectAllTransactions)
   }
 
-  // Selezione multipla fee
+  const handleBulkDeleteTransactions = async () => {
+    if (selectedTransactions.length === 0) return
+    
+    if (!confirm(`Sei sicuro di voler cancellare ${selectedTransactions.length} transazioni selezionate?`)) {
+      return
+    }
+
+    try {
+      await Promise.all(
+        selectedTransactions.map(id => 
+          fetch(`/api/dca-transactions/${id}`, { method: 'DELETE' })
+        )
+      )
+
+      setSelectedTransactions([])
+      setSelectAllTransactions(false)
+      fetchPortfolio()
+    } catch (error) {
+      console.error('Errore nella cancellazione batch:', error)
+      alert('Errore nella cancellazione delle transazioni')
+    }
+  }
+
+  // Gestione selezione multipla fee
   const handleFeeSelect = (feeId: number) => {
     setSelectedFees(prev => 
       prev.includes(feeId) 
@@ -209,33 +236,17 @@ export default function InvestmentDetailPage() {
     if (selectAllFees) {
       setSelectedFees([])
     } else {
-      setSelectedFees(filteredFees.map(f => f.id))
+      setSelectedFees(portfolio?.networkFees.map(f => f.id) || [])
     }
     setSelectAllFees(!selectAllFees)
   }
 
-  // Cancellazione multipla transazioni
-  const handleBulkDeleteTransactions = async () => {
-    if (!confirm(`Sei sicuro di voler cancellare ${selectedTransactions.length} transazioni selezionate?`)) return
-
-    try {
-      await Promise.all(
-        selectedTransactions.map(id => 
-          fetch(`/api/dca-transactions/${id}`, { method: 'DELETE' })
-        )
-      )
-      
-      setSelectedTransactions([])
-      setSelectAllTransactions(false)
-      fetchPortfolio()
-    } catch (error) {
-      console.error('Errore durante la cancellazione multipla transazioni:', error)
-    }
-  }
-
-  // Cancellazione multipla fee
   const handleBulkDeleteFees = async () => {
-    if (!confirm(`Sei sicuro di voler cancellare ${selectedFees.length} fee di rete selezionate?`)) return
+    if (selectedFees.length === 0) return
+    
+    if (!confirm(`Sei sicuro di voler cancellare ${selectedFees.length} fee selezionate?`)) {
+      return
+    }
 
     try {
       await Promise.all(
@@ -243,39 +254,17 @@ export default function InvestmentDetailPage() {
           fetch(`/api/network-fees/${id}`, { method: 'DELETE' })
         )
       )
-      
+
       setSelectedFees([])
       setSelectAllFees(false)
       fetchPortfolio()
     } catch (error) {
-      console.error('Errore durante la cancellazione multipla fee:', error)
+      console.error('Errore nella cancellazione batch fee:', error)
+      alert('Errore nella cancellazione delle fee')
     }
   }
 
-  // Effects
-  useEffect(() => {
-    if (filteredTransactions.length > 0) {
-      const allSelected = filteredTransactions.every(t => selectedTransactions.includes(t.id))
-      setSelectAllTransactions(allSelected)
-    }
-  }, [selectedTransactions, filteredTransactions])
-
-  useEffect(() => {
-    if (filteredFees.length > 0) {
-      const allSelected = filteredFees.every(f => selectedFees.includes(f.id))
-      setSelectAllFees(allSelected)
-    }
-  }, [selectedFees, filteredFees])
-
-  useEffect(() => {
-    fetchPortfolio()
-    fetchBitcoinPrice()
-    
-    const interval = setInterval(fetchBitcoinPrice, 15 * 60 * 1000)
-    return () => clearInterval(interval)
-  }, [portfolioId])
-
-  // Funzioni API
+  // Fetch portfolio
   const fetchPortfolio = async () => {
     try {
       setLoading(true)
@@ -284,29 +273,50 @@ export default function InvestmentDetailPage() {
         const data = await response.json()
         setPortfolio(data)
         setPortfolioName(data.name)
-      } else if (response.status === 404) {
+      } else {
         router.push('/investments')
       }
     } catch (error) {
-      console.error('Errore nel caricamento portafoglio:', error)
+      console.error('Errore nel caricamento portfolio:', error)
+      router.push('/investments')
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchBitcoinPrice = async () => {
-    try {
-      setPriceLoading(true)
-      const response = await fetch('/api/bitcoin-price')
-      if (response.ok) {
-        const data = await response.json()
-        setBtcPrice(data)
-      }
-    } catch (error) {
-      console.error('Errore nel caricamento prezzo Bitcoin:', error)
-    } finally {
-      setPriceLoading(false)
+  // Fetch Bitcoin price
+  const fetchBitcoinPrice = async (forceRefresh: boolean = false) => {
+  try {
+    setPriceLoading(true)
+    
+    const url = forceRefresh 
+      ? '/api/bitcoin-price?force=true' 
+      : '/api/bitcoin-price'
+    
+    const response = await fetch(url)
+    if (response.ok) {
+      const data = await response.json()
+      setBtcPrice(data)
     }
+  } catch (error) {
+    console.error('Errore nel caricamento prezzo Bitcoin:', error)
+  } finally {
+    setPriceLoading(false)
+  }
+}
+
+  // Gestione transazioni
+  const editTransaction = (transaction: DCATransaction) => {
+    setEditingTransaction(transaction)
+    setTransactionForm({
+      date: transaction.date.split('T')[0],
+      broker: transaction.broker,
+      info: transaction.info,
+      btcQuantity: transaction.btcQuantity.toString(),
+      eurPaid: transaction.eurPaid.toString(),
+      notes: transaction.notes || ''
+    })
+    setShowEditTransaction(true)
   }
 
   const addTransaction = async () => {
@@ -399,6 +409,17 @@ export default function InvestmentDetailPage() {
     }
   }
 
+  // Gestione fee
+  const editFee = (fee: NetworkFee) => {
+    setEditingFee(fee)
+    setFeeForm({
+      date: fee.date.split('T')[0],
+      sats: fee.sats.toString(),
+      description: fee.description || ''
+    })
+    setShowEditFee(true)
+  }
+
   const addFee = async () => {
     if (!feeForm.sats) {
       alert('Inserisci l\'importo in sats')
@@ -480,38 +501,21 @@ export default function InvestmentDetailPage() {
     }
   }
 
-  const editTransaction = (transaction: DCATransaction) => {
-    setEditingTransaction(transaction)
-    setTransactionForm({
-      date: transaction.date.split('T')[0],
-      broker: transaction.broker,
-      info: transaction.info,
-      btcQuantity: transaction.btcQuantity.toString(),
-      eurPaid: transaction.eurPaid.toString(),
-      notes: transaction.notes || ''
-    })
-    setShowEditTransaction(true)
-  }
-
-  const editFee = (fee: NetworkFee) => {
-    setEditingFee(fee)
-    setFeeForm({
-      date: fee.date.split('T')[0],
-      sats: fee.sats.toString(),
-      description: fee.description || ''
-    })
-    setShowEditFee(true)
-  }
-
-  const updatePortfolio = async () => {
-    if (!portfolioName.trim()) return
+  // Gestione portfolio
+  const updatePortfolioName = async () => {
+    if (!portfolioName.trim()) {
+      alert('Inserisci un nome per il portafoglio')
+      return
+    }
 
     try {
       setSubmitLoading(true)
       const response = await fetch(`/api/dca-portfolios/${portfolioId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: portfolioName.trim() })
+        body: JSON.stringify({
+          name: portfolioName.trim()
+        })
       })
 
       if (response.ok) {
@@ -519,14 +523,16 @@ export default function InvestmentDetailPage() {
         fetchPortfolio()
       }
     } catch (error) {
-      console.error('Errore nell\'aggiornamento portafoglio:', error)
+      console.error('Errore nell\'aggiornamento nome:', error)
     } finally {
       setSubmitLoading(false)
     }
   }
 
   const deletePortfolio = async () => {
-    if (!confirm('Sei sicuro di voler cancellare questo portafoglio? Questa azione non può essere annullata.')) return
+    if (!confirm('Sei sicuro di voler cancellare questo portafoglio? Questa azione cancellerà anche tutte le transazioni e fee associate.')) {
+      return
+    }
 
     try {
       const response = await fetch(`/api/dca-portfolios/${portfolioId}`, {
@@ -541,15 +547,45 @@ export default function InvestmentDetailPage() {
     }
   }
 
+  // Effects
+  useEffect(() => {
+    if (portfolioId) {
+      fetchPortfolio()
+      fetchBitcoinPrice()
+      
+      // Auto-refresh prezzo ogni 15 minuti
+      const interval = setInterval(fetchBitcoinPrice, 15 * 60 * 1000)
+      return () => clearInterval(interval)
+    }
+  }, [portfolioId])
+
+  useEffect(() => {
+    setSelectAllTransactions(
+      filteredTransactions.length > 0 && 
+      selectedTransactions.length === filteredTransactions.length
+    )
+  }, [selectedTransactions, filteredTransactions])
+
+  useEffect(() => {
+    if (portfolio) {
+      setSelectAllFees(
+        portfolio.networkFees.length > 0 && 
+        selectedFees.length === portfolio.networkFees.length
+      )
+    }
+  }, [selectedFees, portfolio])
+
   if (loading) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-adaptive-900">Caricamento...</h1>
-          <p className="text-adaptive-600">Caricamento portfolio in corso</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-adaptive-900">Portfolio DCA</h1>
+            <p className="text-adaptive-600">Caricamento...</p>
+          </div>
         </div>
         <div className="flex justify-center items-center h-64">
-          <div className="text-adaptive-600">Caricamento...</div>
+          <div className="text-adaptive-600">Caricamento portfolio...</div>
         </div>
       </div>
     )
@@ -558,55 +594,46 @@ export default function InvestmentDetailPage() {
   if (!portfolio) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-adaptive-900">Portfolio non trovato</h1>
-          <p className="text-adaptive-600">Il portfolio richiesto non esiste</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-adaptive-900">Portfolio Non Trovato</h1>
+            <p className="text-adaptive-600">Il portfolio richiesto non esiste.</p>
+          </div>
         </div>
-        <Link href="/investments" className="text-blue-600 hover:text-blue-800">
-          ← Torna agli investimenti
-        </Link>
+        <div className="text-center">
+          <Link href="/investments" className="text-blue-600 hover:text-blue-800">
+            ← Torna agli Investimenti
+          </Link>
+        </div>
       </div>
     )
   }
 
-  const currentValue = portfolio.stats.netBTC > 0 && btcPrice ? portfolio.stats.netBTC * btcPrice.btcEur : 0
-  const roi = portfolio.stats.totalEUR > 0 ? ((currentValue - portfolio.stats.totalEUR) / portfolio.stats.totalEUR) * 100 : 0
-
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-center">
         <div>
-          <div className="flex items-center space-x-3 mb-2">
+          <div className="flex items-center gap-3">
             <Link href="/investments" className="text-blue-600 hover:text-blue-800">
               ← Investimenti
             </Link>
+            <span className="text-adaptive-400">/</span>
+            <h1 className="text-3xl font-bold text-adaptive-900">{portfolio.name}</h1>
+            <button
+              onClick={() => setShowEditPortfolio(true)}
+              className="text-adaptive-600 hover:text-adaptive-800 p-1"
+            >
+              ✏️
+            </button>
           </div>
-          <h1 className="text-3xl font-bold text-adaptive-900">{portfolio.name}</h1>
-          <p className="text-adaptive-600">DCA Bitcoin Portfolio</p>
+          <p className="text-adaptive-600">Portfolio DCA Bitcoin</p>
         </div>
         
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setShowEditPortfolio(true)}
-            className="px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-gray-50"
-          >
-            ✏️ Modifica
-          </button>
-          <button
-            onClick={deletePortfolio}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-          >
-            🗑️ Cancella
-          </button>
-        </div>
-      </div>
-
-      {/* Prezzo Bitcoin */}
-      <div className="card-adaptive p-4 rounded-lg border-adaptive">
-        <div className="flex items-center justify-between">
+        {/* Prezzo Bitcoin */}
+        <div className="card-adaptive p-4 rounded-lg border-adaptive">
           <div className="flex items-center space-x-3">
-            <span className="text-2xl text-orange-600">₿</span>
+            <span className="text-2xl">₿</span>
             <div>
               {priceLoading ? (
                 <div className="text-sm text-adaptive-600">Aggiornamento prezzo...</div>
@@ -625,14 +652,14 @@ export default function InvestmentDetailPage() {
             </div>
           </div>
           
-          <div className="flex space-x-2">
+          <div className="flex space-x-2 mt-2">
             <button
-              onClick={fetchBitcoinPrice}
-              className="px-3 py-1 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-sm"
-              disabled={priceLoading}
-            >
-              🔄 Aggiorna Prezzo
-            </button>
+  onClick={() => fetchBitcoinPrice(true)} // ✅ Aggiungi true qui
+  className="px-3 py-1 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-sm"
+  disabled={priceLoading}
+>
+  🔄 Aggiorna Prezzo
+</button>
           </div>
         </div>
       </div>
@@ -720,6 +747,12 @@ export default function InvestmentDetailPage() {
         >
           ⚡ Aggiungi Fee Rete
         </button>
+        <button
+          onClick={deletePortfolio}
+          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+        >
+          🗑️ Cancella Portfolio
+        </button>
       </div>
 
       {/* Transazioni con Filtri Integrati */}
@@ -742,91 +775,62 @@ export default function InvestmentDetailPage() {
           {/* Filtri integrati */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
-              <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                Ricerca
-              </label>
+              <label className="block text-sm font-medium text-adaptive-700 mb-1">Ricerca</label>
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Broker, info, note..."
-                className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Cerca..."
+                className="w-full px-3 py-2 border border-adaptive rounded-md text-sm"
               />
             </div>
-            
             <div>
-              <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                Broker
-              </label>
+              <label className="block text-sm font-medium text-adaptive-700 mb-1">Broker</label>
               <select
                 value={brokerFilter}
                 onChange={(e) => setBrokerFilter(e.target.value)}
-                className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-adaptive rounded-md text-sm"
               >
                 <option value="">Tutti i broker</option>
-                {brokerOptions.map(broker => (
+                {uniqueBrokers.map(broker => (
                   <option key={broker} value={broker}>{broker}</option>
                 ))}
               </select>
             </div>
-            
             <div>
-              <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                Info
-              </label>
+              <label className="block text-sm font-medium text-adaptive-700 mb-1">Info</label>
               <select
                 value={infoFilter}
                 onChange={(e) => setInfoFilter(e.target.value)}
-                className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-adaptive rounded-md text-sm"
               >
                 <option value="">Tutte le info</option>
-                {infoOptions.map(info => (
+                {uniqueInfos.map(info => (
                   <option key={info} value={info}>{info}</option>
                 ))}
               </select>
             </div>
-            
             <div>
-              <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                Data Da
-              </label>
+              <label className="block text-sm font-medium text-adaptive-700 mb-1">Da</label>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-adaptive rounded-md text-sm"
               />
             </div>
-            
             <div>
-              <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                Data A
-              </label>
+              <label className="block text-sm font-medium text-adaptive-700 mb-1">A</label>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-adaptive rounded-md text-sm"
               />
             </div>
           </div>
-          
-          <div className="mt-4">
-            <button
-              onClick={() => {
-                setSearchTerm('')
-                setBrokerFilter('')
-                setInfoFilter('')
-                setDateFrom('')
-                setDateTo('')
-              }}
-              className="px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-gray-50 text-sm"
-            >
-              Pulisci Filtri
-            </button>
-          </div>
         </div>
-        
+
         <div className="p-6">
           {filteredTransactions.length > 0 ? (
             <div className="space-y-4">
@@ -902,10 +906,10 @@ export default function InvestmentDetailPage() {
         </div>
       </div>
 
-      {/* Fee di Rete con Filtri Integrati */}
+      {/* Fee di Rete */}
       <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
         <div className="p-6 border-b border-adaptive">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium text-adaptive-900">
               Fee di Rete ({filteredFees.length})
             </h3>
@@ -919,7 +923,7 @@ export default function InvestmentDetailPage() {
             )}
           </div>
         </div>
-        
+
         <div className="p-6">
           {filteredFees.length > 0 ? (
             <div className="space-y-4">
@@ -954,7 +958,7 @@ export default function InvestmentDetailPage() {
                         {fee.sats.toLocaleString()} sats
                       </div>
                       <div className="text-sm text-adaptive-900 min-w-[120px]">
-                        {formatBTC(satsTobtc(fee.sats))}
+                        {formatBTC(satsToBTC(fee.sats))}
                       </div>
                       <div className="text-sm text-adaptive-500 flex-1">
                         {fee.description || '-'}
@@ -989,109 +993,97 @@ export default function InvestmentDetailPage() {
       {/* Modal Aggiungi/Modifica Transazione */}
       {(showAddTransaction || showEditTransaction) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4 max-h-screen overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-screen overflow-y-auto">
             <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
-              {showEditTransaction ? 'Modifica Transazione' : 'Nuova Transazione'}
+              {showEditTransaction ? 'Modifica Transazione' : 'Aggiungi Transazione'}
             </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Data
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Data</label>
                 <input
                   type="date"
                   value={transactionForm.date}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md"
                 />
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Broker
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Broker *</label>
                 <input
                   type="text"
                   value={transactionForm.broker}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, broker: e.target.value }))}
-                  className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Binance, Kraken, etc."
+                  placeholder="es. Binance, Kraken..."
+                  className="w-full px-3 py-2 border border-adaptive rounded-md"
                 />
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Info
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Info *</label>
                 <input
                   type="text"
                   value={transactionForm.info}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, info: e.target.value }))}
-                  className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="DCA, Regalo, Acquisto, etc."
+                  placeholder="es. DCA, Regalo, Acquisto..."
+                  className="w-full px-3 py-2 border border-adaptive rounded-md"
                 />
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Quantità BTC
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Quantità BTC *</label>
                 <input
                   type="number"
                   step="0.00000001"
                   value={transactionForm.btcQuantity}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, btcQuantity: e.target.value }))}
-                  className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="0.01234567"
+                  placeholder="0.01012503"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md"
                 />
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  EUR Pagati
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">EUR Pagati *</label>
                 <input
                   type="number"
                   step="0.01"
                   value={transactionForm.eurPaid}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, eurPaid: e.target.value }))}
-                  className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="500.00"
+                  placeholder="275.00"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md"
                 />
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Note (opzionale)
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Note</label>
                 <input
                   type="text"
                   value={transactionForm.notes}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, notes: e.target.value }))}
-                  className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Note aggiuntive..."
+                  placeholder="Verificato, etc..."
+                  className="w-full px-3 py-2 border border-adaptive rounded-md"
                 />
               </div>
             </div>
-
-            <div className="flex justify-end space-x-3 mt-6">
+            
+            <div className="flex space-x-3 mt-6">
               <button
                 onClick={() => {
                   setShowAddTransaction(false)
                   setShowEditTransaction(false)
                   setEditingTransaction(null)
                 }}
-                className="px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-gray-50"
+                className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
               >
                 Annulla
               </button>
               <button
                 onClick={showEditTransaction ? updateTransaction : addTransaction}
-                disabled={submitLoading || !transactionForm.broker || !transactionForm.info || !transactionForm.btcQuantity || !transactionForm.eurPaid}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                disabled={submitLoading}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
-                {submitLoading ? 'Salvataggio...' : showEditTransaction ? 'Aggiorna' : 'Crea'}
+                {submitLoading ? 'Salvataggio...' : (showEditTransaction ? 'Aggiorna' : 'Aggiungi')}
               </button>
             </div>
           </div>
@@ -1101,107 +1093,100 @@ export default function InvestmentDetailPage() {
       {/* Modal Aggiungi/Modifica Fee */}
       {(showAddFee || showEditFee) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-screen overflow-y-auto">
             <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
-              {showEditFee ? 'Modifica Fee di Rete' : 'Nuova Fee di Rete'}
+              {showEditFee ? 'Modifica Fee Rete' : 'Aggiungi Fee Rete'}
             </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Data
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Data</label>
                 <input
                   type="date"
                   value={feeForm.date}
                   onChange={(e) => setFeeForm(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md"
                 />
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Sats
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Sats *</label>
                 <input
                   type="number"
                   value={feeForm.sats}
                   onChange={(e) => setFeeForm(prev => ({ ...prev, sats: e.target.value }))}
-                  className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="2000"
-                  min="1"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md"
                 />
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Descrizione (opzionale)
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Descrizione</label>
                 <input
                   type="text"
                   value={feeForm.description}
                   onChange={(e) => setFeeForm(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Transfer to cold wallet"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md"
                 />
               </div>
             </div>
-
-            <div className="flex justify-end space-x-3 mt-6">
+            
+            <div className="flex space-x-3 mt-6">
               <button
                 onClick={() => {
                   setShowAddFee(false)
                   setShowEditFee(false)
                   setEditingFee(null)
                 }}
-                className="px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-gray-50"
+                className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
               >
                 Annulla
               </button>
               <button
                 onClick={showEditFee ? updateFee : addFee}
-                disabled={submitLoading || !feeForm.sats}
-                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
+                disabled={submitLoading}
+                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
               >
-                {submitLoading ? 'Salvataggio...' : showEditFee ? 'Aggiorna' : 'Crea'}
+                {submitLoading ? 'Salvataggio...' : (showEditFee ? 'Aggiorna' : 'Aggiungi')}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal Modifica Portafoglio */}
+      {/* Modal Modifica Nome Portfolio */}
       {showEditPortfolio && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">Modifica Portafoglio</h3>
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
+              Modifica Nome Portfolio
+            </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Nome Portafoglio
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Nome *</label>
                 <input
                   type="text"
                   value={portfolioName}
                   onChange={(e) => setPortfolioName(e.target.value)}
-                  className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nome del portafoglio"
+                  placeholder="DCA Bitcoin 2024"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md"
                 />
               </div>
             </div>
-
-            <div className="flex justify-end space-x-3 mt-6">
+            
+            <div className="flex space-x-3 mt-6">
               <button
                 onClick={() => setShowEditPortfolio(false)}
-                className="px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-gray-50"
+                className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
               >
                 Annulla
               </button>
               <button
-                onClick={updatePortfolio}
-                disabled={submitLoading || !portfolioName.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                onClick={updatePortfolioName}
+                disabled={submitLoading}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
                 {submitLoading ? 'Salvataggio...' : 'Aggiorna'}
               </button>

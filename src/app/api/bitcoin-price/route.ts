@@ -1,5 +1,5 @@
 // src/app/api/bitcoin-price/route.ts
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 // Cache per evitare troppe richieste API
 let priceCache: {
@@ -12,11 +12,15 @@ let priceCache: {
 const CACHE_DURATION = 30 * 1000 // 30 secondi per test
 
 // GET - Ottieni prezzo Bitcoin in EUR
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     // Controlla cache
     const now = Date.now()
+    
     console.log('🔍 Bitcoin Price API called at:', new Date(now).toISOString())
+    // ✅ Aggiungi controllo force refresh
+const { searchParams } = new URL(request.url)
+const forceRefresh = searchParams.get('force') === 'true'
     
     if (priceCache) {
       const cacheAge = now - priceCache.timestamp
@@ -27,7 +31,7 @@ export async function GET() {
       console.log('❌ No cache found')
     }
     
-    if (priceCache && (now - priceCache.timestamp) < CACHE_DURATION) {
+    if (!forceRefresh && priceCache && (now - priceCache.timestamp) < CACHE_DURATION) {
       console.log('🎯 Returning cached price')
       return NextResponse.json({
         btcEur: priceCache.btcEur,
