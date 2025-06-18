@@ -23,6 +23,7 @@ model User {
   transactions Transaction[]
   categories   Category[]
   budgets      Budget[]
+  dcaPortfolios DCAPortfolio[] // 🎉 NUOVO: Portafogli DCA
 }
 
 model Account {
@@ -45,7 +46,7 @@ model Category {
   id           Int           @id @default(autoincrement())
   name         String
   type         String        // "income" o "expense"
-  color        String        @default("#3B82F6") // 🎨 NUOVO: Campo colore
+  color        String        @default("#3B82F6")
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   userId       Int
@@ -74,6 +75,20 @@ model Transaction {
   category    Category @relation(fields: [categoryId], references: [id])
 }
 
+model Budget {
+  id          Int      @id @default(autoincrement())
+  name        String
+  targetAmount Float
+  type        String   // "fixed" o "unlimited"
+  order       Int      @default(0)
+  color       String   @default("#3B82F6") // 🎨 Campo colore utilizzato nell'UI
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+}
+
 model Transfer {
   id          Int      @id @default(autoincrement())
   amount      Float
@@ -89,16 +104,47 @@ model Transfer {
   toAccount     Account @relation("ToAccount", fields: [toAccountId], references: [id])
 }
 
-model Budget {
+// 🎉 NUOVI MODELLI - INVESTIMENTI DCA BITCOIN
+
+model DCAPortfolio {
   id          Int      @id @default(autoincrement())
-  name        String
-  targetAmount Float
-  type        String   // "fixed" o "unlimited"
-  order       Int      @default(0)
-  color       String   @default("#3B82F6") // 🎨 NUOVO: Colore personalizzato
+  name        String   // "DCA Bitcoin 2024"
+  type        String   // "dca_bitcoin", "crypto_wallet", "stocks" (per futuro)
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
+  
+  // Relazioni
+  transactions DCATransaction[]
+  networkFees  NetworkFee[]
+}
+
+model DCATransaction {
+  id           Int      @id @default(autoincrement())
+  date         DateTime @default(now())
+  broker       String   // "Binance", "Kraken", etc. (campo libero)
+  info         String   // "Regalo", "DCA", "Acquisto", etc.
+  btcQuantity  Float    // 0.01012503
+  eurPaid      Float    // 275.00
+  notes        String?  // "Verificato", etc.
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  portfolioId  Int
+  portfolio    DCAPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+}
+
+model NetworkFee {
+  id          Int      @id @default(autoincrement())
+  sats        Int      // 2000 sats fee di rete
+  date        DateTime @default(now())
+  description String?  // "Transfer to cold wallet"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  portfolioId Int
+  portfolio   DCAPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
 }
