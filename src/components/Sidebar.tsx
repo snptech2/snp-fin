@@ -10,8 +10,8 @@ const navigation = [
   { name: 'Entrate', href: '/income', icon: '⬆️' },
   { name: 'Uscite', href: '/expenses', icon: '⬇️' },
   { name: 'Budget', href: '/budget', icon: '📊' },
-  { name: 'Altro', href: '/other', icon: '📄' },
   { name: 'Investimenti', href: '/investments', icon: '📈' },
+  { name: 'Altro', href: '/other', icon: '📄' },
 ]
 
 export default function Sidebar() {
@@ -36,7 +36,7 @@ export default function Sidebar() {
                 className={`
                   group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors
                   ${isActive 
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
+                    ? 'bg-blue-500 text-white' 
                     : 'text-adaptive-700 hover:bg-gray-50 hover:text-adaptive-900'
                   }
                 `}

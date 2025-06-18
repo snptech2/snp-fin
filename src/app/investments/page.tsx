@@ -81,6 +81,7 @@ export default function InvestmentsPage() {
 
   const fetchPortfolios = async () => {
     try {
+      setLoading(true)
       const response = await fetch('/api/dca-portfolios')
       if (response.ok) {
         const data = await response.json()
@@ -115,25 +116,20 @@ export default function InvestmentsPage() {
       setCreateLoading(true)
       const response = await fetch('/api/dca-portfolios', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: newPortfolioName,
+          name: newPortfolioName.trim(),
           type: 'dca_bitcoin'
         })
       })
 
       if (response.ok) {
-        setNewPortfolioName('')
         setShowCreateModal(false)
+        setNewPortfolioName('')
         fetchPortfolios()
-      } else {
-        const error = await response.json()
-        alert(error.error || 'Errore nella creazione del portafoglio')
       }
     } catch (error) {
-      alert('Errore nella creazione del portafoglio')
+      console.error('Errore nella creazione portafoglio:', error)
     } finally {
       setCreateLoading(false)
     }
@@ -192,30 +188,29 @@ export default function InvestmentsPage() {
                 <div className="text-sm text-gray-500">Caricamento...</div>
               ) : btcPrice ? (
                 <>
-                  <div className="font-bold text-orange-800">
+                  <div className="text-lg font-bold text-gray-900">
                     {formatCurrency(btcPrice.btcEur)}
                   </div>
-                  <div className="text-xs text-orange-600">
-                    ${btcPrice.btcUsd.toLocaleString()} USD
-                    {btcPrice.cached && ' (cached)'}
+                  <div className="text-xs text-gray-500">
+                    ${btcPrice.btcUsd.toLocaleString('en-US')} • {btcPrice.cached ? 'Cache' : 'Live'}
                   </div>
                 </>
               ) : (
-                <div className="text-sm text-red-500">Errore prezzo</div>
+                <div className="text-sm text-gray-500">Non disponibile</div>
               )}
-              <button
-                onClick={fetchBitcoinPrice}
-                disabled={priceLoading}
-                className="text-xs text-orange-600 hover:text-orange-800 mt-1"
-              >
-                🔄 Aggiorna
-              </button>
             </div>
+            <button
+              onClick={fetchBitcoinPrice}
+              className="text-gray-600 hover:text-gray-800 p-1"
+              disabled={priceLoading}
+            >
+              🔄
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Portafogli Esistenti */}
+      {/* Lista Portafogli */}
       {portfolios.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-adaptive-900">I Tuoi Portafogli</h2>
@@ -227,30 +222,38 @@ export default function InvestmentsPage() {
               return (
                 <Link key={portfolio.id} href={`/investments/${portfolio.id}`}>
                   <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive hover:shadow-md transition-shadow cursor-pointer">
-                    <div className="flex items-center space-x-3 mb-4">
-                      <span className="text-2xl">🟠</span>
-                      <div>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-start">
                         <h3 className="font-semibold text-adaptive-900">{portfolio.name}</h3>
-                        <p className="text-xs text-adaptive-600">DCA Bitcoin</p>
+                        <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
+                          🟠 DCA BTC
+                        </span>
                       </div>
-                    </div>
-                    
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-adaptive-600">BTC Netti:</span>
-                        <span className="font-mono">{formatBTC(portfolio.stats.netBTC)}</span>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-adaptive-600">BTC Netti:</span>
+                          <span className="font-mono text-adaptive-900">
+                            {formatBTC(portfolio.stats.netBTC)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-adaptive-600">Investiti:</span>
+                          <span className="text-adaptive-900">
+                            {formatCurrency(portfolio.stats.totalEUR)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-adaptive-600">Investiti:</span>
-                        <span>{formatCurrency(portfolio.stats.totalEUR)}</span>
-                      </div>
+
                       {btcPrice && (
                         <>
-                          <div className="flex justify-between">
-                            <span className="text-adaptive-600">Valore Attuale:</span>
-                            <span>{formatCurrency(currentValue)}</span>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-adaptive-600">Valore:</span>
+                            <span className="text-adaptive-900">
+                              {formatCurrency(currentValue)}
+                            </span>
                           </div>
-                          <div className="flex justify-between">
+                          <div className="flex justify-between text-sm">
                             <span className="text-adaptive-600">ROI:</span>
                             <span className={roi >= 0 ? 'text-green-600' : 'text-red-600'}>
                               {roi >= 0 ? '+' : ''}{roi.toFixed(2)}%
@@ -314,42 +317,42 @@ export default function InvestmentsPage() {
       {/* Modal Creazione DCA Bitcoin */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">Crea DCA Bitcoin</h3>
+          <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">Crea DCA Bitcoin</h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-adaptive-700 mb-2">
                   Nome Portafoglio
                 </label>
                 <input
                   type="text"
                   value={newPortfolioName}
                   onChange={(e) => setNewPortfolioName(e.target.value)}
-                  placeholder="es. DCA Bitcoin 2024"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="es. DCA Bitcoin 2025"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-            </div>
-
-            <div className="flex space-x-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowCreateModal(false)
-                  setNewPortfolioName('')
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                disabled={createLoading}
-              >
-                Annulla
-              </button>
-              <button
-                onClick={createPortfolio}
-                disabled={!newPortfolioName.trim() || createLoading}
-                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
-              >
-                {createLoading ? 'Creazione...' : 'Crea'}
-              </button>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowCreateModal(false)
+                    setNewPortfolioName('')
+                  }}
+                  className="px-4 py-2 text-adaptive-600 hover:text-adaptive-800"
+                  disabled={createLoading}
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={createPortfolio}
+                  disabled={createLoading || !newPortfolioName.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {createLoading ? 'Creazione...' : 'Crea Portafoglio'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
