@@ -27,7 +27,8 @@ export async function GET(
         },
         networkFees: {
           orderBy: { date: 'desc' }
-        }
+        },
+        account: true // ✅ FIX: Aggiungi la relazione account
       }
     })
 
@@ -101,8 +102,8 @@ export async function PUT(
       )
     }
 
-    // Controlla se il portfolio esiste
-    const existingPortfolio = await prisma.dCAPortfolio.findUnique({
+    // Verifica che il portfolio esista e appartenga all'utente
+    const existingPortfolio = await prisma.dCAPortfolio.findFirst({
       where: { id, userId: 1 }
     })
 
@@ -113,7 +114,7 @@ export async function PUT(
       )
     }
 
-    // Controlla duplicati nome (escluso se stesso)
+    // Controlla duplicati (escludendo il portfolio corrente)
     const duplicatePortfolio = await prisma.dCAPortfolio.findFirst({
       where: {
         userId: 1,
@@ -134,7 +135,8 @@ export async function PUT(
       data: { name: name.trim() },
       include: {
         transactions: true,
-        networkFees: true
+        networkFees: true,
+        account: true // ✅ FIX: Aggiungi anche qui la relazione account
       }
     })
 
@@ -148,7 +150,7 @@ export async function PUT(
   }
 }
 
-// DELETE - Cancella portafoglio
+// DELETE - Cancella portafoglio (CASCADE automatico per transazioni e fee)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -163,17 +165,9 @@ export async function DELETE(
       )
     }
 
-    // Controlla se il portfolio esiste
-    const existingPortfolio = await prisma.dCAPortfolio.findUnique({
-      where: { id, userId: 1 },
-      include: {
-        _count: {
-          select: {
-            transactions: true,
-            networkFees: true
-          }
-        }
-      }
+    // Verifica che il portfolio esista e appartenga all'utente
+    const existingPortfolio = await prisma.dCAPortfolio.findFirst({
+      where: { id, userId: 1 }
     })
 
     if (!existingPortfolio) {
@@ -183,16 +177,14 @@ export async function DELETE(
       )
     }
 
-    // Cancella il portfolio (CASCADE cancellerà automaticamente transazioni e fee)
     await prisma.dCAPortfolio.delete({
       where: { id }
     })
 
-    return NextResponse.json({ 
-      message: 'Portafoglio cancellato con successo',
-      deletedTransactions: existingPortfolio._count.transactions,
-      deletedFees: existingPortfolio._count.networkFees
-    })
+    return NextResponse.json(
+      { message: 'Portafoglio cancellato con successo' },
+      { status: 200 }
+    )
   } catch (error) {
     console.error('Errore nella cancellazione portafoglio DCA:', error)
     return NextResponse.json(
