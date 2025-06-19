@@ -1,4 +1,5 @@
 'use client'
+  import { formatCurrency, formatBTC, formatDate, satsToBTC } from '@/utils/formatters'
 
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -113,24 +114,6 @@ export default function InvestmentDetailPage() {
   const [selectAllFees, setSelectAllFees] = useState(false)
 
   // Funzioni di utilità
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount)
-  }
-
-  const formatBTC = (amount: number) => {
-    return amount.toFixed(8) + ' BTC'
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('it-IT')
-  }
-
-  const satsToBTC = (sats: number) => {
-    return sats / 100000000
-  }
 
   const calculateAvgLoadPrice = () => {
     if (!portfolio || portfolio.stats.netBTC <= 0) return 0

@@ -1,6 +1,6 @@
 // src/app/income/page.tsx - VERSIONE COMPLETA CON FIX
 'use client'
-
+import { formatCurrency } from '@/utils/formatters'
 import { useState, useEffect, useMemo } from 'react'
 import { 
   PlusIcon, PencilIcon, TrashIcon, TagIcon, CurrencyEuroIcon, 
@@ -824,7 +824,8 @@ export default function IncomePage() {
                   
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="font-bold text-green-600">€ {transaction.amount.toFixed(2)}</p>
+                      <p className="font-bold text-green-600">{formatCurrency(transaction.amount)}</p>
+
                     </div>
                     <div className="flex gap-1">
                       <button

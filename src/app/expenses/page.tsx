@@ -1,6 +1,6 @@
 // src/app/expenses/page.tsx - VERSIONE COMPLETA CON FIX
 'use client'
-
+import { formatCurrency } from '@/utils/formatters'
 import { useState, useEffect, useMemo } from 'react'
 import { 
   PlusIcon, PencilIcon, TrashIcon, TagIcon, CurrencyEuroIcon, 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-
+import { formatCurrency } from '@/utils/formatters'
 interface Budget {
   id: number
   name: string
@@ -46,13 +46,7 @@ export default function BudgetPage() {
   })
   const [submitting, setSubmitting] = useState(false)
 
-  // Formato valuta
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount)
-  }
+  
 
   // Carica budget
   const loadBudgets = async () => {
