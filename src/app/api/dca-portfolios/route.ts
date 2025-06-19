@@ -70,6 +70,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // OBBLIGATORIO: accountId deve essere specificato
+    if (!accountId) {
+      return NextResponse.json(
+        { error: 'Conto di investimento obbligatorio' },
+        { status: 400 }
+      )
+    }
+
     // Controlla se esiste già un portfolio con lo stesso nome
     const existingPortfolio = await prisma.dCAPortfolio.findFirst({
       where: {
@@ -85,22 +93,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Se specificato accountId, verifica che sia un conto di investimento
-    if (accountId) {
-      const account = await prisma.account.findFirst({
-        where: {
-          id: accountId,
-          userId: 1,
-          type: 'investment'
-        }
-      })
-
-      if (!account) {
-        return NextResponse.json(
-          { error: 'Account di investimento non valido' },
-          { status: 400 }
-        )
+    // Verifica che l'accountId sia un conto di investimento valido
+    const account = await prisma.account.findFirst({
+      where: {
+        id: accountId,
+        userId: 1,
+        type: 'investment'
       }
+    })
+
+    if (!account) {
+      return NextResponse.json(
+        { error: 'Account di investimento non valido' },
+        { status: 400 }
+      )
     }
 
     const portfolio = await prisma.dCAPortfolio.create({
@@ -108,7 +114,7 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         type,
         userId: 1,
-        accountId: accountId || null
+        accountId: accountId
       },
       include: {
         transactions: true,

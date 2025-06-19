@@ -75,40 +75,84 @@ export async function POST(request: NextRequest) {
 
     // Verifica che il portfolio esista e appartenga all'utente
     const portfolio = await prisma.dCAPortfolio.findUnique({
-      where: { id: parseInt(portfolioId), userId: 1 }
+      where: { id: parseInt(portfolioId) },
+      include: {
+        account: true // Include il conto collegato
+      }
     })
 
-    if (!portfolio) {
+    if (!portfolio || portfolio.userId !== 1) {
       return NextResponse.json(
         { error: 'Portafoglio non trovato' },
         { status: 404 }
       )
     }
 
-    const transaction = await prisma.dCATransaction.create({
-      data: {
-        portfolioId: parseInt(portfolioId),
-        date: date ? new Date(date) : new Date(),
-        broker: broker.trim(),
-        info: info.trim(),
-        btcQuantity: parseFloat(btcQuantity),
-        eurPaid: parseFloat(eurPaid),
-        notes: notes?.trim() || null
-      },
-      include: {
-        portfolio: {
-          select: {
-            id: true,
-            name: true
+    // Verifica che il portfolio abbia un conto collegato
+    if (!portfolio.account) {
+      return NextResponse.json(
+        { error: 'Portfolio non ha un conto di investimento collegato' },
+        { status: 400 }
+      )
+    }
+
+    // Verifica che il conto abbia liquidità sufficiente
+    if (portfolio.account.balance < parseFloat(eurPaid)) {
+      return NextResponse.json(
+        { 
+          error: 'Liquidità insufficiente',
+          currentBalance: portfolio.account.balance,
+          required: parseFloat(eurPaid),
+          deficit: parseFloat(eurPaid) - portfolio.account.balance,
+          accountName: portfolio.account.name
+        },
+        { status: 400 }
+      )
+    }
+
+    // Crea transazione e aggiorna saldo in una transazione atomica
+    const result = await prisma.$transaction(async (tx) => {
+      // Crea la transazione DCA
+      const transaction = await tx.dCATransaction.create({
+        data: {
+          portfolioId: parseInt(portfolioId),
+          date: date ? new Date(date) : new Date(),
+          broker: broker.trim(),
+          info: info.trim(),
+          btcQuantity: parseFloat(btcQuantity),
+          eurPaid: parseFloat(eurPaid),
+          notes: notes?.trim() || null,
+          accountId: portfolio.account.id // Collega la transazione al conto
+        },
+        include: {
+          portfolio: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          account: {
+            select: {
+              id: true,
+              name: true
+            }
           }
         }
-      }
+      })
+
+      // Scala i soldi dal conto di investimento
+      await tx.account.update({
+        where: { id: portfolio.account.id },
+        data: { balance: { decrement: parseFloat(eurPaid) } }
+      })
+
+      return transaction
     })
 
     // Aggiungi prezzo di acquisto calcolato
     const transactionWithPrice = {
-      ...transaction,
-      purchasePrice: transaction.eurPaid / transaction.btcQuantity
+      ...result,
+      purchasePrice: result.eurPaid / result.btcQuantity
     }
 
     return NextResponse.json(transactionWithPrice, { status: 201 })

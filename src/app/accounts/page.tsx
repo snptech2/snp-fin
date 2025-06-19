@@ -18,6 +18,7 @@ interface DCAPortfolio {
   name: string
   type: string
   isActive: boolean
+  accountId?: number
 }
 
 interface Transfer {
@@ -38,6 +39,10 @@ export default function AccountsPage() {
   const [showAccountModal, setShowAccountModal] = useState(false)
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
+  
+  // Stati per selezione multipla trasferimenti
+  const [selectedTransfers, setSelectedTransfers] = useState<number[]>([])
+  const [selectAllTransfers, setSelectAllTransfers] = useState(false)
 
   // Form states
   const [accountForm, setAccountForm] = useState({
@@ -57,6 +62,14 @@ export default function AccountsPage() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  // Aggiorna selectAllTransfers quando cambiano le selezioni
+  useEffect(() => {
+    if (transfers.length > 0) {
+      const allSelected = transfers.every(t => selectedTransfers.includes(t.id))
+      setSelectAllTransfers(allSelected)
+    }
+  }, [selectedTransfers, transfers])
 
   const fetchData = async () => {
     try {
@@ -142,6 +155,48 @@ export default function AccountsPage() {
     }
   }
 
+  // Gestione selezione multipla trasferimenti
+  const handleTransferSelect = (transferId: number) => {
+    setSelectedTransfers(prev => 
+      prev.includes(transferId) 
+        ? prev.filter(id => id !== transferId)
+        : [...prev, transferId]
+    )
+  }
+
+  const handleSelectAllTransfers = () => {
+    if (selectAllTransfers) {
+      setSelectedTransfers([])
+    } else {
+      setSelectedTransfers(transfers.map(t => t.id))
+    }
+    setSelectAllTransfers(!selectAllTransfers)
+  }
+
+  // Cancellazione multipla trasferimenti
+  const handleBulkDeleteTransfers = async () => {
+    if (selectedTransfers.length === 0) return
+    
+    if (!confirm(`Sei sicuro di voler cancellare ${selectedTransfers.length} trasferimenti selezionati?`)) {
+      return
+    }
+
+    try {
+      await Promise.all(
+        selectedTransfers.map(id => 
+          fetch(`/api/transfers/${id}`, { method: 'DELETE' })
+        )
+      )
+      
+      setSelectedTransfers([])
+      setSelectAllTransfers(false)
+      await fetchData()
+    } catch (error) {
+      console.error('Errore nella cancellazione multipla trasferimenti:', error)
+      alert('Errore nella cancellazione dei trasferimenti')
+    }
+  }
+
   const bankAccounts = accounts.filter(acc => acc.type === 'bank')
   const investmentAccounts = accounts.filter(acc => acc.type === 'investment')
   
@@ -149,7 +204,8 @@ export default function AccountsPage() {
   const totalInvestmentBalance = investmentAccounts.reduce((sum, acc) => sum + acc.balance, 0)
   
   const getPortfolioName = (accountId: number) => {
-    return 'Non collegato' // TODO: Implement portfolio linking logic
+    const portfolio = portfolios.find(p => p.accountId === accountId)
+    return portfolio ? portfolio.name : 'Non collegato'
   }
 
   if (loading) {
@@ -336,12 +392,22 @@ export default function AccountsPage() {
         <div className="p-6 border-b border-adaptive">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-medium text-adaptive-900">💸 Trasferimenti Recenti</h3>
-            <button
-              onClick={() => router.push('/transfers')}
-              className="text-blue-600 hover:text-blue-800 text-sm"
-            >
-              Vedi tutti →
-            </button>
+            <div className="flex gap-3">
+              {selectedTransfers.length > 0 && (
+                <button
+                  onClick={handleBulkDeleteTransfers}
+                  className="bg-red-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-700"
+                >
+                  Cancella {selectedTransfers.length} selezionati
+                </button>
+              )}
+              <button
+                onClick={() => router.push('/transfers')}
+                className="text-blue-600 hover:text-blue-800 text-sm"
+              >
+                Vedi tutti →
+              </button>
+            </div>
           </div>
         </div>
         <div className="p-6">
@@ -351,16 +417,38 @@ export default function AccountsPage() {
             </div>
           ) : (
             <div className="space-y-3">
+              {/* Header con selezione multipla */}
+              <div className="flex items-center gap-3 pb-2 border-b border-adaptive">
+                <input
+                  type="checkbox"
+                  checked={selectAllTransfers}
+                  onChange={handleSelectAllTransfers}
+                  className="rounded"
+                />
+                <span className="text-sm text-adaptive-600">
+                  Seleziona tutto ({transfers.length})
+                </span>
+              </div>
+
+              {/* Lista trasferimenti */}
               {transfers.map((transfer) => (
                 <div key={transfer.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                  <div>
-                    <p className="font-medium text-adaptive-900">
-                      {transfer.fromAccount.name} → {transfer.toAccount.name}
-                    </p>
-                    <p className="text-sm text-adaptive-500">
-                      {new Date(transfer.date).toLocaleDateString('it-IT')}
-                      {transfer.description && ` • ${transfer.description}`}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedTransfers.includes(transfer.id)}
+                      onChange={() => handleTransferSelect(transfer.id)}
+                      className="rounded"
+                    />
+                    <div>
+                      <p className="font-medium text-adaptive-900">
+                        {transfer.fromAccount.name} → {transfer.toAccount.name}
+                      </p>
+                      <p className="text-sm text-adaptive-500">
+                        {new Date(transfer.date).toLocaleDateString('it-IT')}
+                        {transfer.description && ` • ${transfer.description}`}
+                      </p>
+                    </div>
                   </div>
                   <span className="text-lg font-semibold text-blue-600">
                     €{transfer.amount.toFixed(2)}

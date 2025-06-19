@@ -122,9 +122,9 @@ model DCAPortfolio {
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
   
-  // Collegamento opzionale a conto investimento
-  accountId   Int?
-  account     Account? @relation(fields: [accountId], references: [id])
+  // Collegamento obbligatorio a conto investimento
+  accountId   Int
+  account     Account @relation(fields: [accountId], references: [id])
   
   // Relazioni
   transactions DCATransaction[]

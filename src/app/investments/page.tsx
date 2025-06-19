@@ -250,7 +250,9 @@ export default function InvestmentsPage() {
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            disabled={investmentAccounts.length === 0}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={investmentAccounts.length === 0 ? "Crea prima un conto di investimento nella sezione Conti" : undefined}
           >
             ➕ Nuovo Portfolio
           </button>
@@ -444,23 +446,37 @@ export default function InvestmentsPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                    Conto Collegato (opzionale)
+                    Conto Collegato *
                   </label>
-                  <select
-                    value={formData.accountId || ''}
-                    onChange={(e) => setFormData({...formData, accountId: e.target.value ? parseInt(e.target.value) : undefined})}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Nessun conto collegato</option>
-                    {investmentAccounts.map(account => (
-                      <option key={account.id} value={account.id}>
-                        {account.name} (€{account.balance.toFixed(2)})
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-adaptive-500 mt-1">
-                    Le transazioni scalano automaticamente dal conto collegato
-                  </p>
+                  {investmentAccounts.length === 0 ? (
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                      <p className="text-sm text-yellow-800">
+                        ⚠️ Nessun conto di investimento disponibile.
+                      </p>
+                      <p className="text-xs text-yellow-700 mt-1">
+                        Crea prima un conto di investimento nella sezione Conti.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <select
+                        required
+                        value={formData.accountId || ''}
+                        onChange={(e) => setFormData({...formData, accountId: e.target.value ? parseInt(e.target.value) : undefined})}
+                        className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Seleziona conto di investimento</option>
+                        {investmentAccounts.map(account => (
+                          <option key={account.id} value={account.id}>
+                            {account.name} (€{account.balance.toFixed(2)})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-adaptive-500 mt-1">
+                        Le transazioni scalano automaticamente dal conto collegato
+                      </p>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex justify-end space-x-3">
@@ -476,8 +492,8 @@ export default function InvestmentsPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={creating}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    disabled={creating || investmentAccounts.length === 0}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {creating ? 'Creazione...' : 'Crea Portfolio'}
                   </button>
