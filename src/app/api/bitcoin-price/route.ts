@@ -1,4 +1,4 @@
-// src/app/api/bitcoin-price/route.ts
+// src/app/api/bitcoin-price/route.ts - VERSIONE CORRETTA CON CACHE RIDOTTA
 import { NextRequest, NextResponse } from 'next/server'
 
 // Cache per evitare troppe richieste API
@@ -9,37 +9,36 @@ let priceCache: {
   timestamp: number
 } | null = null
 
-const CACHE_DURATION = 30 * 1000 // 30 secondi per test
+// FIX: Cache ridotta a 5 secondi invece di 30
+const CACHE_DURATION = 5 * 1000 // 5 secondi
 
 // GET - Ottieni prezzo Bitcoin in EUR
 export async function GET(request: NextRequest) {
   try {
-    // Controlla cache
+    const { searchParams } = new URL(request.url)
+    const forceRefresh = searchParams.get('force') === 'true'
+    
     const now = Date.now()
     
     console.log('🔍 Bitcoin Price API called at:', new Date(now).toISOString())
-    // ✅ Aggiungi controllo force refresh
-const { searchParams } = new URL(request.url)
-const forceRefresh = searchParams.get('force') === 'true'
+    console.log('🔄 Force refresh:', forceRefresh)
     
-    if (priceCache) {
+    // Controlla cache solo se non forza refresh
+    if (!forceRefresh && priceCache) {
       const cacheAge = now - priceCache.timestamp
       console.log('📦 Cache exists, age:', Math.round(cacheAge / 1000), 'seconds')
-      console.log('🕐 Cache duration:', Math.round(CACHE_DURATION / 1000), 'seconds')
       console.log('✅ Cache valid:', cacheAge < CACHE_DURATION)
-    } else {
-      console.log('❌ No cache found')
-    }
-    
-    if (!forceRefresh && priceCache && (now - priceCache.timestamp) < CACHE_DURATION) {
-      console.log('🎯 Returning cached price')
-      return NextResponse.json({
-        btcEur: priceCache.btcEur,
-        btcUsd: priceCache.btcUsd,
-        usdEur: priceCache.usdEur,
-        cached: true,
-        timestamp: priceCache.timestamp
-      })
+      
+      if (cacheAge < CACHE_DURATION) {
+        console.log('🎯 Returning cached price')
+        return NextResponse.json({
+          btcEur: priceCache.btcEur,
+          btcUsd: priceCache.btcUsd,
+          usdEur: priceCache.usdEur,
+          cached: true,
+          timestamp: new Date(priceCache.timestamp).toISOString()
+        })
+      }
     }
 
     console.log('🌐 Fetching fresh price from APIs...')
@@ -51,14 +50,17 @@ const forceRefresh = searchParams.get('force') === 'true'
         method: 'GET',
         headers: {
           'User-Agent': 'SNP-Finance-App/1.0'
-        }
+        },
+        // FIX: No cache per garantire dati freschi
+        cache: 'no-store'
       }),
       // 2. Tasso USD→EUR
       fetch('https://api.exchangerate-api.com/v4/latest/USD', {
         method: 'GET',
         headers: {
           'User-Agent': 'SNP-Finance-App/1.0'
-        }
+        },
+        cache: 'no-store'
       })
     ])
 
@@ -105,20 +107,21 @@ const forceRefresh = searchParams.get('force') === 'true'
       btcUsd: priceCache.btcUsd,
       usdEur: priceCache.usdEur,
       cached: false,
-      timestamp: priceCache.timestamp
+      timestamp: new Date(priceCache.timestamp).toISOString()
     })
 
   } catch (error) {
-    console.error('Errore nel recupero prezzo Bitcoin:', error)
+    console.error('💥 Errore nel recupero prezzo Bitcoin:', error)
     
     // Se abbiamo una cache anche se scaduta, usala come fallback
     if (priceCache) {
+      console.log('🔄 Using fallback cache due to error')
       return NextResponse.json({
         btcEur: priceCache.btcEur,
         btcUsd: priceCache.btcUsd,
         usdEur: priceCache.usdEur,
         cached: true,
-        timestamp: priceCache.timestamp,
+        timestamp: new Date(priceCache.timestamp).toISOString(),
         warning: 'Prezzo da cache (API non disponibile)'
       })
     }

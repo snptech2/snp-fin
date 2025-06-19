@@ -1,10 +1,10 @@
-// src/app/api/dca-portfolios/[id]/route.ts
+// src/app/api/dca-portfolios/[id]/route.ts - CON METODO CASH FLOW
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// GET - Dettagli portafoglio specifico con statistiche complete
+// GET - Dettagli portafoglio specifico con statistiche complete CASH FLOW
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -28,7 +28,7 @@ export async function GET(
         networkFees: {
           orderBy: { date: 'desc' }
         },
-        account: true // ✅ FIX: Aggiungi la relazione account
+        account: true
       }
     })
 
@@ -39,32 +39,67 @@ export async function GET(
       )
     }
 
-    // Calcola statistiche dettagliate
-    const totalBTC = portfolio.transactions.reduce((sum, tx) => sum + tx.btcQuantity, 0)
-    const totalEUR = portfolio.transactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
+    // 🔄 NUOVO: Calcolo Cash Flow Method
+    const buyTransactions = portfolio.transactions.filter(tx => tx.type === 'buy')
+    const sellTransactions = portfolio.transactions.filter(tx => tx.type === 'sell')
+
+    // Totali acquisti e vendite
+    const totalBuyBTC = buyTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
+    const totalBuyEUR = buyTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
+    const totalSellBTC = sellTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
+    const totalSellEUR = sellTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
+
+    // BTC totali (acquisti - vendite)
+    const totalBTC = totalBuyBTC - totalSellBTC
+    
+    // 💰 CASH FLOW NETTO: Quanto ho speso al netto (acquisti - vendite)
+    const netCashFlow = totalBuyEUR - totalSellEUR
+
+    // 🎯 LOGICA CASH FLOW:
+    // Se netCashFlow <= 0 → Investimento = 0€ (ho già recuperato tutto)
+    // Se netCashFlow > 0 → Investimento = netCashFlow (quanto ho speso net)
+    const actualInvestment = Math.max(0, netCashFlow)
+
+    // Fee di rete
     const totalFeesSats = portfolio.networkFees.reduce((sum, fee) => sum + fee.sats, 0)
     const totalFeesBTC = totalFeesSats / 100000000
     const netBTC = totalBTC - totalFeesBTC
-    const avgPrice = totalBTC > 0 ? totalEUR / totalBTC : 0
+
+    // Prezzo medio di acquisto (solo sui BTC comprati)
+    const avgPurchasePrice = totalBuyBTC > 0 ? totalBuyEUR / totalBuyBTC : 0
 
     // Aggiungi prezzo di acquisto per ogni transazione
     const transactionsWithPrice = portfolio.transactions.map(tx => ({
       ...tx,
-      purchasePrice: tx.eurPaid / tx.btcQuantity
+      purchasePrice: tx.eurPaid / Math.abs(tx.btcQuantity)
     }))
 
     const portfolioWithStats = {
       ...portfolio,
       transactions: transactionsWithPrice,
       stats: {
+        // 🔄 NUOVI CAMPI CASH FLOW
+        totalBuyBTC,
+        totalBuyEUR,
+        totalSellBTC, 
+        totalSellEUR,
+        netCashFlow,
+        actualInvestment, // 🎯 Investimento reale secondo cash flow
+        isFreeBTC: actualInvestment <= 0, // 🎉 Flag "BTC Gratuiti"
+        
+        // 📊 CAMPI ESISTENTI (per compatibilità)
         totalBTC,
-        totalEUR,
+        totalEUR: actualInvestment, // 🔄 CAMBIATO: ora usa actualInvestment
         totalFeesSats,
         totalFeesBTC,
         netBTC,
-        avgPrice,
+        avgPrice: avgPurchasePrice, // 🔄 CAMBIATO: prezzo medio di acquisto
+        
+        // 📈 CONTATORI
         transactionCount: portfolio.transactions.length,
-        feesCount: portfolio.networkFees.length
+        feesCount: portfolio.networkFees.length,
+        buyCount: buyTransactions.length,
+        sellCount: sellTransactions.length
       }
     }
 
@@ -102,8 +137,8 @@ export async function PUT(
       )
     }
 
-    // Verifica che il portfolio esista e appartenga all'utente
-    const existingPortfolio = await prisma.dCAPortfolio.findFirst({
+    // Verifica che il portafoglio esista ed appartenga all'utente
+    const existingPortfolio = await prisma.dCAPortfolio.findUnique({
       where: { id, userId: 1 }
     })
 
@@ -114,12 +149,12 @@ export async function PUT(
       )
     }
 
-    // Controlla duplicati (escludendo il portfolio corrente)
+    // Controlla se esiste già un altro portfolio con lo stesso nome
     const duplicatePortfolio = await prisma.dCAPortfolio.findFirst({
       where: {
         userId: 1,
         name: name.trim(),
-        id: { not: id }
+        id: { not: id } // Esclude il portfolio corrente
       }
     })
 
@@ -136,7 +171,7 @@ export async function PUT(
       include: {
         transactions: true,
         networkFees: true,
-        account: true // ✅ FIX: Aggiungi anche qui la relazione account
+        account: true
       }
     })
 
@@ -150,7 +185,7 @@ export async function PUT(
   }
 }
 
-// DELETE - Cancella portafoglio (CASCADE automatico per transazioni e fee)
+// DELETE - Elimina portafoglio
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -165,8 +200,8 @@ export async function DELETE(
       )
     }
 
-    // Verifica che il portfolio esista e appartenga all'utente
-    const existingPortfolio = await prisma.dCAPortfolio.findFirst({
+    // Verifica che il portafoglio esista ed appartenga all'utente
+    const existingPortfolio = await prisma.dCAPortfolio.findUnique({
       where: { id, userId: 1 }
     })
 
@@ -177,18 +212,16 @@ export async function DELETE(
       )
     }
 
+    // Elimina il portafoglio (CASCADE eliminerà automaticamente transazioni e fee)
     await prisma.dCAPortfolio.delete({
       where: { id }
     })
 
-    return NextResponse.json(
-      { message: 'Portafoglio cancellato con successo' },
-      { status: 200 }
-    )
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Errore nella cancellazione portafoglio DCA:', error)
+    console.error('Errore nell\'eliminazione portafoglio DCA:', error)
     return NextResponse.json(
-      { error: 'Errore nella cancellazione portafoglio DCA' },
+      { error: 'Errore nell\'eliminazione portafoglio DCA' },
       { status: 500 }
     )
   }

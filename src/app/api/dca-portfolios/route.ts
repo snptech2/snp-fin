@@ -1,10 +1,10 @@
-// src/app/api/dca-portfolios/route.ts
+// src/app/api/dca-portfolios/route.ts - CON METODO CASH FLOW
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// GET - Lista tutti i portafogli DCA
+// GET - Lista tutti i portafogli DCA con calcolo Cash Flow
 export async function GET() {
   try {
     const portfolios = await prisma.dCAPortfolio.findMany({
@@ -12,7 +12,7 @@ export async function GET() {
       include: {
         transactions: true,
         networkFees: true,
-        account: true, // ← Include account data
+        account: true,
         _count: {
           select: {
             transactions: true,
@@ -23,26 +23,60 @@ export async function GET() {
       orderBy: { createdAt: 'desc' }
     })
 
-    // Calcola statistiche per ogni portfolio
+    // 🔄 NUOVO: Calcola statistiche con metodo Cash Flow per ogni portfolio
     const portfoliosWithStats = portfolios.map(portfolio => {
-      const totalBTC = portfolio.transactions.reduce((sum, tx) => sum + tx.btcQuantity, 0)
-      const totalEUR = portfolio.transactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
+      // Separa acquisti e vendite
+      const buyTransactions = portfolio.transactions.filter(tx => tx.type === 'buy')
+      const sellTransactions = portfolio.transactions.filter(tx => tx.type === 'sell')
+
+      // Totali acquisti e vendite
+      const totalBuyBTC = buyTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
+      const totalBuyEUR = buyTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
+      const totalSellBTC = sellTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
+      const totalSellEUR = sellTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
+
+      // BTC totali (acquisti - vendite)
+      const totalBTC = totalBuyBTC - totalSellBTC
+      
+      // 💰 CASH FLOW NETTO: Quanto ho speso al netto
+      const netCashFlow = totalBuyEUR - totalSellEUR
+
+      // 🎯 LOGICA CASH FLOW: Se negativo o zero = investimento 0€
+      const actualInvestment = Math.max(0, netCashFlow)
+
+      // Fee di rete
       const totalFeesSats = portfolio.networkFees.reduce((sum, fee) => sum + fee.sats, 0)
-      const totalFeesBTC = totalFeesSats / 100000000 // Converti sats in BTC
+      const totalFeesBTC = totalFeesSats / 100000000
       const netBTC = totalBTC - totalFeesBTC
-      const avgPrice = totalBTC > 0 ? totalEUR / totalBTC : 0
+
+      // Prezzo medio di acquisto (solo sui BTC comprati)
+      const avgPurchasePrice = totalBuyBTC > 0 ? totalBuyEUR / totalBuyBTC : 0
 
       return {
         ...portfolio,
         stats: {
+          // 🔄 NUOVI CAMPI CASH FLOW
+          totalBuyBTC,
+          totalBuyEUR,
+          totalSellBTC,
+          totalSellEUR,
+          netCashFlow,
+          actualInvestment, // 🎯 Investimento reale secondo cash flow
+          isFreeBTC: actualInvestment <= 0, // 🎉 Flag "BTC Gratuiti"
+          
+          // 📊 CAMPI ESISTENTI (per compatibilità)
           totalBTC,
-          totalEUR,
+          totalEUR: actualInvestment, // 🔄 CAMBIATO: ora usa actualInvestment
           totalFeesSats,
           totalFeesBTC,
           netBTC,
-          avgPrice,
+          avgPrice: avgPurchasePrice, // 🔄 CAMBIATO: prezzo medio di acquisto
+          
+          // 📈 CONTATORI
           transactionCount: portfolio._count.transactions,
-          feesCount: portfolio._count.networkFees
+          feesCount: portfolio._count.networkFees,
+          buyCount: buyTransactions.length,
+          sellCount: sellTransactions.length
         }
       }
     })
