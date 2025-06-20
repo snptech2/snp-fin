@@ -1,28 +1,29 @@
-# 🎨 SNP Finance - Design System Guide
+# 🎨 SNP Finance - Design System
 
-## 📋 **STANDARD VISUAL COMPLETO**
+## 📋 **STILE REALE DEL PROGETTO**
 
-Questo documento definisce gli standard per mantenere **continuità visiva perfetta** in tutto il progetto.
+Questo documento definisce il **vero design system** basato sulle pagine Income/Expenses esistenti.
 
 ---
 
-## 🎯 **STRUTTURA BASE PAGINA**
+## 🎯 **LAYOUT BASE PAGINA**
 
-### **Layout Standard:**
+### **Struttura Standard:**
 ```tsx
 <div className="space-y-6">
-  {/* Header */}
+  {/* Header con sfondo scuro */}
   <div className="flex justify-between items-center">
     <div>
-      <h1 className="text-3xl font-bold text-adaptive-900">Titolo Pagina</h1>
-      <p className="text-adaptive-600">Sottotitolo descrittivo</p>
+      <h1 className="text-3xl font-bold text-white">Titolo Pagina</h1>
+      <p className="text-white opacity-80">Sottotitolo descrittivo</p>
     </div>
-    <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-      ➕ Azione Principale
+    <button className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2">
+      <PlusIcon className="w-5 h-5" />
+      Azione Principale
     </button>
   </div>
 
-  {/* Card Statistiche */}
+  {/* Statistiche - 4 colonne responsive */}
   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
     <div className="card-adaptive p-4 rounded-lg border-adaptive">
       <h3 className="text-sm font-medium text-adaptive-500">Metrica</h3>
@@ -31,7 +32,7 @@ Questo documento definisce gli standard per mantenere **continuità visiva perfe
     </div>
   </div>
 
-  {/* Contenitore Principale */}
+  {/* Card Principale */}
   <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
     <div className="p-6 border-b border-adaptive">
       <h3 className="text-lg font-medium text-adaptive-900">Sezione</h3>
@@ -45,31 +46,89 @@ Questo documento definisce gli standard per mantenere **continuità visiva perfe
 
 ---
 
-## 🎨 **CLASSI CSS STANDARD**
+## 🎨 **CLASSI CSS REALI**
 
 ### **🖼️ Contenitori:**
-- **Pagina**: `space-y-6` (spaziatura verticale)
+- **Pagina**: `space-y-6`
 - **Card principale**: `card-adaptive rounded-lg shadow-sm border-adaptive`
 - **Header card**: `p-6 border-b border-adaptive`
 - **Contenuto card**: `p-6`
 
 ### **📝 Testi:**
-- **Titolo pagina**: `text-3xl font-bold text-adaptive-900`
-- **Sottotitolo**: `text-adaptive-600`
+- **Titolo pagina**: `text-3xl font-bold text-white`
+- **Sottotitolo**: `text-white opacity-80`
 - **Titolo sezione**: `text-lg font-medium text-adaptive-900`
 - **Etichette**: `text-sm font-medium text-adaptive-500`
-- **Contenuto**: `text-adaptive-700` / `text-adaptive-900`
-
-### **📊 Liste/Righe:**
-- **Container liste**: sempre dentro `card-adaptive`
-- **Righe dati**: `flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors`
-- **Spaziatura liste**: `space-y-3`
+- **Valori**: `text-2xl font-bold text-[colore]`
+- **Dettagli**: `text-sm text-adaptive-600`
 
 ### **🔘 Bottoni:**
-- **Primario**: `px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700`
+- **Primario**: `btn-primary px-4 py-2 rounded-lg`
 - **Secondario**: `px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-gray-50`
 - **Pericoloso**: `px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700`
-- **Azioni**: `text-blue-600 hover:text-blue-800 p-1` (✏️) / `text-red-600 hover:text-red-800 p-1` (🗑️)
+- **Azioni icone**: `text-blue-600 hover:text-blue-800 p-1` / `text-red-600 hover:text-red-800 p-1`
+
+---
+
+## 🌈 **COLORI SEMANTICI**
+
+### **Statistiche Card:**
+- **Entrate/Positivo**: `text-green-600`
+- **Uscite/Negativo**: `text-red-600`  
+- **Generale**: `text-blue-600`
+- **Speciale**: `text-purple-600`
+- **Warning**: `text-orange-600`
+- **Neutro**: `text-adaptive-900`
+
+### **Categorie (Income):**
+```tsx
+const incomeColors = [
+  '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+  '#06B6D4', '#F97316', '#84CC16', '#EC4899', '#6366F1'
+]
+```
+
+### **Categorie (Expenses):**
+```tsx
+const expenseColors = [
+  '#EF4444', '#F97316', '#F59E0B', '#84CC16', '#10B981', 
+  '#06B6D4', '#3B82F6', '#8B5CF6', '#EC4899', '#6366F1'
+]
+```
+
+---
+
+## 📊 **PATTERN LISTE**
+
+### **Righe Standard:**
+```tsx
+<div className="space-y-3">
+  {items.map((item) => (
+    <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+      <div className="flex items-center gap-4 flex-1">
+        {/* Checkbox selezione */}
+        <input type="checkbox" className="w-4 h-4 text-blue-600 border-gray-300 rounded" />
+        
+        {/* Contenuto principale */}
+        <div className="flex-1">
+          <div className="text-sm text-adaptive-900">{item.nome}</div>
+          <div className="text-sm text-adaptive-600">{item.dettaglio}</div>
+        </div>
+      </div>
+      
+      {/* Azioni */}
+      <div className="flex items-center gap-2 ml-4">
+        <button className="text-blue-600 hover:text-blue-800 p-1">
+          <PencilIcon className="w-4 h-4" />
+        </button>
+        <button className="text-red-600 hover:text-red-800 p-1">
+          <TrashIcon className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  ))}
+</div>
+```
 
 ---
 
@@ -97,7 +156,7 @@ Questo documento definisce gli standard per mantenere **continuità visiva perfe
         </div>
         
         {/* Bottoni */}
-        <div className="flex justify-end space-x-3">
+        <div className="flex justify-end space-x-3 pt-4">
           <button className="px-4 py-2 text-adaptive-600 hover:text-adaptive-800">
             Annulla
           </button>
@@ -113,101 +172,55 @@ Questo documento definisce gli standard per mantenere **continuità visiva perfe
 
 ---
 
-## 📊 **PATTERN LISTE DATI**
+## 🔍 **RICERCA E FILTRI**
 
-### **Lista Standard:**
+### **Barra Ricerca:**
 ```tsx
-<div className="card-adaptive rounded-lg shadow-sm border-adaptive">
-  <div className="p-6 border-b border-adaptive">
-    <h3 className="text-lg font-medium text-adaptive-900">Lista Elementi</h3>
-  </div>
-  <div className="p-6">
-    {items.length > 0 ? (
-      <div className="space-y-3">
-        {items.map((item) => (
-          <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-            <div className="flex items-center gap-4 flex-1">
-              <div className="text-sm text-adaptive-600 min-w-[80px]">
-                {item.data}
-              </div>
-              <div className="text-sm text-adaptive-900 min-w-[120px]">
-                {item.valore}
-              </div>
-              <div className="text-sm text-adaptive-500 flex-1">
-                {item.descrizione}
-              </div>
-            </div>
-            <div className="flex items-center gap-2 ml-4">
-              <button className="text-blue-600 hover:text-blue-800 p-1">
-                ✏️
-              </button>
-              <button className="text-red-600 hover:text-red-800 p-1">
-                🗑️
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    ) : (
-      <div className="text-center py-8">
-        <p className="text-adaptive-600">Nessun elemento trovato.</p>
-      </div>
-    )}
+<div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+  <h3 className="text-lg font-medium text-adaptive-900">Sezione</h3>
+  
+  <div className="flex flex-col md:flex-row gap-3">
+    {/* Ricerca */}
+    <div className="relative">
+      <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-adaptive-400" />
+      <input
+        type="text"
+        placeholder="Cerca..."
+        className="pl-9 pr-3 py-2 border border-adaptive rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px]"
+      />
+    </div>
+    
+    {/* Filtri */}
+    <button className="flex items-center gap-2 px-3 py-2 border border-adaptive rounded-md text-sm text-adaptive-600 hover:bg-gray-50">
+      <FunnelIcon className="w-4 h-4" />
+      Filtri
+    </button>
   </div>
 </div>
 ```
-
----
-
-## 🎨 **COLORI STANDARD**
-
-### **Colori Semantici:**
-- **Successo**: `text-green-600` / `bg-green-600`
-- **Errore**: `text-red-600` / `bg-red-600`  
-- **Warning**: `text-orange-600` / `bg-orange-600`
-- **Info**: `text-blue-600` / `bg-blue-600`
-- **Neutro**: `text-adaptive-*` / `card-adaptive`
-
-### **Statistiche Card:**
-- **Entrate**: `text-green-600`
-- **Uscite**: `text-red-600`
-- **Totali**: `text-adaptive-900`
-- **Percentuali**: `text-purple-600`
 
 ---
 
 ## 📐 **LAYOUT RESPONSIVE**
 
 ### **Grid Statistiche:**
-```tsx
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-  <div className="card-adaptive p-4 rounded-lg border-adaptive">
-    <h3 className="text-sm font-medium text-adaptive-500">Metrica</h3>
-    <p className="text-2xl font-bold text-green-600">€ 1.234,56</p>
-    <p className="text-sm text-adaptive-600">2 transazioni</p>
-  </div>
-</div>
-```
+- **Mobile**: `grid-cols-1` (1 colonna)
+- **Tablet**: `md:grid-cols-2` (2 colonne)  
+- **Desktop**: `md:grid-cols-4` (4 colonne)
 
-### **Layout Liste:**
-- **Mobile**: Elementi impilati verticalmente
-- **Desktop**: Flex con `min-w-[*px]` per colonne fisse
-- **Azioni**: Sempre a destra con `ml-4`
+### **Spaziature Standard:**
+- **Pagina**: `space-y-6`
+- **Card interna**: `space-y-3` o `space-y-4`
+- **Form**: `space-y-4`
+- **Bottoni**: `space-x-3`
 
 ---
 
-## 🚀 **COMPONENTI RIUTILIZZABILI**
+## 🚀 **COMPONENTI HELPER**
 
-### **StatCard Component:**
+### **StatCard:**
 ```tsx
-interface StatCardProps {
-  title: string
-  value: string | number
-  detail?: string
-  color?: string
-}
-
-const StatCard = ({ title, value, detail, color = "text-adaptive-900" }: StatCardProps) => (
+const StatCard = ({ title, value, detail, color = "text-adaptive-900" }) => (
   <div className="card-adaptive p-4 rounded-lg border-adaptive">
     <h3 className="text-sm font-medium text-adaptive-500">{title}</h3>
     <p className={`text-2xl font-bold ${color}`}>{value}</p>
@@ -216,26 +229,17 @@ const StatCard = ({ title, value, detail, color = "text-adaptive-900" }: StatCar
 )
 ```
 
-### **PageHeader Component:**
+### **PageHeader:**
 ```tsx
-interface PageHeaderProps {
-  title: string
-  subtitle: string
-  actionLabel?: string
-  onAction?: () => void
-}
-
-const PageHeader = ({ title, subtitle, actionLabel, onAction }: PageHeaderProps) => (
+const PageHeader = ({ title, subtitle, actionLabel, onAction }) => (
   <div className="flex justify-between items-center">
     <div>
-      <h1 className="text-3xl font-bold text-adaptive-900">{title}</h1>
-      <p className="text-adaptive-600">{subtitle}</p>
+      <h1 className="text-3xl font-bold text-white">{title}</h1>
+      <p className="text-white opacity-80">{subtitle}</p>
     </div>
-    {actionLabel && onAction && (
-      <button 
-        onClick={onAction}
-        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-      >
+    {actionLabel && (
+      <button onClick={onAction} className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2">
+        <PlusIcon className="w-5 h-5" />
         {actionLabel}
       </button>
     )}
@@ -245,70 +249,73 @@ const PageHeader = ({ title, subtitle, actionLabel, onAction }: PageHeaderProps)
 
 ---
 
-## 📋 **CHECKLIST NUOVE PAGINE**
+## ✅ **CHECKLIST NUOVE PAGINE**
 
-### **Prima di creare una nuova pagina, verifica:**
+### **Prima di creare una nuova pagina:**
 
-✅ **Layout Base:**
-- [ ] Struttura `<div className="space-y-6">`
-- [ ] Header con `PageHeader` o struttura standard
-- [ ] Card statistiche con grid responsive
+**Layout Base:**
+- [ ] `<div className="space-y-6">` come container principale
+- [ ] Header con `text-white` e bottone `btn-primary`
+- [ ] Grid statistiche `grid-cols-1 md:grid-cols-4 gap-4`
 
-✅ **Contenitori:**
-- [ ] Usa sempre `card-adaptive` per sezioni principali
-- [ ] Header sezioni con `border-b border-adaptive`
-- [ ] Padding corretto `p-6`
+**Contenitori:**
+- [ ] Card con `card-adaptive rounded-lg shadow-sm border-adaptive`
+- [ ] Header sezioni con `p-6 border-b border-adaptive`
+- [ ] Contenuto con `p-6`
 
-✅ **Liste:**
-- [ ] Righe con `bg-gray-50 hover:bg-gray-100`
-- [ ] Spaziatura `space-y-3`
-- [ ] Azioni a destra con bottoni standard
+**Liste:**
+- [ ] Righe con `bg-gray-50 hover:bg-gray-100 transition-colors`
+- [ ] Spaziatura con `space-y-3`
+- [ ] Azioni a destra con icone colorate
 
-✅ **Modali:**
-- [ ] Classe `.modal-content` obbligatoria
-- [ ] Struttura standard con `space-y-4`
-- [ ] Bottoni standard in `justify-end space-x-3`
+**Colori:**
+- [ ] Verde per entrate/positivo: `text-green-600`
+- [ ] Rosso per uscite/negativo: `text-red-600`
+- [ ] Blu per generale: `text-blue-600`
+- [ ] Classi `text-adaptive-*` per testi standard
 
-✅ **Testi:**
-- [ ] Sempre classi `text-adaptive-*`
-- [ ] Dimensioni standard (3xl, lg, sm)
-- [ ] Colori semantici per stati
-
-✅ **Responsive:**
-- [ ] Grid che si adatta (1 → 2 → 4 colonne)
-- [ ] Liste che funzionano su mobile
-- [ ] Modali con `max-w-md mx-4`
+**Modali:**
+- [ ] Container con `modal-content`
+- [ ] Form con `space-y-4`
+- [ ] Bottoni in `justify-end space-x-3`
 
 ---
 
-## 🎯 **ESEMPI PAGINE COMPLETE**
+## 🎯 **TEMPLATE COMPLETO**
 
-### **Template Pagina Lista:**
 ```tsx
 export default function NewPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <PageHeader 
-        title="Nuova Sezione"
-        subtitle="Gestisci i tuoi dati"
-        actionLabel="➕ Nuovo Elemento"
-        onAction={() => setShowModal(true)}
-      />
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-white">Nuova Pagina</h1>
+          <p className="text-white opacity-80">Descrizione della pagina</p>
+        </div>
+        <button className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2">
+          <PlusIcon className="w-5 h-5" />
+          Nuova Azione
+        </button>
+      </div>
 
       {/* Statistiche */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard title="Totale" value="€ 1.234" color="text-green-600" />
-        <StatCard title="Questo Mese" value="€ 456" detail="3 elementi" />
+        <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <h3 className="text-sm font-medium text-adaptive-500">Metrica 1</h3>
+          <p className="text-2xl font-bold text-green-600">€ 1.234</p>
+          <p className="text-sm text-adaptive-600">Dettaglio</p>
+        </div>
+        {/* Ripeti per altre 3 card */}
       </div>
 
-      {/* Lista Principale */}
+      {/* Contenuto Principale */}
       <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
         <div className="p-6 border-b border-adaptive">
-          <h3 className="text-lg font-medium text-adaptive-900">Elementi</h3>
+          <h3 className="text-lg font-medium text-adaptive-900">Sezione Principale</h3>
         </div>
         <div className="p-6">
-          {/* Lista con pattern standard */}
+          {/* Contenuto della sezione */}
         </div>
       </div>
     </div>
@@ -318,14 +325,14 @@ export default function NewPage() {
 
 ---
 
-## 📚 **CONCLUSIONI**
+## 🎉 **CONCLUSIONI**
 
-Seguendo questi standard, **ogni nuova pagina** avrà automaticamente:
+Seguendo questo design system, ogni nuova pagina avrà:
 
-✅ **Aspetto identico** alle pagine esistenti  
-✅ **Responsive design** perfetto  
-✅ **Accessibilità** mantenuta  
-✅ **Performance** ottimali  
-✅ **Manutenibilità** elevata  
+✅ **Aspetto identico** alle pagine Income/Expenses  
+✅ **Classi CSS corrette** (`card-adaptive`, `text-white`, etc.)  
+✅ **Colori semantici** coerenti  
+✅ **Layout responsive** funzionante  
+✅ **Componenti standard** riutilizzabili  
 
-**Copia questo template per ogni nuova pagina e mantieni la coerenza!** 🎉
+**Usa questo come riferimento per tutte le nuove pagine!** 🚀
