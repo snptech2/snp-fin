@@ -116,6 +116,28 @@ export default function AccountsPage() {
     }
   }
 
+  const handleSetDefault = async (accountId: number) => {
+  try {
+    const response = await fetch(`/api/accounts/${accountId}/set-default`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (response.ok) {
+      // Ricarica i dati per aggiornare la UI
+      await fetchData()
+    } else {
+      const errorData = await response.json()
+      console.error('Errore nell\'impostazione predefinito:', errorData.error)
+    }
+  } catch (error) {
+    console.error('Errore nella richiesta:', error)
+  }
+}
+
+
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
@@ -304,27 +326,46 @@ export default function AccountsPage() {
                       €{account.balance.toFixed(2)}
                     </span>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingAccount(account)
-                          setAccountForm({
-                            name: account.name,
-                            type: account.type,
-                            linkedPortfolioId: ''
-                          })
-                          setShowAccountModal(true)
-                        }}
-                        className="text-blue-600 hover:text-blue-800 p-1"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => handleDeleteAccount(account.id)}
-                        className="text-red-600 hover:text-red-800 p-1"
-                      >
-                        🗑️
-                      </button>
-                    </div>
+  {/* Bottone Preferito */}
+  <button
+    onClick={() => handleSetDefault(account.id)}
+    className={`p-1 transition-colors ${
+      account.isDefault 
+        ? 'text-green-600 cursor-default' 
+        : 'text-gray-400 hover:text-green-600'
+    }`}
+    title={account.isDefault ? 'Conto predefinito' : 'Imposta come predefinito'}
+    disabled={account.isDefault}
+  >
+    ⭐
+  </button>
+  
+  {/* Bottone Modifica */}
+  <button
+    onClick={() => {
+      setEditingAccount(account)
+      setAccountForm({
+        name: account.name,
+        type: account.type,
+        linkedPortfolioId: ''
+      })
+      setShowAccountModal(true)
+    }}
+    className="text-blue-600 hover:text-blue-800 p-1"
+    title="Modifica conto"
+  >
+    ✏️
+  </button>
+  
+  {/* Bottone Elimina */}
+  <button
+    onClick={() => handleDeleteAccount(account.id)}
+    className="text-red-600 hover:text-red-800 p-1"
+    title="Elimina conto"
+  >
+    🗑️
+  </button>
+</div>
                   </div>
                 </div>
               ))}
