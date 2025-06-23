@@ -141,13 +141,44 @@ export default function EnhancedAccountsPage() {
   }
 
   const calculateInvestmentBreakdowns = (accounts: Account[], portfolios: Portfolio[]) => {
-    const breakdowns: {[key: number]: AccountBreakdown} = {}
+  const breakdowns: {[key: number]: AccountBreakdown} = {}
+  
+  accounts.filter(acc => acc.type === 'investment').forEach(account => {
+    // Find portfolios linked to this account
+    const accountPortfolios = portfolios.filter(p => p.accountId === account.id)
     
-    accounts.filter(acc => acc.type === 'investment').forEach(account => {
-      // Find portfolios linked to this account
-      const accountPortfolios = portfolios.filter(p => p.accountId === account.id)
+    if (accountPortfolios.length > 0) {
+      // ✅ NUOVO: Aggrega tutte le transazioni di tutti i portfolio dell'account
+      const allTransactions = accountPortfolios.flatMap(p => p.transactions || [])
       
-      if (accountPortfolios.length > 0) {
+      if (allTransactions.length > 0) {
+        // ✅ APPLICA LA LOGICA ENHANCED CASH FLOW A LIVELLO DI ACCOUNT
+        const buyTransactions = allTransactions.filter(tx => tx.type === 'buy')
+        const sellTransactions = allTransactions.filter(tx => tx.type === 'sell')
+
+        const totalBuyEUR = buyTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
+        const totalSellEUR = sellTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
+
+        // Enhanced Cash Flow Logic aggregata
+        const totalInvested = totalBuyEUR
+        const capitalRecovered = Math.min(totalInvested, totalSellEUR)
+        const realizedGains = Math.max(0, totalSellEUR - totalInvested)
+        const realizedLoss = Math.max(0, totalInvested - totalSellEUR) // Ora corretto!
+        
+        const netRealizedPL = realizedGains - realizedLoss
+        const trackedFunds = capitalRecovered + netRealizedPL
+        const unknownFunds = Math.max(0, account.balance - trackedFunds)
+        
+        breakdowns[account.id] = {
+          totalBalance: account.balance,
+          originalCapital: capitalRecovered,
+          realizedGains: realizedGains,
+          realizedLoss: realizedLoss, // Ora sarà 0 nel tuo caso!
+          unknownFunds,
+          netRealizedPL
+        }
+      } else {
+        // ❌ VECCHIA LOGICA (fallback se non ci sono transazioni)
         const totalCapitalRecovered = accountPortfolios.reduce((sum, p) => sum + p.stats.capitalRecovered, 0)
         const totalRealizedGains = accountPortfolios.reduce((sum, p) => sum + p.stats.realizedGains, 0)
         const totalRealizedLoss = accountPortfolios.reduce((sum, p) => sum + p.stats.realizedLoss, 0)
@@ -165,10 +196,11 @@ export default function EnhancedAccountsPage() {
           netRealizedPL
         }
       }
-    })
-    
-    setInvestmentBreakdowns(breakdowns)
-  }
+    }
+  })
+  
+  setInvestmentBreakdowns(breakdowns)
+}
 
   const handleAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
