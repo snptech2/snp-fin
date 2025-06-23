@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { 
   PlusIcon, PencilIcon, TrashIcon, TagIcon, CurrencyEuroIcon, 
   FunnelIcon, MagnifyingGlassIcon, ChevronLeftIcon, ChevronRightIcon,
-  CalendarIcon, CheckIcon
+  CalendarIcon, CheckIcon, ChevronDownIcon
 } from '@heroicons/react/24/outline'
 
 interface Account {
@@ -65,10 +65,26 @@ export default function ExpensesPage() {
     color: '#EF4444'  // Rosso per le uscite
   })
   
-  // Colori disponibili per le categorie
+  // Colori disponibili per le categorie - PALETTE AMPLIATA (ORDINATA CON ROSSI PRIMA)
   const [availableColors] = useState([
-    '#EF4444', '#F97316', '#F59E0B', '#84CC16', '#10B981', '#06B6D4',
-    '#3B82F6', '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6', '#DC2626'
+    // Rosso/Rosa (priorità per uscite)
+    '#EF4444', '#DC2626', '#B91C1C', '#EC4899', '#F43F5E',
+    // Arancione/Giallo
+    '#F97316', '#EA580C', '#F59E0B', '#D97706', '#FB923C',
+    // Verde
+    '#10B981', '#059669', '#047857', '#065F46', '#6EE7B7',
+    // Blu
+    '#3B82F6', '#1D4ED8', '#1E40AF', '#2563EB', '#60A5FA',
+    // Viola/Indaco
+    '#8B5CF6', '#7C3AED', '#6366F1', '#4F46E5', '#A78BFA',
+    // Ciano/Teal
+    '#06B6D4', '#0891B2', '#14B8A6', '#0D9488', '#2DD4BF',
+    // Lime/Verde chiaro
+    '#84CC16', '#65A30D', '#16A34A', '#15803D', '#22C55E',
+    // Grigio/Neutri
+    '#6B7280', '#4B5563', '#374151', '#1F2937', '#9CA3AF',
+    // Extra
+    '#F472B6', '#C084FC', '#FB7185', '#FBBF24', '#34D399'
   ])
   
   // Stati per filtri e ricerca
@@ -77,11 +93,12 @@ export default function ExpensesPage() {
   const [selectedAccount, setSelectedAccount] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(true)
   
   // Stati per paginazione
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(10)
+  const [itemsPerPage, setItemsPerPage] = useState(25) // 🔄 CORRETTO: dinamico con default 25
+  const [showCategories, setShowCategories] = useState(false)
   
   // Stati per selezione multipla
   const [selectedTransactions, setSelectedTransactions] = useState<number[]>([])
@@ -503,13 +520,13 @@ export default function ExpensesPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-white">Uscite</h1>
-          <p className="text-white opacity-80">Gestisci le tue uscite e categorie</p>
+          <h1 className="text-3xl font-bold text-adaptive-900">Uscite</h1>
+          <p className="text-adaptive-600">Gestisci le tue uscite e categorie</p>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          <div className="bg-gray-200 animate-pulse rounded-lg h-64"></div>
-          <div className="bg-gray-200 animate-pulse rounded-lg h-64"></div>
-          <div className="bg-gray-200 animate-pulse rounded-lg h-64"></div>
+          <div className="card-adaptive animate-pulse rounded-lg h-64"></div>
+          <div className="card-adaptive animate-pulse rounded-lg h-64"></div>
+          <div className="card-adaptive animate-pulse rounded-lg h-64"></div>
         </div>
       </div>
     )
@@ -520,8 +537,8 @@ export default function ExpensesPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-white">Uscite</h1>
-          <p className="text-white opacity-80">Gestisci le tue uscite e categorie</p>
+          <h1 className="text-3xl font-bold text-adaptive-900">Uscite</h1>
+          <p className="text-adaptive-600">Gestisci le tue uscite e categorie</p>
         </div>
         <button
           onClick={() => setShowTransactionForm(true)}
@@ -589,16 +606,23 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      {/* Gestione Categorie */}
+      {/* Gestione Categorie - COLLASSATA */}
       <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
-        <div className="p-6 border-b border-adaptive">
+        <div 
+          className="p-6 border-b border-adaptive cursor-pointer" 
+          onClick={() => setShowCategories(!showCategories)}
+        >
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold text-adaptive-900 flex items-center gap-2">
               <TagIcon className="w-5 h-5" />
               Categorie Uscite
+              <ChevronDownIcon className={`w-4 h-4 transition-transform ${showCategories ? 'rotate-180' : ''}`} />
             </h3>
             <button
-              onClick={() => setShowCategoryForm(true)}
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowCategoryForm(true)
+              }}
               className="btn-primary px-3 py-1 text-sm rounded-lg flex items-center gap-1"
             >
               <PlusIcon className="w-4 h-4" />
@@ -606,130 +630,142 @@ export default function ExpensesPage() {
             </button>
           </div>
         </div>
-        <div className="p-6">
-          {categories.length === 0 ? (
-            <p className="text-adaptive-600 text-center py-4">
-              Nessuna categoria per uscite. Creane una per iniziare!
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {categories.map((category) => (
-                <div key={category.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-4 h-4 rounded-full border-2 border-gray-300"
-                      style={{ backgroundColor: category.color || '#EF4444' }}
-                    />
-                    <span className="font-medium text-adaptive-900">{category.name}</span>
+        {showCategories && (
+          <div className="p-6">
+            {categories.length === 0 ? (
+              <p className="text-adaptive-600 text-center py-4">
+                Nessuna categoria per uscite. Creane una per iniziare!
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                {categories.map((category) => (
+                  <div key={category.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div 
+                        className="w-4 h-4 rounded-full border-2 border-gray-300"
+                        style={{ backgroundColor: category.color || '#EF4444' }}
+                      />
+                      <span className="font-medium text-adaptive-900">{category.name}</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleEditCategory(category)}
+                        className="text-blue-600 hover:text-blue-800 p-1"
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(category)}
+                        className="text-red-600 hover:text-red-800 p-1"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => handleEditCategory(category)}
-                      className="text-blue-600 hover:text-blue-800 p-1"
-                    >
-                      <PencilIcon className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCategory(category)}
-                      className="text-red-600 hover:text-red-800 p-1"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Sezione Filtri e Ricerca */}
+      {/* Lista Transazioni con Filtri Integrati */}
       <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
         <div className="p-6 border-b border-adaptive">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
-              <FunnelIcon className="w-5 h-5" />
-              Filtri e Ricerca
+              <CurrencyEuroIcon className="w-5 h-5" />
+              Transazioni ({filteredTransactions.length})
             </h3>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="text-blue-600 hover:text-blue-800 text-sm"
-            >
-              {showFilters ? 'Nascondi' : 'Mostra'} Filtri
-            </button>
+            {selectedTransactions.length > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                className="bg-red-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-700"
+              >
+                Cancella {selectedTransactions.length} selezionate
+              </button>
+            )}
           </div>
-        </div>
-
-        {showFilters && (
-          <div className="p-6 bg-gray-50 border-b border-adaptive">
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  <MagnifyingGlassIcon className="w-4 h-4 inline mr-1" />
-                  Ricerca
-                </label>
+          
+          {/* 🆕 FILTRI INTEGRATI SEMPRE VISIBILI */}
+          <div className="space-y-4">
+            {/* Ricerca veloce */}
+            <div className="flex gap-4">
+              <div className="flex-1">
                 <input
                   type="text"
+                  placeholder="🔍 Ricerca veloce..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Descrizione, categoria, conto..."
                   className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Categoria</label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Tutte le categorie</option>
-                  {categories.map(category => (
-                    <option key={category.id} value={category.id.toString()}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Conto</label>
-                <select
-                  value={selectedAccount}
-                  onChange={(e) => setSelectedAccount(e.target.value)}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Tutti i conti</option>
-                  {accounts.map(account => (
-                    <option key={account.id} value={account.id.toString()}>
-                      {account.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Data Da</label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Data A</label>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full border-adaptive rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="btn-secondary px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+              >
+                <FunnelIcon className="w-4 h-4" />
+                {showFilters ? 'Meno Filtri' : 'Più Filtri'}
+              </button>
             </div>
             
+            {/* Filtri avanzati (collassabili) */}
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-adaptive">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Categoria</label>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="w-full border-adaptive rounded-lg px-3 py-2"
+                  >
+                    <option value="">Tutte le categorie</option>
+                    {categories.map(category => (
+                      <option key={category.id} value={category.id.toString()}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Conto</label>
+                  <select
+                    value={selectedAccount}
+                    onChange={(e) => setSelectedAccount(e.target.value)}
+                    className="w-full border-adaptive rounded-lg px-3 py-2"
+                  >
+                    <option value="">Tutti i conti</option>
+                    {accounts.map(account => (
+                      <option key={account.id} value={account.id.toString()}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Da Data</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-full border-adaptive rounded-lg px-3 py-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">A Data</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-full border-adaptive rounded-lg px-3 py-2"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => {
@@ -745,40 +781,59 @@ export default function ExpensesPage() {
               </button>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Lista Transazioni */}
-      <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
-        <div className="p-6 border-b border-adaptive">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
-              <CurrencyEuroIcon className="w-5 h-5" />
-              Transazioni ({filteredTransactions.length})
-            </h3>
-            {selectedTransactions.length > 0 && (
-              <button
-                onClick={handleBulkDelete}
-                className="bg-red-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-700"
-              >
-                Cancella {selectedTransactions.length} selezionate
-              </button>
-            )}
-          </div>
         </div>
         
         <div className="p-6">
           {filteredTransactions.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-adaptive-600">
-                {filteredTransactions.length === 0 
-                  ? 'Nessuna uscita trovata'
-                  : 'Nessuna transazione in questa pagina'
-                }
+                Nessuna uscita trovata
               </p>
             </div>
           ) : (
             <div className="space-y-4">
+              {/* 🆕 CONTROLLI PAGINAZIONE */}
+              <div className="flex justify-between items-center py-4 border-b border-adaptive">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-adaptive-600">Mostra:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value))
+                      setCurrentPage(1)
+                    }}
+                    className="border-adaptive rounded px-2 py-1 text-sm"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <span className="text-sm text-adaptive-600">
+                    Risultati {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredTransactions.length)} di {filteredTransactions.length}
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="p-1 rounded border border-adaptive disabled:opacity-50"
+                  >
+                    <ChevronLeftIcon className="w-4 h-4" />
+                  </button>
+                  <span className="px-3 py-1 text-sm">
+                    {currentPage} di {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-1 rounded border border-adaptive disabled:opacity-50"
+                  >
+                    <ChevronRightIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
               {/* Header con selezione multipla */}
               <div className="flex items-center gap-3 pb-2 border-b border-adaptive">
                 <input
@@ -823,7 +878,7 @@ export default function ExpensesPage() {
                   
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="font-bold text-red-600">€ {transaction.amount.toFixed(2)}</p>
+                      <p className="font-bold text-red-600">{formatCurrency(transaction.amount)}</p>
                     </div>
                     <div className="flex gap-1">
                       <button
@@ -1013,12 +1068,12 @@ export default function ExpensesPage() {
                 />
               </div>
 
-              {/* 🎨 Selettore Colori */}
+              {/* 🎨 Selettore Colori con Palette Ampliata (Rossi prioritari) */}
               <div>
                 <label className="block text-sm font-medium mb-2">
                   🎨 Colore Categoria
                 </label>
-                <div className="grid grid-cols-6 gap-2">
+                <div className="grid grid-cols-10 gap-2">
                   {availableColors.map((color) => (
                     <button
                       key={color}
