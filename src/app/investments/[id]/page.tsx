@@ -4,20 +4,23 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
-  PlusIcon, PencilIcon, TrashIcon, FunnelIcon, MagnifyingGlassIcon,
-  ChevronLeftIcon, ChevronRightIcon, CheckIcon, CalendarIcon,
-  CurrencyEuroIcon, ArrowPathIcon, ExclamationTriangleIcon
+  ArrowPathIcon, 
+  PlusIcon, 
+  PencilIcon, 
+  TrashIcon, 
+  CurrencyEuroIcon 
 } from '@heroicons/react/24/outline'
 
 interface DCATransaction {
   id: number
   date: string
-  type: string
+  type: 'buy' | 'sell'
   broker: string
   info: string
   btcQuantity: number
   eurPaid: number
   notes?: string
+  purchasePrice: number
 }
 
 interface NetworkFee {
@@ -27,7 +30,7 @@ interface NetworkFee {
   description?: string
 }
 
-interface DCAPortfolio {
+interface EnhancedDCAPortfolio {
   id: number
   name: string
   type: string
@@ -43,12 +46,28 @@ interface DCAPortfolio {
   transactions: DCATransaction[]
   networkFees: NetworkFee[]
   stats: {
+    // Enhanced fields
+    totalInvested: number
+    capitalRecovered: number
+    realizedGains: number
+    realizedLoss: number
+    remainingCostBasis: number
+    effectiveInvestment: number
+    isFullyRecovered: boolean
+    freeBTCAmount: number
+    hasRealizedGains: boolean
+    hasRealizedLoss: boolean
+    realizedROI: number
+    
+    // Original fields
     totalBTC: number
     totalEUR: number
     totalFeesBTC: number
     netBTC: number
     transactionCount: number
     feesCount: number
+    buyCount: number
+    sellCount: number
   }
 }
 
@@ -58,23 +77,16 @@ interface BitcoinPrice {
   cached: boolean
 }
 
-export default function DCAPortfolioPage() {
+export default function EnhancedDCAPortfolioPage() {
   const params = useParams()
   const router = useRouter()
   const portfolioId = params.id as string
 
-  // Stato principale
-  const [portfolio, setPortfolio] = useState<DCAPortfolio | null>(null)
+  // State
+  const [portfolio, setPortfolio] = useState<EnhancedDCAPortfolio | null>(null)
   const [loading, setLoading] = useState(true)
   const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null)
   const [priceLoading, setPriceLoading] = useState(false)
-
-  // Transazioni e filtri
-  const [filteredTransactions, setFilteredTransactions] = useState<DCATransaction[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
-  const [brokerFilter, setBrokerFilter] = useState('')
-  const [typeFilter, setTypeFilter] = useState('')
-  const [selectedTransactions, setSelectedTransactions] = useState<number[]>([])
 
   // Modali
   const [showAddTransaction, setShowAddTransaction] = useState(false)
@@ -107,7 +119,13 @@ export default function DCAPortfolioPage() {
     isActive: true
   })
 
-  // Carica portfolio
+  // Filters
+  const [filteredTransactions, setFilteredTransactions] = useState<DCATransaction[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [brokerFilter, setBrokerFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+
+  // Load portfolio
   const fetchPortfolio = async () => {
     try {
       setLoading(true)
@@ -129,79 +147,29 @@ export default function DCAPortfolioPage() {
     }
   }
 
-  // Carica prezzo Bitcoin
+  // Load Bitcoin price
   const fetchBitcoinPrice = async (forceRefresh = false) => {
     try {
       setPriceLoading(true)
-      const url = forceRefresh ? '/api/bitcoin-price?refresh=true' : '/api/bitcoin-price'
+      const url = forceRefresh ? 
+        '/api/bitcoin-price?forceRefresh=true' : 
+        '/api/bitcoin-price'
       const response = await fetch(url)
       if (response.ok) {
         const data = await response.json()
         setBtcPrice(data)
       }
     } catch (error) {
-      console.error('Errore nel caricamento del prezzo Bitcoin:', error)
+      console.error('Errore nel caricamento prezzo Bitcoin:', error)
     } finally {
       setPriceLoading(false)
     }
   }
 
-  // Cancella portfolio
-  const deletePortfolio = async () => {
-    try {
-      const response = await fetch(`/api/dca-portfolios/${portfolioId}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
-        router.push('/investments')
-      } else {
-        const error = await response.json()
-        alert(error.error || 'Errore nella cancellazione del portfolio')
-      }
-    } catch (error) {
-      console.error('Errore:', error)
-      alert('Errore nella cancellazione del portfolio')
-    }
-  }
-
-  // Aggiorna portfolio
-  const updatePortfolio = async () => {
-    if (!portfolioForm.name.trim()) {
-      alert('Il nome del portfolio è obbligatorio')
-      return
-    }
-
-    try {
-      setSubmitLoading(true)
-      const response = await fetch(`/api/dca-portfolios/${portfolioId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: portfolioForm.name,
-          isActive: portfolioForm.isActive
-        })
-      })
-
-      if (response.ok) {
-        fetchPortfolio()
-        setShowEditPortfolio(false)
-      } else {
-        const error = await response.json()
-        alert(error.error || 'Errore nell\'aggiornamento del portfolio')
-      }
-    } catch (error) {
-      console.error('Errore:', error)
-      alert('Errore nell\'aggiornamento del portfolio')
-    } finally {
-      setSubmitLoading(false)
-    }
-  }
-
-  // Aggiungi transazione
+  // Add transaction
   const addTransaction = async () => {
     if (!transactionForm.broker || !transactionForm.info || !transactionForm.btcQuantity || !transactionForm.eurPaid) {
-      alert('Compila tutti i campi obbligatori')
+      alert('Tutti i campi sono obbligatori')
       return
     }
 
@@ -216,9 +184,7 @@ export default function DCAPortfolioPage() {
           type: transactionForm.type,
           broker: transactionForm.broker,
           info: transactionForm.info,
-          btcQuantity: transactionForm.type === 'sell' ? 
-            -Math.abs(parseFloat(transactionForm.btcQuantity)) : 
-            Math.abs(parseFloat(transactionForm.btcQuantity)),
+          btcQuantity: transactionForm.type === 'sell' ? -Math.abs(parseFloat(transactionForm.btcQuantity)) : Math.abs(parseFloat(transactionForm.btcQuantity)),
           eurPaid: parseFloat(transactionForm.eurPaid),
           notes: transactionForm.notes || undefined
         })
@@ -248,9 +214,12 @@ export default function DCAPortfolioPage() {
     }
   }
 
-  // Modifica transazione
-  const updateTransaction = async () => {
-    if (!editingTransaction) return
+  // Edit transaction
+  const editTransaction = async () => {
+    if (!editingTransaction || !transactionForm.broker || !transactionForm.info || !transactionForm.btcQuantity || !transactionForm.eurPaid) {
+      alert('Tutti i campi sono obbligatori')
+      return
+    }
 
     try {
       setSubmitLoading(true)
@@ -262,9 +231,7 @@ export default function DCAPortfolioPage() {
           type: transactionForm.type,
           broker: transactionForm.broker,
           info: transactionForm.info,
-          btcQuantity: transactionForm.type === 'sell' ? 
-            -Math.abs(parseFloat(transactionForm.btcQuantity)) : 
-            Math.abs(parseFloat(transactionForm.btcQuantity)),
+          btcQuantity: transactionForm.type === 'sell' ? -Math.abs(parseFloat(transactionForm.btcQuantity)) : Math.abs(parseFloat(transactionForm.btcQuantity)),
           eurPaid: parseFloat(transactionForm.eurPaid),
           notes: transactionForm.notes || undefined
         })
@@ -272,20 +239,21 @@ export default function DCAPortfolioPage() {
 
       if (response.ok) {
         fetchPortfolio()
-        setShowEditTransaction(false)
         setEditingTransaction(null)
+        setShowEditTransaction(false)
       } else {
         const error = await response.json()
-        alert(error.error || 'Errore nell\'aggiornamento della transazione')
+        alert(error.error || 'Errore nella modifica della transazione')
       }
     } catch (error) {
       console.error('Errore:', error)
+      alert('Errore nella modifica della transazione')
     } finally {
       setSubmitLoading(false)
     }
   }
 
-  // Cancella transazione
+  // Delete transaction
   const deleteTransaction = async (id: number) => {
     if (!confirm('Sei sicuro di voler eliminare questa transazione?')) return
 
@@ -304,7 +272,7 @@ export default function DCAPortfolioPage() {
     }
   }
 
-  // Aggiungi fee di rete
+  // Add network fee
   const addNetworkFee = async () => {
     if (!feeForm.sats) {
       alert('Il campo sats è obbligatorio')
@@ -344,23 +312,101 @@ export default function DCAPortfolioPage() {
     }
   }
 
-  // Gestione selezione multipla
-  const handleBulkDeleteTransactions = async () => {
-    if (selectedTransactions.length === 0) return
-    if (!confirm(`Sei sicuro di voler eliminare ${selectedTransactions.length} transazioni?`)) return
+  // Update portfolio
+  const updatePortfolio = async () => {
+    if (!portfolioForm.name.trim()) {
+      alert('Il nome del portfolio è obbligatorio')
+      return
+    }
 
     try {
-      for (const id of selectedTransactions) {
-        await fetch(`/api/dca-transactions/${id}`, { method: 'DELETE' })
+      setSubmitLoading(true)
+      const response = await fetch(`/api/dca-portfolios/${portfolioId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: portfolioForm.name.trim()
+        })
+      })
+
+      if (response.ok) {
+        fetchPortfolio()
+        setShowEditPortfolio(false)
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nell\'aggiornamento del portfolio')
       }
-      setSelectedTransactions([])
-      fetchPortfolio()
     } catch (error) {
-      console.error('Errore nell\'eliminazione multipla:', error)
+      console.error('Errore:', error)
+      alert('Errore nell\'aggiornamento del portfolio')
+    } finally {
+      setSubmitLoading(false)
     }
   }
 
-  // Formattazione
+  // Delete portfolio
+  const deletePortfolio = async () => {
+    if (!confirm('Sei sicuro di voler eliminare questo portfolio? Questa azione non può essere annullata.')) return
+
+    try {
+      const response = await fetch(`/api/dca-portfolios/${portfolioId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        router.push('/investments')
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nell\'eliminazione del portfolio')
+      }
+    } catch (error) {
+      console.error('Errore:', error)
+      alert('Errore nell\'eliminazione del portfolio')
+    }
+  }
+
+  // Filter transactions
+  useEffect(() => {
+    if (!portfolio) return
+
+    let filtered = portfolio.transactions
+
+    if (searchTerm) {
+      filtered = filtered.filter(tx => 
+        tx.broker.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tx.info.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (tx.notes && tx.notes.toLowerCase().includes(searchTerm.toLowerCase()))
+      )
+    }
+
+    if (brokerFilter) {
+      filtered = filtered.filter(tx => tx.broker === brokerFilter)
+    }
+
+    if (typeFilter) {
+      filtered = filtered.filter(tx => tx.type === typeFilter)
+    }
+
+    setFilteredTransactions(filtered)
+  }, [portfolio, searchTerm, brokerFilter, typeFilter])
+
+  useEffect(() => {
+    fetchPortfolio()
+    fetchBitcoinPrice()
+  }, [portfolioId])
+
+  // 🔄 ENHANCED CALCULATIONS
+  const currentValue = portfolio && btcPrice ? portfolio.stats.netBTC * btcPrice.btcEur : 0
+  const unrealizedGains = currentValue - (portfolio?.stats.remainingCostBasis || 0)
+  const totalGains = (portfolio?.stats.realizedGains || 0) + unrealizedGains
+  const totalROI = portfolio && portfolio.stats.totalInvested > 0 ? 
+    (totalGains / portfolio.stats.totalInvested) * 100 : 0
+
+  // Account balance breakdown
+  const accountBalance = portfolio?.account?.balance || 0
+  const canCalculateBreakdown = portfolio?.stats.capitalRecovered && portfolio?.stats.realizedGains
+  
+  // Format functions
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('it-IT', {
       style: 'currency',
@@ -376,47 +422,14 @@ export default function DCAPortfolioPage() {
     return new Intl.NumberFormat('it-IT').format(sats) + ' sats'
   }
 
-  // Calcoli
-  const currentValue = portfolio && btcPrice ? portfolio.stats.netBTC * btcPrice.btcEur : 0
-  const roi = portfolio && currentValue ? ((currentValue - portfolio.stats.totalEUR) / portfolio.stats.totalEUR) * 100 : 0
-  const avgLoadPrice = portfolio && portfolio.stats.netBTC > 0 ? portfolio.stats.totalEUR / portfolio.stats.netBTC : 0
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('it-IT')
+  }
 
-  // Filtri transazioni
-  useEffect(() => {
-    if (!portfolio) return
-
-    let filtered = [...portfolio.transactions]
-
-    if (searchTerm) {
-      filtered = filtered.filter(t => 
-        t.broker.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.info.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (t.notes && t.notes.toLowerCase().includes(searchTerm.toLowerCase()))
-      )
-    }
-
-    if (brokerFilter) {
-      filtered = filtered.filter(t => t.broker === brokerFilter)
-    }
-
-    if (typeFilter) {
-      filtered = filtered.filter(t => t.type === typeFilter)
-    }
-
-    setFilteredTransactions(filtered)
-  }, [portfolio, searchTerm, brokerFilter, typeFilter])
-
-  // Unique values per filtri
+  // Get unique values for filters
   const uniqueBrokers = portfolio ? [...new Set(portfolio.transactions.map(t => t.broker))] : []
   const uniqueTypes = portfolio ? [...new Set(portfolio.transactions.map(t => t.type))] : []
 
-  // Carica dati iniziali
-  useEffect(() => {
-    fetchPortfolio()
-    fetchBitcoinPrice()
-  }, [portfolioId])
-
-  // Loading state
   if (loading) {
     return (
       <div className="space-y-6">
@@ -462,15 +475,8 @@ export default function DCAPortfolioPage() {
             </Link>
             <span className="text-white opacity-60">/</span>
             <h1 className="text-3xl font-bold text-white">{portfolio.name}</h1>
-            <button
-              onClick={() => setShowEditPortfolio(true)}
-              className="text-white opacity-80 hover:opacity-100 p-1"
-              title="Modifica portfolio"
-            >
-              <PencilIcon className="w-5 h-5" />
-            </button>
           </div>
-          <p className="text-white opacity-80">Portfolio DCA Bitcoin</p>
+          <p className="text-white opacity-80">Enhanced Cash Flow Portfolio</p>
         </div>
         
         <div className="flex items-center gap-3">
@@ -482,11 +488,23 @@ export default function DCAPortfolioPage() {
             <ArrowPathIcon className={`w-4 h-4 ${priceLoading ? 'animate-spin' : ''}`} />
             {priceLoading ? 'Aggiornando...' : 'Aggiorna Prezzo'}
           </button>
-          
+          <button
+            onClick={() => setShowAddTransaction(true)}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Nuova Transazione
+          </button>
+          <button
+            onClick={() => setShowEditPortfolio(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          >
+            <PencilIcon className="w-4 h-4" />
+            Modifica Portfolio
+          </button>
           <button
             onClick={() => setShowDeletePortfolio(true)}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
-            title="Elimina portfolio"
           >
             <TrashIcon className="w-4 h-4" />
             Elimina Portfolio
@@ -494,275 +512,296 @@ export default function DCAPortfolioPage() {
         </div>
       </div>
 
-      {/* Prezzo Bitcoin */}
-      {btcPrice && (
-        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-gray-400">Prezzo Bitcoin</h3>
-              <p className="text-2xl font-bold text-orange-400">{formatCurrency(btcPrice.btcEur)}</p>
-              <p className="text-sm text-gray-300">
-                ${btcPrice.btcUsd.toLocaleString()} USD
-                {btcPrice.cached && <span className="ml-2 text-orange-500">(Cache)</span>}
-              </p>
+      {/* 🔄 ENHANCED STATISTICS OVERVIEW */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Investment */}
+        <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4">
+          <h3 className="text-sm font-medium text-gray-300">💰 Investimento Totale</h3>
+          <p className="text-2xl font-bold text-white">{formatCurrency(portfolio.stats.totalInvested)}</p>
+          <p className="text-sm text-gray-400">{portfolio.stats.buyCount} acquisti</p>
+        </div>
+
+        {/* Capital Recovered */}
+        <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4">
+          <h3 className="text-sm font-medium text-gray-300">🔄 Capitale Recuperato</h3>
+          <p className="text-2xl font-bold text-green-400">{formatCurrency(portfolio.stats.capitalRecovered)}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-gray-400">
+              {portfolio.stats.totalInvested > 0 ? 
+                ((portfolio.stats.capitalRecovered / portfolio.stats.totalInvested) * 100).toFixed(1) : 0}%
+            </p>
+            {portfolio.stats.isFullyRecovered && <span className="text-green-400">✅</span>}
+          </div>
+        </div>
+
+        {/* Realized Gains */}
+        <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4">
+          <h3 className="text-sm font-medium text-gray-300">📈 Profitti Realizzati</h3>
+          <p className={`text-2xl font-bold ${portfolio.stats.realizedGains >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {formatCurrency(portfolio.stats.realizedGains)}
+          </p>
+          <p className="text-sm text-gray-400">
+            ROI: {portfolio.stats.realizedROI.toFixed(1)}%
+          </p>
+        </div>
+
+        {/* Total ROI */}
+        <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4">
+          <h3 className="text-sm font-medium text-gray-300">🎯 ROI Totale</h3>
+          <p className={`text-2xl font-bold ${totalROI >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {totalROI.toFixed(2)}%
+          </p>
+          <p className="text-sm text-gray-400">
+            {totalROI >= 0 ? '📈 Profitto' : '📉 Perdita'}
+          </p>
+        </div>
+      </div>
+
+      {/* 🔄 ENHANCED DETAILED BREAKDOWN */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Bitcoin Holdings */}
+        <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4">
+          <h3 className="text-lg font-medium text-gray-100 mb-3">₿ Bitcoin Holdings</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-300">BTC Totali:</span>
+              <span className="font-semibold text-orange-400">{formatBTC(portfolio.stats.netBTC)}</span>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-400">Ultimo aggiornamento</p>
-              <p className="text-sm text-gray-300">
-                {new Date().toLocaleTimeString('it-IT')}
-              </p>
+            {portfolio.stats.freeBTCAmount > 0 && (
+              <div className="flex justify-between">
+                <span className="text-green-400">🎉 BTC Gratuiti:</span>
+                <span className="font-semibold text-green-400">{formatBTC(portfolio.stats.freeBTCAmount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-300">Valore Attuale:</span>
+              <span className="font-semibold text-white">{formatCurrency(currentValue)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-300">Costo Base Rimasto:</span>
+              <span className="font-semibold text-gray-200">{formatCurrency(portfolio.stats.remainingCostBasis)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Performance Breakdown */}
+        <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4">
+          <h3 className="text-lg font-medium text-gray-100 mb-3">📊 Performance</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-300">Profitti Realizzati:</span>
+              <span className={`font-semibold ${portfolio.stats.realizedGains >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {formatCurrency(portfolio.stats.realizedGains)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-300">Plus/Minus Non Real.:</span>
+              <span className={`font-semibold ${unrealizedGains >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {formatCurrency(unrealizedGains)}
+              </span>
+            </div>
+            <div className="border-t border-gray-700 pt-2 mt-2">
+              <div className="flex justify-between">
+                <span className="text-gray-100">Totale P&L:</span>
+                <span className={`font-bold ${totalGains >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {formatCurrency(totalGains)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Account Status */}
+        <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4">
+          <h3 className="text-lg font-medium text-gray-100 mb-3">🏦 Conto Collegato</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-300">Conto:</span>
+              <span className="font-semibold text-gray-100">{portfolio.account?.name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-300">Saldo Attuale:</span>
+              <span className="font-semibold text-white">{formatCurrency(accountBalance)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-300">Soldi a Rischio:</span>
+              <span className={`font-semibold ${portfolio.stats.effectiveInvestment > 0 ? 'text-orange-400' : 'text-green-400'}`}>
+                {formatCurrency(portfolio.stats.effectiveInvestment)}
+              </span>
+            </div>
+            {portfolio.stats.effectiveInvestment === 0 && (
+              <p className="text-sm text-green-400">🎉 Investimento completamente recuperato!</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Price Info */}
+      {btcPrice && (
+        <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-medium text-gray-100">📡 Prezzo Bitcoin</h3>
+            <span className="text-sm text-gray-400">
+              {btcPrice.cached ? '💾 Cache' : '🌐 Live'}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mt-3">
+            <div>
+              <p className="text-sm text-gray-300">EUR</p>
+              <p className="text-xl font-bold text-orange-400">{formatCurrency(btcPrice.btcEur)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-300">USD</p>
+              <p className="text-xl font-bold text-orange-400">${btcPrice.btcUsd.toLocaleString()}</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Statistiche Portfolio */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-          <h3 className="text-sm font-medium text-gray-400">BTC Totali</h3>
-          <p className="text-2xl font-bold text-orange-400">{formatBTC(portfolio.stats.totalBTC)}</p>
-          <p className="text-sm text-gray-300">{portfolio.stats.transactionCount} transazioni</p>
-        </div>
-        
-        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-          <h3 className="text-sm font-medium text-gray-400">Investimento Totale</h3>
-          <p className="text-2xl font-bold text-blue-400">{formatCurrency(portfolio.stats.totalEUR)}</p>
-          <p className="text-sm text-gray-300">Costo medio: {formatCurrency(avgLoadPrice)}/BTC</p>
-        </div>
-        
-        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-          <h3 className="text-sm font-medium text-gray-400">Valore Attuale</h3>
-          <p className="text-2xl font-bold text-green-400">{formatCurrency(currentValue)}</p>
-          <p className="text-sm text-gray-300">BTC netti: {formatBTC(portfolio.stats.netBTC)}</p>
-        </div>
-        
-        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-          <h3 className="text-sm font-medium text-gray-400">P&L (ROI)</h3>
-          <p className={`text-2xl font-bold ${roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {roi >= 0 ? '+' : ''}{roi.toFixed(2)}%
-          </p>
-          <p className={`text-sm ${roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {roi >= 0 ? '+' : ''}{formatCurrency(currentValue - portfolio.stats.totalEUR)}
-          </p>
-        </div>
-      </div>
-
-      {/* Transazioni */}
+      {/* Transactions List */}
       <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700">
         <div className="p-6 border-b border-gray-700">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <h3 className="text-lg font-medium text-gray-100">Transazioni DCA</h3>
-            
-            <div className="flex flex-col md:flex-row gap-3">
-              {/* Ricerca */}
-              <div className="relative">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Cerca transazioni..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 pr-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-sm text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px]"
-                />
-              </div>
-              
-              {/* Filtri */}
-              <select
-                value={brokerFilter}
-                onChange={(e) => setBrokerFilter(e.target.value)}
-                className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Tutti i broker</option>
-                {uniqueBrokers.map(broker => (
-                  <option key={broker} value={broker}>{broker}</option>
-                ))}
-              </select>
-              
-              <button
-                onClick={() => setShowAddTransaction(true)}
-                className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2"
-              >
-                <PlusIcon className="w-4 h-4" />
-                Nuova Transazione
-              </button>
-            </div>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-medium text-gray-100">📋 Transazioni</h3>
+            <span className="text-sm text-gray-400">
+              {filteredTransactions.length} di {portfolio.transactions.length}
+            </span>
+          </div>
+
+          {/* Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input
+              type="text"
+              placeholder="Cerca per broker, info, note..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white"
+            />
+            <select
+              value={brokerFilter}
+              onChange={(e) => setBrokerFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white"
+            >
+              <option value="">Tutti i broker</option>
+              {uniqueBrokers.map(broker => (
+                <option key={broker} value={broker}>{broker}</option>
+              ))}
+            </select>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white"
+            >
+              <option value="">Tutti i tipi</option>
+              {uniqueTypes.map(type => (
+                <option key={type} value={type}>
+                  {type === 'buy' ? '🟢 Acquisto' : '🔴 Vendita'}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
-
+        
         <div className="p-6">
           {filteredTransactions.length > 0 ? (
-            <>
-              {/* Header colonne */}
-              <div className="flex items-center gap-4 p-3 bg-gray-800 rounded-lg mb-3 text-sm font-medium text-gray-300">
-                <div className="w-4"></div> {/* Spazio per checkbox */}
-                <div className="min-w-[80px]">Data</div>
-                <div className="min-w-[100px]">Broker</div>
-                <div className="min-w-[100px]">Info</div>
-                <div className="min-w-[120px]">BTC</div>
-                <div className="min-w-[100px]">€ Pagati</div>
-                <div className="min-w-[120px]">Valore Attuale</div>
-                <div className="min-w-[120px]">Prezzo Carico</div>
-                <div className="flex-1">Note</div>
-                <div className="w-20">Azioni</div>
-              </div>
-
-              {/* Lista transazioni */}
-              <div className="space-y-3">
-                {filteredTransactions.map((transaction) => {
-                  const loadPrice = Math.abs(transaction.btcQuantity) > 0 ? transaction.eurPaid / Math.abs(transaction.btcQuantity) : 0
-                  const currentTransactionValue = btcPrice ? Math.abs(transaction.btcQuantity) * btcPrice.btcEur : 0
-                  const transactionPnL = currentTransactionValue - transaction.eurPaid
-                  const transactionROI = transaction.eurPaid > 0 ? (transactionPnL / transaction.eurPaid) * 100 : 0
-                  
-                  return (
-                    <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                      <div className="flex items-center gap-4 flex-1">
-                        <input
-                          type="checkbox"
-                          checked={selectedTransactions.includes(transaction.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedTransactions([...selectedTransactions, transaction.id])
-                            } else {
-                              setSelectedTransactions(selectedTransactions.filter(id => id !== transaction.id))
-                            }
-                          }}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        
-                        {/* Data */}
-                        <div className="text-sm text-adaptive-600 min-w-[80px]">
-                          {new Date(transaction.date).toLocaleDateString('it-IT')}
-                        </div>
-                        
-                        {/* Broker */}
-                        <div className="text-sm text-adaptive-900 min-w-[100px] font-medium">
-                          {transaction.broker}
-                        </div>
-                        
-                        {/* Info */}
-                        <div className="text-sm text-adaptive-700 min-w-[100px]">
-                          {transaction.info}
-                        </div>
-                        
-                        {/* Quantità BTC */}
-                        <div className="text-sm min-w-[120px]">
-                          <span className={`font-medium ${transaction.btcQuantity < 0 ? 'text-red-600' : 'text-orange-600'}`}>
-                            {transaction.btcQuantity < 0 ? '-' : '+'}{formatBTC(Math.abs(transaction.btcQuantity))}
-                          </span>
-                        </div>
-                        
-                        {/* EUR Pagati */}
-                        <div className="text-sm min-w-[100px]">
-                          <span className="font-medium text-blue-600">
-                            {formatCurrency(transaction.eurPaid)}
-                          </span>
-                        </div>
-                        
-                        {/* Valore Attuale */}
-                        <div className="text-sm min-w-[120px]">
-                          <span className="font-medium text-green-600">
-                            {formatCurrency(currentTransactionValue)}
-                          </span>
-                          <div className={`text-xs ${transactionPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {transactionPnL >= 0 ? '+' : ''}{formatCurrency(transactionPnL)} ({transactionROI >= 0 ? '+' : ''}{transactionROI.toFixed(1)}%)
-                          </div>
-                        </div>
-                        
-                        {/* Prezzo di Carico */}
-                        <div className="text-sm min-w-[120px]">
-                          <span className="text-adaptive-700 font-medium">
-                            {formatCurrency(loadPrice)}/BTC
-                          </span>
-                        </div>
-                        
-                        {/* Note */}
-                        <div className="text-sm text-adaptive-500 italic flex-1">
-                          {transaction.notes || '-'}
-                        </div>
+            <div className="space-y-3">
+              {filteredTransactions.map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <span className="text-2xl">
+                      {transaction.type === 'buy' ? '🟢' : '🔴'}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gray-100">
+                          {transaction.type === 'buy' ? '+' : '-'}{Math.abs(transaction.btcQuantity).toFixed(8)} BTC
+                        </span>
+                        <span className="text-gray-400">•</span>
+                        <span className="text-gray-300">{formatCurrency(transaction.eurPaid)}</span>
                       </div>
-
-                      <div className="flex items-center gap-2 ml-4 w-20">
-                        <button
-                          onClick={() => {
-                            setEditingTransaction(transaction)
-                            setTransactionForm({
-                              date: transaction.date.split('T')[0],
-                              type: transaction.btcQuantity < 0 ? 'sell' : 'buy',
-                              broker: transaction.broker,
-                              info: transaction.info,
-                              btcQuantity: Math.abs(transaction.btcQuantity).toString(),
-                              eurPaid: transaction.eurPaid.toString(),
-                              notes: transaction.notes || ''
-                            })
-                            setShowEditTransaction(true)
-                          }}
-                          className="text-blue-600 hover:text-blue-800 p-1"
-                          title="Modifica"
-                        >
-                          <PencilIcon className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteTransaction(transaction.id)}
-                          className="text-red-600 hover:text-red-800 p-1"
-                          title="Elimina"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
+                      <div className="flex items-center gap-4 text-sm text-gray-400">
+                        <span>{formatDate(transaction.date)}</span>
+                        <span>{transaction.broker}</span>
+                        <span>{transaction.info}</span>
                       </div>
                     </div>
-                  )
-                })}
-              </div>
-            </>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-sm text-gray-300">Prezzo</p>
+                      <p className="font-semibold text-gray-100">
+                        {formatCurrency(transaction.purchasePrice)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setEditingTransaction(transaction)
+                          setTransactionForm({
+                            date: transaction.date.split('T')[0],
+                            type: transaction.type || 'buy',
+                            broker: transaction.broker,
+                            info: transaction.info,
+                            btcQuantity: Math.abs(transaction.btcQuantity).toString(),
+                            eurPaid: transaction.eurPaid.toString(),
+                            notes: transaction.notes || ''
+                          })
+                          setShowEditTransaction(true)
+                        }}
+                        className="text-blue-400 hover:text-blue-300 p-1"
+                        title="Modifica"
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteTransaction(transaction.id)}
+                        className="text-red-400 hover:text-red-300 p-1"
+                        title="Elimina"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="text-center py-8">
               <CurrencyEuroIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-300">
-                {searchTerm || brokerFilter ? 'Nessuna transazione trovata per i filtri applicati.' : 'Non hai ancora transazioni.'}
-              </p>
-              <p className="text-sm text-gray-500 mt-2">
-                Inizia aggiungendo la tua prima transazione DCA!
+                {searchTerm || brokerFilter || typeFilter ? 'Nessuna transazione trovata per i filtri applicati.' : 'Non hai ancora transazioni.'}
               </p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Fee di Rete */}
+      {/* Network Fees */}
       {portfolio.networkFees.length > 0 && (
         <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700">
           <div className="p-6 border-b border-gray-700">
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-medium text-gray-100">Fee di Rete</h3>
+              <h3 className="text-lg font-medium text-gray-100">⚡ Fee di Rete</h3>
               <button
                 onClick={() => setShowAddFee(true)}
-                className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2"
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2"
               >
                 <PlusIcon className="w-4 h-4" />
                 Nuova Fee
               </button>
             </div>
           </div>
-          
           <div className="p-6">
             <div className="space-y-3">
               {portfolio.networkFees.map((fee) => (
                 <div key={fee.id} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-gray-300">
-                      {new Date(fee.date).toLocaleDateString('it-IT')}
-                    </span>
-                    <span className="text-sm font-medium text-red-400">
-                      -{formatSats(fee.sats)}
-                    </span>
-                    {fee.description && (
-                      <span className="text-sm text-gray-200">{fee.description}</span>
-                    )}
+                  <div>
+                    <p className="font-semibold text-orange-400">{formatSats(fee.sats)}</p>
+                    <p className="text-sm text-gray-400">{formatDate(fee.date)}</p>
                   </div>
-                  <div className="text-sm text-gray-400">
-                    -{(fee.sats / 100000000).toFixed(8)} BTC
-                  </div>
+                  {fee.description && (
+                    <p className="text-gray-300">{fee.description}</p>
+                  )}
                 </div>
               ))}
             </div>
@@ -770,435 +809,378 @@ export default function DCAPortfolioPage() {
         </div>
       )}
 
-      {/* Selezione multipla azioni */}
-      {selectedTransactions.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-800 rounded-lg shadow-lg border border-gray-600 p-4 flex items-center gap-4">
-          <span className="text-sm text-gray-300">
-            {selectedTransactions.length} transazioni selezionate
-          </span>
-          <button 
-            onClick={handleBulkDeleteTransactions}
-            className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-          >
-            Elimina selezionate
-          </button>
-          <button 
-            onClick={() => setSelectedTransactions([])}
-            className="px-3 py-1 border border-gray-600 rounded text-sm text-gray-300 hover:bg-gray-700"
-          >
-            Deseleziona
-          </button>
-        </div>
-      )}
-
-      {/* Modal Elimina Portfolio */}
-      {showDeletePortfolio && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex items-center gap-3 mb-4">
-              <ExclamationTriangleIcon className="w-6 h-6 text-red-600" />
-              <h3 className="text-lg font-semibold text-adaptive-900">
-                Elimina Portfolio
-              </h3>
+      {/* Add Fee Button for empty state */}
+      {portfolio.networkFees.length === 0 && (
+        <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700">
+          <div className="p-6 border-b border-gray-700">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-100">⚡ Fee di Rete</h3>
+              <button
+                onClick={() => setShowAddFee(true)}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2"
+              >
+                <PlusIcon className="w-4 h-4" />
+                Nuova Fee
+              </button>
             </div>
-            
-            <div className="space-y-4">
-              <p className="text-adaptive-700">
-                Sei sicuro di voler eliminare il portfolio <strong>"{portfolio.name}"</strong>?
-              </p>
-              <p className="text-sm text-red-600">
-                ⚠️ Questa azione eliminerà anche tutte le transazioni e fee associate. 
-                L'operazione non può essere annullata.
-              </p>
-              
-              <div className="flex justify-end space-x-3 pt-4">
-                <button 
-                  onClick={() => setShowDeletePortfolio(false)}
-                  className="px-4 py-2 text-adaptive-600 hover:text-adaptive-800"
-                >
-                  Annulla
-                </button>
-                <button 
-                  onClick={() => {
-                    deletePortfolio()
-                    setShowDeletePortfolio(false)
-                  }}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                >
-                  Elimina Portfolio
-                </button>
-              </div>
+          </div>
+          <div className="p-6">
+            <div className="text-center py-4">
+              <p className="text-gray-400">Nessuna fee di rete registrata</p>
             </div>
           </div>
         </div>
       )}
-
-      {/* Modal Modifica Portfolio */}
-      {showEditPortfolio && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
-              Modifica Portfolio
-            </h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                  Nome Portfolio *
-                </label>
-                <input
-                  type="text"
-                  value={portfolioForm.name}
-                  onChange={(e) => setPortfolioForm({...portfolioForm, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  checked={portfolioForm.isActive}
-                  onChange={(e) => setPortfolioForm({...portfolioForm, isActive: e.target.checked})}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="isActive" className="ml-2 text-sm text-adaptive-700">
-                  Portfolio attivo
-                </label>
-              </div>
-              
-              <div className="flex justify-end space-x-3 pt-4">
-                <button 
-                  onClick={() => setShowEditPortfolio(false)}
-                  className="px-4 py-2 text-adaptive-600 hover:text-adaptive-800"
-                >
-                  Annulla
-                </button>
-                <button 
-                  onClick={updatePortfolio}
-                  disabled={submitLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {submitLoading ? 'Salvando...' : 'Salva Modifiche'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Aggiungi Transazione */}
+      
+      {/* Add Transaction Modal */}
       {showAddTransaction && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
-              Nuova Transazione DCA
-            </h3>
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Nuova Transazione DCA</h3>
             
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                    Data *
-                  </label>
-                  <input
-                    type="date"
-                    value={transactionForm.date}
-                    onChange={(e) => setTransactionForm({...transactionForm, date: e.target.value})}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                    Tipo *
-                  </label>
-                  <select
-                    value={transactionForm.type}
-                    onChange={(e) => setTransactionForm({...transactionForm, type: e.target.value as 'buy' | 'sell'})}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="buy">Acquisto</option>
-                    <option value="sell">Vendita</option>
-                  </select>
-                </div>
-              </div>
-
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                  Broker *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
                 <input
-                  type="text"
-                  placeholder="es. Binance, Kraken, etc."
-                  value={transactionForm.broker}
-                  onChange={(e) => setTransactionForm({...transactionForm, broker: e.target.value})}
-                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                  Info *
-                </label>
-                <input
-                  type="text"
-                  placeholder="es. DCA, Regalo, Acquisto, etc."
-                  value={transactionForm.info}
-                  onChange={(e) => setTransactionForm({...transactionForm, info: e.target.value})}
-                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                    Quantità BTC *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.00000001"
-                    placeholder="0.00000000"
-                    value={transactionForm.btcQuantity}
-                    onChange={(e) => setTransactionForm({...transactionForm, btcQuantity: e.target.value})}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                    € Pagati *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={transactionForm.eurPaid}
-                    onChange={(e) => setTransactionForm({...transactionForm, eurPaid: e.target.value})}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                  Note
-                </label>
-                <input
-                  type="text"
-                  placeholder="Note opzionali..."
-                  value={transactionForm.notes}
-                  onChange={(e) => setTransactionForm({...transactionForm, notes: e.target.value})}
-                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  type="date"
+                  value={transactionForm.date}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
               </div>
               
-              <div className="flex justify-end space-x-3 pt-4">
-                <button 
-                  onClick={() => setShowAddTransaction(false)}
-                  className="px-4 py-2 text-adaptive-600 hover:text-adaptive-800"
-                >
-                  Annulla
-                </button>
-                <button 
-                  onClick={addTransaction}
-                  disabled={submitLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {submitLoading ? 'Aggiungendo...' : 'Aggiungi Transazione'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Modifica Transazione */}
-      {showEditTransaction && editingTransaction && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
-              Modifica Transazione
-            </h3>
-            
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                    Data *
-                  </label>
-                  <input
-                    type="date"
-                    value={transactionForm.date}
-                    onChange={(e) => setTransactionForm({...transactionForm, date: e.target.value})}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                    Tipo *
-                  </label>
-                  <select
-                    value={transactionForm.type}
-                    onChange={(e) => setTransactionForm({...transactionForm, type: e.target.value as 'buy' | 'sell'})}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="buy">Acquisto</option>
-                    <option value="sell">Vendita</option>
-                  </select>
-                </div>
-              </div>
-
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                  Broker *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                <select
+                  value={transactionForm.type}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, type: e.target.value as 'buy' | 'sell' }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="buy">🟢 Acquisto</option>
+                  <option value="sell">🔴 Vendita</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Broker</label>
                 <input
                   type="text"
                   value={transactionForm.broker}
-                  onChange={(e) => setTransactionForm({...transactionForm, broker: e.target.value})}
-                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                  Info *
-                </label>
-                <input
-                  type="text"
-                  value={transactionForm.info}
-                  onChange={(e) => setTransactionForm({...transactionForm, info: e.target.value})}
-                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                    Quantità BTC *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.00000001"
-                    value={transactionForm.btcQuantity}
-                    onChange={(e) => setTransactionForm({...transactionForm, btcQuantity: e.target.value})}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                    € Pagati *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={transactionForm.eurPaid}
-                    onChange={(e) => setTransactionForm({...transactionForm, eurPaid: e.target.value})}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                  Note
-                </label>
-                <input
-                  type="text"
-                  value={transactionForm.notes}
-                  onChange={(e) => setTransactionForm({...transactionForm, notes: e.target.value})}
-                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, broker: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Binance, Kraken, etc."
                 />
               </div>
               
-              <div className="flex justify-end space-x-3 pt-4">
-                <button 
-                  onClick={() => {
-                    setShowEditTransaction(false)
-                    setEditingTransaction(null)
-                  }}
-                  className="px-4 py-2 text-adaptive-600 hover:text-adaptive-800"
-                >
-                  Annulla
-                </button>
-                <button 
-                  onClick={updateTransaction}
-                  disabled={submitLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {submitLoading ? 'Salvando...' : 'Salva Modifiche'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Aggiungi Fee */}
-      {showAddFee && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
-              Nuova Fee di Rete
-            </h3>
-            
-            <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                  Sats *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Info</label>
+                <input
+                  type="text"
+                  value={transactionForm.info}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, info: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="DCA, Regalo, etc."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantità BTC</label>
                 <input
                   type="number"
-                  placeholder="2000"
-                  value={feeForm.sats}
-                  onChange={(e) => setFeeForm({...feeForm, sats: e.target.value})}
-                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  step="0.00000001"
+                  value={transactionForm.btcQuantity}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, btcQuantity: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="0.00123456"
                 />
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                  Data
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Euro Pagati</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={transactionForm.eurPaid}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, eurPaid: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="1000.00"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note (opzionale)</label>
+                <input
+                  type="text"
+                  value={transactionForm.notes}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Note aggiuntive"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowAddTransaction(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                disabled={submitLoading}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={addTransaction}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                disabled={submitLoading}
+              >
+                {submitLoading ? 'Aggiungendo...' : 'Aggiungi Transazione'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Transaction Modal */}
+      {showEditTransaction && editingTransaction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Modifica Transazione</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                <input
+                  type="date"
+                  value={transactionForm.date}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                <select
+                  value={transactionForm.type}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, type: e.target.value as 'buy' | 'sell' }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="buy">🟢 Acquisto</option>
+                  <option value="sell">🔴 Vendita</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Broker</label>
+                <input
+                  type="text"
+                  value={transactionForm.broker}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, broker: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Info</label>
+                <input
+                  type="text"
+                  value={transactionForm.info}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, info: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantità BTC</label>
+                <input
+                  type="number"
+                  step="0.00000001"
+                  value={transactionForm.btcQuantity}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, btcQuantity: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Euro Pagati</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={transactionForm.eurPaid}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, eurPaid: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
+                <input
+                  type="text"
+                  value={transactionForm.notes}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditTransaction(false)
+                  setEditingTransaction(null)
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                disabled={submitLoading}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={editTransaction}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                disabled={submitLoading}
+              >
+                {submitLoading ? 'Salvando...' : 'Salva Modifiche'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Fee Modal */}
+      {showAddFee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Nuova Fee di Rete</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sats</label>
+                <input
+                  type="number"
+                  value={feeForm.sats}
+                  onChange={(e) => setFeeForm(prev => ({ ...prev, sats: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="2000"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
                 <input
                   type="date"
                   value={feeForm.date}
-                  onChange={(e) => setFeeForm({...feeForm, date: e.target.value})}
-                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-2">
-                  Descrizione
-                </label>
-                <input
-                  type="text"
-                  placeholder="es. Transfer to cold wallet"
-                  value={feeForm.description}
-                  onChange={(e) => setFeeForm({...feeForm, description: e.target.value})}
-                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setFeeForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
               </div>
               
-              <div className="flex justify-end space-x-3 pt-4">
-                <button 
-                  onClick={() => setShowAddFee(false)}
-                  className="px-4 py-2 text-adaptive-600 hover:text-adaptive-800"
-                >
-                  Annulla
-                </button>
-                <button 
-                  onClick={addNetworkFee}
-                  disabled={submitLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {submitLoading ? 'Aggiungendo...' : 'Aggiungi Fee'}
-                </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descrizione (opzionale)</label>
+                <input
+                  type="text"
+                  value={feeForm.description}
+                  onChange={(e) => setFeeForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Transfer to cold wallet"
+                />
               </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowAddFee(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                disabled={submitLoading}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={addNetworkFee}
+                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700"
+                disabled={submitLoading}
+              >
+                {submitLoading ? 'Aggiungendo...' : 'Aggiungi Fee'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Portfolio Modal */}
+      {showEditPortfolio && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Modifica Portfolio</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome Portfolio</label>
+                <input
+                  type="text"
+                  value={portfolioForm.name}
+                  onChange={(e) => setPortfolioForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="DCA Bitcoin 2024"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowEditPortfolio(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                disabled={submitLoading}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={updatePortfolio}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                disabled={submitLoading}
+              >
+                {submitLoading ? 'Salvando...' : 'Salva Modifiche'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Portfolio Modal */}
+      {showDeletePortfolio && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4 text-red-600">⚠️ Elimina Portfolio</h3>
+            
+            <div className="mb-6">
+              <p className="text-gray-700 mb-4">
+                Sei sicuro di voler eliminare il portfolio <strong>"{portfolio?.name}"</strong>?
+              </p>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-800 text-sm">
+                  <strong>Attenzione:</strong> Questa azione eliminerà permanentemente:
+                </p>
+                <ul className="text-red-700 text-sm mt-2 list-disc list-inside">
+                  <li>Tutte le transazioni ({portfolio?.stats.transactionCount || 0})</li>
+                  <li>Tutte le fee di rete ({portfolio?.stats.feesCount || 0})</li>
+                  <li>Tutti i dati storici del portfolio</li>
+                </ul>
+                <p className="text-red-800 text-sm mt-2 font-semibold">
+                  Questa azione NON può essere annullata.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeletePortfolio(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={deletePortfolio}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Elimina Definitivamente
+              </button>
             </div>
           </div>
         </div>
