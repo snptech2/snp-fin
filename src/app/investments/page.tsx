@@ -80,64 +80,46 @@ export default function EnhancedInvestmentsPage() {
       textColor: 'text-orange-800'
     },
     {
-      id: 'crypto_wallet',
-      name: '💰 Wallet Crypto',
-      description: 'Portafoglio multi-cryptocurrency per gestire diversi asset',
+      id: 'swing_trading',
+      name: '📊 Swing Trading',
+      description: 'Trading a breve-medio termine su crypto e asset',
       available: false,
-      bgColor: 'bg-purple-50',
-      borderColor: 'border-purple-200',
-      textColor: 'text-purple-800'
-    },
-    {
-      id: 'stocks',
-      name: '📈 Stocks & ETF',
-      description: 'Azioni e fondi negoziati in borsa per diversificazione',
-      available: false,
-      bgColor: 'bg-green-50',
-      borderColor: 'border-green-200',
-      textColor: 'text-green-800'
-    },
-    {
-      id: 'bonds',
-      name: '🏛️ Bonds & Obbligazioni',
-      description: 'Titoli di stato e obbligazioni corporate per stabilità',
-      available: false,
-      bgColor: 'bg-blue-50',
-      borderColor: 'border-blue-200',
-      textColor: 'text-blue-800'
+      bgColor: 'bg-gray-100',
+      borderColor: 'border-gray-300',
+      textColor: 'text-gray-600'
     }
   ]
 
-  // Load portfolios
-  const fetchPortfolios = async () => {
+  // Caricamento dati iniziale
+  useEffect(() => {
+    fetchData()
+    fetchBitcoinPrice()
+  }, [])
+
+  const fetchData = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
-      const response = await fetch('/api/dca-portfolios')
-      if (response.ok) {
-        const data = await response.json()
+      const [portfoliosRes, accountsRes] = await Promise.all([
+        fetch('/api/dca-portfolios'),
+        fetch('/api/accounts?type=investment')
+      ])
+
+      if (portfoliosRes.ok) {
+        const data = await portfoliosRes.json()
         setPortfolios(data)
       }
+      
+      if (accountsRes.ok) {
+        const accounts = await accountsRes.json()
+        setInvestmentAccounts(accounts)
+      }
     } catch (error) {
-      console.error('Errore nel caricamento portfolios:', error)
+      console.error('Errore nel caricamento dati:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  // Load investment accounts
-  const fetchInvestmentAccounts = async () => {
-    try {
-      const response = await fetch('/api/accounts?type=investment')
-      if (response.ok) {
-        const data = await response.json()
-        setInvestmentAccounts(data)
-      }
-    } catch (error) {
-      console.error('Errore nel caricamento conti investimento:', error)
-    }
-  }
-
-  // Load Bitcoin price
   const fetchBitcoinPrice = async () => {
     try {
       setPriceLoading(true)
@@ -153,44 +135,24 @@ export default function EnhancedInvestmentsPage() {
     }
   }
 
-  useEffect(() => {
-    fetchPortfolios()
-    fetchInvestmentAccounts()
-    fetchBitcoinPrice()
-  }, [])
-
-  // Create portfolio function
   const createPortfolio = async () => {
     if (!formData.name.trim()) {
-      alert('Il nome del portfolio è obbligatorio')
+      alert('Nome portfolio obbligatorio')
       return
     }
 
-    if (!formData.accountId) {
-      alert('Devi selezionare un conto di investimento')
-      return
-    }
-
+    setCreating(true)
     try {
-      setCreating(true)
       const response = await fetch('/api/dca-portfolios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name.trim(),
-          type: formData.type,
-          accountId: parseInt(formData.accountId.toString())
-        })
+        body: JSON.stringify(formData)
       })
 
       if (response.ok) {
-        await fetchPortfolios()
+        await fetchData()
         setShowCreateModal(false)
-        setFormData({
-          name: '',
-          type: 'dca_bitcoin',
-          accountId: undefined
-        })
+        setFormData({ name: '', type: 'dca_bitcoin', accountId: undefined })
       } else {
         const error = await response.json()
         alert(error.error || 'Errore nella creazione del portfolio')
@@ -203,54 +165,40 @@ export default function EnhancedInvestmentsPage() {
     }
   }
 
-  // Enhanced calculations
+  // Calcoli per le statistiche globali
   const getTotalInvested = () => {
-    return portfolios.reduce((sum, p) => sum + p.stats.totalInvested, 0)
+    return portfolios.reduce((sum, portfolio) => sum + portfolio.stats.totalInvested, 0)
   }
 
   const getTotalCapitalRecovered = () => {
-    return portfolios.reduce((sum, p) => sum + p.stats.capitalRecovered, 0)
+    return portfolios.reduce((sum, portfolio) => sum + portfolio.stats.capitalRecovered, 0)
   }
 
   const getTotalRealizedGains = () => {
-    return portfolios.reduce((sum, p) => sum + p.stats.realizedGains, 0)
-  }
-
-  const getTotalEffectiveInvestment = () => {
-    return portfolios.reduce((sum, p) => sum + p.stats.effectiveInvestment, 0)
-  }
-
-  const getTotalCurrentValue = () => {
-    if (!btcPrice) return 0
-    return portfolios.reduce((sum, p) => sum + (p.stats.netBTC * btcPrice.btcEur), 0)
-  }
-
-  const getTotalUnrealizedGains = () => {
-    const currentValue = getTotalCurrentValue()
-    const effectiveInvestment = getTotalEffectiveInvestment()
-    return currentValue - effectiveInvestment
+    return portfolios.reduce((sum, portfolio) => sum + portfolio.stats.realizedGains, 0)
   }
 
   const getTotalBTC = () => {
-    return portfolios.reduce((sum, p) => sum + p.stats.netBTC, 0)
+    return portfolios.reduce((sum, portfolio) => sum + portfolio.stats.netBTC, 0)
   }
 
   const getFreeBTC = () => {
-    return portfolios.reduce((sum, p) => sum + p.stats.freeBTCAmount, 0)
+    return portfolios.reduce((sum, portfolio) => sum + portfolio.stats.freeBTCAmount, 0)
   }
 
   const getTotalROI = () => {
     const totalInvested = getTotalInvested()
     if (totalInvested === 0) return 0
     
-    const totalCurrentValue = getTotalCurrentValue()
-    const totalRealizedGains = getTotalRealizedGains()
-    const totalGains = totalRealizedGains + getTotalUnrealizedGains()
+    const totalCurrent = portfolios.reduce((sum, portfolio) => {
+      const currentValue = btcPrice ? portfolio.stats.netBTC * btcPrice.btcEur : 0
+      const unrealizedGains = currentValue - portfolio.stats.remainingCostBasis
+      return sum + portfolio.stats.realizedGains + unrealizedGains
+    }, 0)
     
-    return (totalGains / totalInvested) * 100
+    return (totalCurrent / totalInvested) * 100
   }
 
-  // Enhanced portfolio calculations
   const calculateCurrentValue = (portfolio: EnhancedDCAPortfolio) => {
     return btcPrice ? portfolio.stats.netBTC * btcPrice.btcEur : 0
   }
@@ -283,10 +231,10 @@ export default function EnhancedInvestmentsPage() {
     return (
       <div className="space-y-6">
         <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
+          <div className="h-8 bg-adaptive-200 rounded w-1/4 mb-6"></div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+              <div key={i} className="h-24 bg-adaptive-200 rounded"></div>
             ))}
           </div>
         </div>
@@ -296,7 +244,7 @@ export default function EnhancedInvestmentsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header Standardizzato */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-adaptive-900">💼 Investimenti</h1>
@@ -315,7 +263,8 @@ export default function EnhancedInvestmentsPage() {
             }}
             disabled={investmentAccounts.length === 0}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            title={investmentAccounts.length === 0 ? "Crea prima un conto di investimento nella sezione Conti" : undefined}
+            title={investmentAccounts.length === 0 ?
+              "Crea prima un conto di investimento nella sezione Conti" : undefined}
           >
             ➕ Nuovo Portfolio
           </button>
@@ -370,64 +319,76 @@ export default function EnhancedInvestmentsPage() {
           <div className="mt-2 space-y-1">
             <p className="text-sm text-green-600">🎉 BTC Gratuiti: {formatBTC(getFreeBTC())}</p>
             <p className="text-sm text-adaptive-600">
-              Valore: {btcPrice ? formatCurrency(getTotalCurrentValue()) : 'N/A'}
+              Valore: {btcPrice ? formatCurrency(getTotalBTC() * btcPrice.btcEur) : 'N/A'}
             </p>
           </div>
         </div>
 
-        {/* Effective Investment */}
+        {/* Price Info */}
         <div className="card-adaptive p-4 rounded-lg border-adaptive">
-          <h3 className="text-sm font-medium text-adaptive-500">💸 Soldi a Rischio</h3>
-          <p className="text-xl font-bold text-adaptive-900">{formatCurrency(getTotalEffectiveInvestment())}</p>
-          <p className="text-sm text-adaptive-600">
-            {getTotalEffectiveInvestment() === 0 ? '🎉 Nessun rischio!' : 'Ancora da recuperare'}
+          <h3 className="text-sm font-medium text-adaptive-500">₿ Prezzo Bitcoin</h3>
+          <p className="text-xl font-bold text-orange-600">
+            {btcPrice ? formatCurrency(btcPrice.btcEur) : 'Caricamento...'}
           </p>
+          <div className="mt-2 space-y-1">
+            <p className="text-sm text-adaptive-600">
+              USD: {btcPrice ? '$' + btcPrice.btcUsd.toLocaleString() : 'N/A'}
+            </p>
+            <p className={`text-xs ${btcPrice?.cached ? 'text-adaptive-500' : 'text-green-600'}`}>
+              {btcPrice?.cached ? '📋 Dato in cache' : '🔄 Aggiornato'}
+            </p>
+          </div>
         </div>
 
-        {/* Unrealized Gains */}
+        {/* Actions */}
         <div className="card-adaptive p-4 rounded-lg border-adaptive">
-          <h3 className="text-sm font-medium text-adaptive-500">💎 Plus/Minus Non Realizzate</h3>
-          <p className={`text-xl font-bold ${getTotalUnrealizedGains() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {formatCurrency(getTotalUnrealizedGains())}
-          </p>
-          <p className="text-sm text-adaptive-600">
-            {btcPrice ? `BTC: ${formatCurrency(btcPrice.btcEur)}` : 'Prezzo non disponibile'}
-          </p>
+          <h3 className="text-sm font-medium text-adaptive-500">🔄 Azioni</h3>
+          <div className="mt-2 space-y-2">
+            <button
+              onClick={() => fetchBitcoinPrice()}
+              disabled={priceLoading}
+              className="w-full px-3 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 text-sm"
+            >
+              {priceLoading ? 'Aggiornando...' : 'Aggiorna Prezzo BTC'}
+            </button>
+            <button
+              onClick={fetchData}
+              className="w-full px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+            >
+              🔄 Ricarica Portfolio
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Enhanced Portfolio List */}
+      {/* Portfolio List */}
       <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
         <div className="p-6 border-b border-adaptive">
-          <h3 className="text-lg font-medium text-adaptive-900">📊 Portafogli Dettagliati</h3>
+          <h3 className="text-lg font-medium text-adaptive-900">📊 I Tuoi Portfolio</h3>
         </div>
         <div className="p-6">
           {portfolios.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-adaptive-600 mb-4">Nessun portafoglio di investimento trovato</p>
+              <div className="text-4xl mb-4">📊</div>
+              <h3 className="text-lg font-medium text-adaptive-900 mb-2">Nessun Portfolio</h3>
+              <p className="text-adaptive-600 mb-4">Crea il tuo primo portfolio DCA per iniziare ad investire</p>
               <button
-                onClick={() => {
-                  setFormData({
-                    name: '',
-                    type: 'dca_bitcoin',
-                    accountId: undefined
-                  })
-                  setShowCreateModal(true)
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                onClick={() => setShowCreateModal(true)}
+                disabled={investmentAccounts.length === 0}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
-                Crea il tuo primo portfolio
+                ➕ Crea Portfolio
               </button>
             </div>
           ) : (
             <div className="space-y-4">
-              {portfolios.map((portfolio) => {
+              {portfolios.map(portfolio => {
                 const currentValue = calculateCurrentValue(portfolio)
                 const unrealizedGains = calculateUnrealizedGains(portfolio)
                 const totalROI = calculateTotalROI(portfolio)
-                
+
                 return (
-                  <div key={portfolio.id} className="border border-adaptive rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                  <div key={portfolio.id} className="card-adaptive rounded-lg p-4 hover:bg-adaptive-50 transition-colors">
                     <div className="flex items-center justify-between">
                       {/* Portfolio Info */}
                       <div className="flex items-center gap-4">
@@ -539,74 +500,41 @@ export default function EnhancedInvestmentsPage() {
                 <div className="flex items-center justify-between mb-2">
                   <h4 className={`font-semibold ${type.textColor}`}>{type.name}</h4>
                   {type.available ? (
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                      Disponibile
-                    </span>
+                    <span className="text-green-600 text-sm">✅ Disponibile</span>
                   ) : (
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                      Prossimamente
-                    </span>
+                    <span className="text-gray-500 text-sm">🚧 Prossimamente</span>
                   )}
                 </div>
-                <p className={`text-sm ${type.textColor} opacity-80`}>
-                  {type.description}
-                </p>
-                {type.available && (
-                  <div className="mt-3">
-                    <span className="text-xs text-blue-600 font-medium">
-                      👆 Clicca per creare →
-                    </span>
-                  </div>
-                )}
+                <p className={`text-sm ${type.textColor} opacity-75`}>{type.description}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Create Modal - Complete Version */}
+      {/* Modal Creazione Portfolio */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">
-              {portfolioTypes.find(t => t.id === formData.type)?.name || 'Nuovo Portfolio'}
-            </h3>
+          <div className="card-adaptive max-w-md w-full mx-4 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">➕ Nuovo Portfolio</h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nome Portfolio *
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                  Nome Portfolio
                 </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Es: DCA Bitcoin 2024"
-                  required
+                  className="w-full p-2 border border-adaptive rounded-md"
+                  placeholder="es. Bitcoin DCA 2025"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tipo Portfolio
-                </label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {portfolioTypes.filter(type => type.available).map(type => (
-                    <option key={type.id} value={type.id}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Conto di Investimento *
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                  Conto di Investimento
                 </label>
                 <select
                   value={formData.accountId || ''}
@@ -614,56 +542,42 @@ export default function EnhancedInvestmentsPage() {
                     ...prev, 
                     accountId: e.target.value ? parseInt(e.target.value) : undefined 
                   }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  required
+                  className="w-full p-2 border border-adaptive rounded-md"
                 >
-                  <option value="">Seleziona un conto di investimento</option>
+                  <option value="">Seleziona conto...</option>
                   {investmentAccounts.map(account => (
                     <option key={account.id} value={account.id}>
-                      {account.name} (€{account.balance.toFixed(2)})
+                      {account.name} - {formatCurrency(account.balance)}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {investmentAccounts.length === 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
-                  <p className="text-sm text-yellow-800">
-                    ⚠️ Non hai conti di investimento. 
-                    <a href="/accounts" className="text-blue-600 hover:text-blue-800 ml-1">
-                      Creane uno prima →
-                    </a>
-                  </p>
-                </div>
-              )}
-
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                <p className="text-sm text-blue-800">
-                  💡 <strong>Enhanced Cash Flow:</strong> Il sistema traccia automaticamente 
-                  investimenti, recuperi e profitti per una gestione trasparente.
-                </p>
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                  Tipo Portfolio
+                </label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
+                  className="w-full p-2 border border-adaptive rounded-md"
+                >
+                  <option value="dca_bitcoin">🟠 DCA Bitcoin</option>
+                </select>
               </div>
             </div>
-            
-            <div className="flex justify-end gap-3 mt-6">
+
+            <div className="flex gap-3 mt-6">
               <button
-                onClick={() => {
-                  setShowCreateModal(false)
-                  setFormData({
-                    name: '',
-                    type: 'dca_bitcoin',
-                    accountId: undefined
-                  })
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                disabled={creating}
+                onClick={() => setShowCreateModal(false)}
+                className="flex-1 px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-adaptive-50"
               >
                 Annulla
               </button>
               <button
                 onClick={createPortfolio}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                disabled={creating || !formData.name.trim() || !formData.accountId}
+                disabled={creating || !formData.name.trim()}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
                 {creating ? 'Creando...' : 'Crea Portfolio'}
               </button>

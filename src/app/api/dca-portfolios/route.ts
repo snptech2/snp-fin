@@ -1,10 +1,10 @@
-// src/app/api/dca-portfolios/route.ts - ENHANCED CASH FLOW VERSION
+// src/app/api/dca-portfolios/route.ts - FIXED VERSION
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// Funzione per calcolare Enhanced Cash Flow Statistics (same as individual)
+// 🔧 FIXED: Funzione per calcolare Enhanced Cash Flow Statistics (corretta)
 function calculateEnhancedStats(transactions: any[]) {
   // Separa acquisti e vendite
   const buyTransactions = transactions.filter(tx => tx.type === 'buy')
@@ -16,11 +16,15 @@ function calculateEnhancedStats(transactions: any[]) {
   const totalSellBTC = sellTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
   const totalSellEUR = sellTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
 
-  // 🎯 ENHANCED CASH FLOW LOGIC
+  // 🎯 ENHANCED CASH FLOW LOGIC - CORRETTA
   const totalInvested = totalBuyEUR // Investimento fisso (non cambia mai)
   const capitalRecovered = Math.min(totalInvested, totalSellEUR) // Quanto ho ripreso del mio investimento
-  const realizedGains = Math.max(0, totalSellEUR - totalInvested) // Profitti realizzati
-  const realizedLoss = Math.max(0, totalInvested - totalSellEUR) // Perdite realizzate (se applicable)
+  
+  // 🔧 FIX: Le perdite realizzate esistono solo se ho venduto qualcosa E venduto per meno dell'investimento
+  const realizedLoss = totalSellEUR > 0 ? Math.max(0, totalInvested - totalSellEUR) : 0
+  
+  // 🔧 FIX: I profitti realizzati esistono solo se ho venduto per più dell'investimento
+  const realizedGains = totalSellEUR > totalInvested ? totalSellEUR - totalInvested : 0
 
   // BTC calculations
   const totalBTC = totalBuyBTC - totalSellBTC
@@ -46,11 +50,11 @@ function calculateEnhancedStats(transactions: any[]) {
     totalBTC,
     totalEUR: effectiveInvestment, // 🔄 CHANGED: now represents "money still at risk"
     
-    // ✨ ENHANCED FIELDS
+    // ✨ ENHANCED FIELDS - CORRETTI
     totalInvested,           // Investimento totale effettivo
     capitalRecovered,        // Capitale recuperato dall'investimento
-    realizedGains,          // Profitti realizzati
-    realizedLoss,           // Perdite realizzate
+    realizedGains,          // 🔧 Profitti realizzati (corretti)
+    realizedLoss,           // 🔧 Perdite realizzate (corrette)
     remainingCostBasis,     // Costo base dei BTC rimasti
     effectiveInvestment,    // Soldi ancora a rischio
     
@@ -61,7 +65,7 @@ function calculateEnhancedStats(transactions: any[]) {
     hasRealizedLoss,       // Ha perdite realizzate
     
     // 📈 PERFORMANCE METRICS
-    realizedROI: totalInvested > 0 ? (realizedGains / totalInvested) * 100 : 0,
+    realizedROI: totalInvested > 0 ? ((realizedGains - realizedLoss) / totalInvested) * 100 : 0,
     
     // 🔄 LEGACY (backward compatibility)
     netCashFlow: legacyNetCashFlow,
@@ -155,100 +159,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Controlla se esiste già un portfolio con lo stesso nome
-    const existingPortfolio = await prisma.dCAPortfolio.findFirst({
+    // Verifica che l'account esista e sia di tipo investment
+    const account = await prisma.account.findFirst({
       where: {
+        id: parseInt(accountId),
         userId: 1,
-        name: name.trim()
+        type: 'investment'
       }
-    })
-
-    if (existingPortfolio) {
-      return NextResponse.json(
-        { error: 'Esiste già un portafoglio con questo nome' },
-        { status: 400 }
-      )
-    }
-
-    // Verifica che l'account esista ed sia di tipo investimento
-    const account = await prisma.account.findUnique({
-      where: { id: parseInt(accountId) }
     })
 
     if (!account) {
       return NextResponse.json(
-        { error: 'Conto di investimento non trovato' },
-        { status: 400 }
+        { error: 'Conto di investimento non trovato o non valido' },
+        { status: 404 }
       )
     }
 
-    if (account.type !== 'investment') {
-      return NextResponse.json(
-        { error: 'Il conto deve essere di tipo investimento' },
-        { status: 400 }
-      )
-    }
-
-    const newPortfolio = await prisma.dCAPortfolio.create({
+    const portfolio = await prisma.dCAPortfolio.create({
       data: {
         name: name.trim(),
         type,
-        userId: 1,
-        accountId: parseInt(accountId)
+        userId: 1, // Default user ID
+        accountId: parseInt(accountId),
+        isActive: true
       },
       include: {
-        account: true,
-        _count: {
-          select: {
-            transactions: true,
-            networkFees: true
-          }
-        }
+        account: true
       }
     })
 
-    // Portfolio appena creato avrà stats vuote
-    const emptyStats = {
-      totalBuyBTC: 0,
-      totalBuyEUR: 0,
-      totalSellBTC: 0,
-      totalSellEUR: 0,
-      totalBTC: 0,
-      totalEUR: 0,
-      totalInvested: 0,
-      capitalRecovered: 0,
-      realizedGains: 0,
-      realizedLoss: 0,
-      remainingCostBasis: 0,
-      effectiveInvestment: 0,
-      isFullyRecovered: false,
-      freeBTCAmount: 0,
-      hasRealizedGains: false,
-      hasRealizedLoss: false,
-      realizedROI: 0,
-      netCashFlow: 0,
-      actualInvestment: 0,
-      isFreeBTC: false,
-      transactionCount: 0,
-      buyCount: 0,
-      sellCount: 0,
-      totalFeesSats: 0,
-      totalFeesBTC: 0,
-      netBTC: 0,
-      avgPrice: 0,
-      feesCount: 0
-    }
-
-    return NextResponse.json({
-      ...newPortfolio,
-      transactions: [],
-      networkFees: [],
-      stats: emptyStats
-    })
+    return NextResponse.json(portfolio, { status: 201 })
   } catch (error) {
     console.error('Errore nella creazione portafoglio DCA:', error)
     return NextResponse.json(
-      { error: 'Errore nella creazione portafoglio DCA' },
+      { error: 'Errore nella creazione del portafoglio' },
       { status: 500 }
     )
   }

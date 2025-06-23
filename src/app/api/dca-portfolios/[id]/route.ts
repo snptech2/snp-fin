@@ -1,67 +1,67 @@
-// src/app/api/dca-portfolios/[id]/route.ts - ENHANCED CASH FLOW VERSION
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// Funzione per calcolare Enhanced Cash Flow Statistics
+// Enhanced Statistics Calculator (INVARIATO)
 function calculateEnhancedStats(transactions: any[]) {
-  // Separa acquisti e vendite
-  const buyTransactions = transactions.filter(tx => tx.type === 'buy')
+  const buyTransactions = transactions.filter(tx => tx.type === 'buy' || !tx.type)
   const sellTransactions = transactions.filter(tx => tx.type === 'sell')
 
-  // Calcoli base
-  const totalBuyBTC = buyTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
-  const totalBuyEUR = buyTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
-  const totalSellBTC = sellTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
-  const totalSellEUR = sellTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
-
-  // 🎯 ENHANCED CASH FLOW LOGIC
-  const totalInvested = totalBuyEUR // Investimento fisso (non cambia mai)
-  const capitalRecovered = Math.min(totalInvested, totalSellEUR) // Quanto ho ripreso del mio investimento
-  const realizedGains = Math.max(0, totalSellEUR - totalInvested) // Profitti realizzati
-  const realizedLoss = Math.max(0, totalInvested - totalSellEUR) // Perdite realizzate (se applicable)
-
-  // BTC calculations
-  const totalBTC = totalBuyBTC - totalSellBTC
-  const isFullyRecovered = capitalRecovered >= totalInvested
-  const remainingCostBasis = isFullyRecovered ? 0 : (totalInvested - capitalRecovered)
-  const effectiveInvestment = totalInvested - capitalRecovered // Soldi ancora "a rischio"
+  // 💰 INVESTIMENTI E RECUPERI
+  const totalInvested = buyTransactions.reduce((sum, tx) => sum + Math.abs(tx.eurPaid), 0)
+  const capitalRecovered = sellTransactions.reduce((sum, tx) => sum + Math.abs(tx.eurPaid), 0)
   
-  // Status flags
-  const freeBTCAmount = isFullyRecovered ? totalBTC : 0
-  const hasRealizedGains = realizedGains > 0
-  const hasRealizedLoss = realizedLoss > 0
-
-  // Legacy compatibility (per non rompere UI esistente)
-  const legacyNetCashFlow = totalBuyEUR - totalSellEUR
-  const legacyActualInvestment = Math.max(0, legacyNetCashFlow)
+  // 📈 PROFITTI/PERDITE REALIZZATI
+  const totalBuyBTC = buyTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
+  const totalBuyEUR = buyTransactions.reduce((sum, tx) => sum + Math.abs(tx.eurPaid), 0)
+  const totalSellBTC = sellTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
+  const totalSellEUR = sellTransactions.reduce((sum, tx) => sum + Math.abs(tx.eurPaid), 0)
+  
+  // Prezzo medio di acquisto
+  const avgBuyPrice = totalBuyBTC > 0 ? totalBuyEUR / totalBuyBTC : 0
+  
+  // Calcolo profitti realizzati
+  const realizedGains = totalSellBTC > 0 ? totalSellEUR - (totalSellBTC * avgBuyPrice) : 0
+  const realizedLoss = realizedGains < 0 ? Math.abs(realizedGains) : 0
+  const realizedGainsNet = Math.max(0, realizedGains)
+  
+  // 🎯 METRICHE AVANZATE
+  const effectiveInvestment = totalInvested - capitalRecovered
+  const remainingCostBasis = Math.max(0, effectiveInvestment)
+  const isFullyRecovered = capitalRecovered >= totalInvested
+  const freeBTCAmount = isFullyRecovered ? totalBuyBTC - totalSellBTC : 0
+  
+  // 📊 BTC HOLDINGS
+  const totalBTC = totalBuyBTC - totalSellBTC
+  const totalEUR = totalBuyEUR - totalSellEUR
+  
+  // 🔄 LEGACY COMPATIBILITY
+  const legacyNetCashFlow = totalSellEUR - totalBuyEUR
+  const legacyActualInvestment = Math.max(0, totalBuyEUR - totalSellEUR)
 
   return {
-    // 📊 ORIGINAL FIELDS (compatibility)
+    // 🆕 ENHANCED FIELDS
+    totalInvested,
+    capitalRecovered,
+    realizedGains: realizedGainsNet,
+    realizedLoss,
+    remainingCostBasis,
+    effectiveInvestment,
+    isFullyRecovered,
+    freeBTCAmount,
+    hasRealizedGains: realizedGainsNet > 0,
+    hasRealizedLoss: realizedLoss > 0,
+    realizedROI: totalInvested > 0 ? (realizedGains / totalInvested) * 100 : 0,
+    
+    // 📊 BTC METRICS
+    totalBTC,
+    totalEUR,
     totalBuyBTC,
     totalBuyEUR,
     totalSellBTC,
     totalSellEUR,
-    totalBTC,
-    totalEUR: effectiveInvestment, // 🔄 CHANGED: now represents "money still at risk"
-    
-    // ✨ ENHANCED FIELDS
-    totalInvested,           // 1000€ (sempre fisso)
-    capitalRecovered,        // 1000€ (quanto recuperato dell'investimento)
-    realizedGains,          // 1000€ (profitti realizzati)
-    realizedLoss,           // 0€ (perdite realizzate)
-    remainingCostBasis,     // 0€ (costo base dei BTC rimasti)
-    effectiveInvestment,    // 0€ (soldi ancora a rischio)
-    
-    // 🎯 STATUS FLAGS
-    isFullyRecovered,       // true (investimento completamente recuperato)
-    freeBTCAmount,         // 0.005 (BTC "gratuiti")
-    hasRealizedGains,      // true
-    hasRealizedLoss,       // false
-    
-    // 📈 PERFORMANCE METRICS
-    realizedROI: totalInvested > 0 ? (realizedGains / totalInvested) * 100 : 0,
+    avgBuyPrice,
     
     // 🔄 LEGACY (backward compatibility)
     netCashFlow: legacyNetCashFlow,
@@ -160,7 +160,7 @@ export async function GET(
   }
 }
 
-// PUT - Aggiorna portafoglio (unchanged)
+// PUT - Aggiorna portafoglio
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -168,7 +168,7 @@ export async function PUT(
   try {
     const id = parseInt(params.id)
     const body = await request.json()
-    const { name } = body
+    const { name, isActive } = body
 
     if (isNaN(id)) {
       return NextResponse.json(
@@ -214,11 +214,25 @@ export async function PUT(
 
     const updatedPortfolio = await prisma.dCAPortfolio.update({
       where: { id },
-      data: { name: name.trim() },
+      data: { 
+        name: name.trim(),
+        isActive: isActive !== undefined ? isActive : existingPortfolio.isActive,
+        updatedAt: new Date()
+      },
       include: {
-        transactions: true,
-        networkFees: true,
-        account: true
+        transactions: {
+          orderBy: { date: 'desc' }
+        },
+        networkFees: {
+          orderBy: { date: 'desc' }
+        },
+        account: {
+          select: {
+            id: true,
+            name: true,
+            balance: true
+          }
+        }
       }
     })
 
@@ -226,13 +240,13 @@ export async function PUT(
   } catch (error) {
     console.error('Errore nell\'aggiornamento portafoglio:', error)
     return NextResponse.json(
-      { error: 'Errore nell\'aggiornamento portafoglio' },
+      { error: 'Errore nell\'aggiornamento del portafoglio' },
       { status: 500 }
     )
   }
 }
 
-// DELETE - Elimina portafoglio (unchanged)
+// DELETE - Elimina portafoglio
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -249,7 +263,11 @@ export async function DELETE(
 
     // Verifica che il portafoglio esista ed appartenga all'utente
     const existingPortfolio = await prisma.dCAPortfolio.findUnique({
-      where: { id, userId: 1 }
+      where: { id, userId: 1 },
+      include: {
+        transactions: true,
+        networkFees: true
+      }
     })
 
     if (!existingPortfolio) {
@@ -259,15 +277,38 @@ export async function DELETE(
       )
     }
 
+    // Verifica se ci sono transazioni collegate
+    const transactionCount = await prisma.dCATransaction.count({
+      where: { portfolioId: id }
+    })
+
+    if (transactionCount > 0) {
+      return NextResponse.json(
+        { 
+          error: `Impossibile cancellare: il portafoglio contiene ${transactionCount} transazioni. Cancella prima tutte le transazioni.` 
+        },
+        { status: 400 }
+      )
+    }
+
+    // Cancella prima le fee di rete
+    await prisma.networkFee.deleteMany({
+      where: { portfolioId: id }
+    })
+
+    // Poi cancella il portfolio
     await prisma.dCAPortfolio.delete({
       where: { id }
     })
 
-    return NextResponse.json({ message: 'Portafoglio eliminato con successo' })
+    return NextResponse.json({ 
+      message: 'Portafoglio eliminato con successo',
+      name: existingPortfolio.name
+    })
   } catch (error) {
     console.error('Errore nell\'eliminazione portafoglio:', error)
     return NextResponse.json(
-      { error: 'Errore nell\'eliminazione portafoglio' },
+      { error: 'Errore nell\'eliminazione del portafoglio' },
       { status: 500 }
     )
   }

@@ -367,7 +367,7 @@ const calculateInvestmentBreakdowns = (accounts: Account[], portfolios: Portfoli
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-adaptive-900">💳 Conti</h1>
+          <h1 className="text-3xl font-bold text-adaptive-900">Conti</h1>
           <p className="text-adaptive-600">Gestisci i tuoi conti bancari e di investimento con Enhanced Cash Flow</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
