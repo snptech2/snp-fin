@@ -26,6 +26,8 @@ model User {
   budgets      Budget[]
   transfers    Transfer[]
   dcaPortfolios DCAPortfolio[]
+  cryptoPortfolios CryptoPortfolio[]
+
 }
 
 model Account {
@@ -45,6 +47,7 @@ model Account {
   transfersTo     Transfer[]    @relation("ToAccount")
   dcaTransactions DCATransaction[]
   dcaPortfolios   DCAPortfolio[]
+  cryptoPortfolios CryptoPortfolio[]
 }
 
 model Category {
@@ -163,4 +166,84 @@ model NetworkFee {
   
   portfolioId Int
   portfolio   DCAPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+}
+
+// 🚀 CRYPTO PORTFOLIO - Wallet multi-asset semplice
+model CryptoPortfolio {
+  id          Int      @id @default(autoincrement())
+  name        String   // "My Crypto Wallet"
+  description String?  // "Portfolio principale"
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  
+  accountId   Int
+  account     Account @relation(fields: [accountId], references: [id])
+  
+  // Relazioni
+  transactions CryptoPortfolioTransaction[]
+  holdings     CryptoPortfolioHolding[]
+}
+
+// Asset disponibili (aggiungibili manualmente)
+model CryptoPortfolioAsset {
+  id          Int      @id @default(autoincrement())
+  symbol      String   @unique // "BTC", "ETH", "SOL"
+  name        String   // "Bitcoin", "Ethereum", "Solana"
+  decimals    Int      @default(6)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  transactions CryptoPortfolioTransaction[]
+  holdings     CryptoPortfolioHolding[]
+}
+
+// Transazioni: Buy, Sell, Swap
+model CryptoPortfolioTransaction {
+  id           Int      @id @default(autoincrement())
+  date         DateTime @default(now())
+  type         String   // "buy" | "sell" | "swap_in" | "swap_out"
+  quantity     Float    // Quantità asset
+  eurValue     Float    // Valore EUR
+  pricePerUnit Float    // Prezzo unitario
+  broker       String?  // Broker (opzionale)
+  notes        String?  // Note
+  
+  // Per swap
+  swapPairId   Int?
+  swapPair     CryptoPortfolioTransaction? @relation("SwapPair", fields: [swapPairId], references: [id])
+  swapRelated  CryptoPortfolioTransaction[] @relation("SwapPair")
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  portfolioId  Int
+  portfolio    CryptoPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  
+  assetId      Int
+  asset        CryptoPortfolioAsset @relation(fields: [assetId], references: [id])
+}
+
+// Holdings correnti
+model CryptoPortfolioHolding {
+  id           Int      @id @default(autoincrement())
+  quantity     Float    // Quantità posseduta
+  avgPrice     Float    // Prezzo medio acquisto
+  totalInvested Float   // EUR investiti
+  realizedGains Float   @default(0) // Profitti da vendite
+  lastUpdated  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  portfolioId  Int
+  portfolio    CryptoPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  
+  assetId      Int
+  asset        CryptoPortfolioAsset @relation(fields: [assetId], references: [id])
+  
+  @@unique([portfolioId, assetId])
 }
