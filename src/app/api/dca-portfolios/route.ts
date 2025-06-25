@@ -67,7 +67,7 @@ export async function GET() {
       const enhancedStats = calculateEnhancedStats(portfolio.transactions)
 
       // Fee calculations
-      const totalFeesSats = portfolio.networkFees.reduce((sum: number, fee: any) => sum + fee.feeSats, 0)
+      const totalFeesSats = portfolio.networkFees.reduce((sum: number, fee: any) => sum + fee.sats, 0)
       const totalFeesBTC = totalFeesSats / 100000000
 
       // Net BTC (dopo fees)

@@ -17,7 +17,7 @@ interface Portfolio {
   accountId: number
   type: 'dca_bitcoin' | 'crypto_wallet'
   stats: {
-    // 🎯 ENHANCED CASH FLOW FIELDS (source of truth dal backend)
+    // Enhanced Cash Flow Fields
     totalInvested: number
     capitalRecovered: number
     effectiveInvestment: number
@@ -26,7 +26,7 @@ interface Portfolio {
     
     // Portfolio-specific fields
     totalValueEur?: number // Per crypto portfolios
-    netBTC?: number // Per DCA portfolios
+    netBTC?: number // Per DCA portfolios (PRIORITÀ ASSOLUTA)
     totalBTC?: number // Fallback per DCA portfolios
     totalROI?: number // Calcolato dal backend quando disponibile
     
@@ -134,34 +134,42 @@ export default function InvestmentsPage() {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
   }
 
-  // 🎯 FASE 1 FIX COMPLETO: Funzione getDCACurrentValue - RIMUOVI FALLBACK HARDCODED
+  // 🚨 FIX: getDCACurrentValue con controllo di sicurezza per type
   const getDCACurrentValue = (portfolio: Portfolio) => {
+    // 🚨 SAFETY CHECK MIGLIORATO: Solo DCA portfolios dovrebbero essere calcolati qui
+    if (portfolio.type !== 'dca_bitcoin') {
+      console.warn(`getDCACurrentValue called for non-DCA portfolio ${portfolio.name} (type: ${portfolio.type}), returning 0`)
+      return 0
+    }
+    
     if (!btcPrice?.btcEur) return 0
     
-    // 🎯 PRIORITÀ 1: USA SEMPRE netBTC dal backend (include fee di rete)
+    // 🎯 PRIORITÀ ASSOLUTA: USA SEMPRE netBTC se disponibile (include fee di rete)
     if (portfolio.stats.netBTC !== undefined && portfolio.stats.netBTC !== null) {
       return portfolio.stats.netBTC * btcPrice.btcEur
     }
     
-    // 🔧 FALLBACK SICURO: Se netBTC non disponibile, usa totalBTC
-    // NOTA: Questo potrebbe sovrastimare leggermente se ci sono fee non considerate
+    // 🔧 FALLBACK TEMPORANEO: Se netBTC non disponibile, usa totalBTC
     if (portfolio.stats.totalBTC !== undefined && portfolio.stats.totalBTC !== null && portfolio.stats.totalBTC > 0) {
+      console.warn(`DCA ${portfolio.name}: netBTC not available, using totalBTC=${portfolio.stats.totalBTC} (may overestimate due to fees)`)
       return portfolio.stats.totalBTC * btcPrice.btcEur
     }
     
-    // Se nessun dato BTC disponibile, ritorna 0
+    // Se nessun dato BTC disponibile per DCA portfolio
+    console.error(`DCA ${portfolio.name}: No BTC data available`)
     return 0
   }
 
-  // 🎯 FASE 1 FIX: Enhanced ROI Calculation - SEMPRE dalla logica Enhanced
+  // 🚨 FIX: getPortfolioROI con controllo di sicurezza migliorato
   const getPortfolioROI = (portfolio: Portfolio) => {
     // 🎯 PRIORITÀ 1: Se il backend fornisce totalROI, usa sempre quello
     if (portfolio.stats.totalROI !== undefined && portfolio.stats.totalROI !== null) {
       return portfolio.stats.totalROI
     }
     
-    // 🔧 FALLBACK: Calcola usando Enhanced logic se totalROI non disponibile
-    const currentValue = portfolio.type === 'crypto_wallet' 
+    // 🔧 ENHANCED CALCULATION: Determina il tipo in base all'array di provenienza
+    const isCryptoWallet = cryptoPortfolios.includes(portfolio)
+    const currentValue = isCryptoWallet 
       ? (portfolio.stats.totalValueEur || 0)
       : getDCACurrentValue(portfolio)
     
@@ -171,15 +179,18 @@ export default function InvestmentsPage() {
     
     if (totalInvested <= 0) return 0
     
+    // Enhanced ROI formula
     const unrealizedGains = currentValue - effectiveInvestment
     const totalGains = realizedProfit + unrealizedGains
     
     return (totalGains / totalInvested) * 100
   }
 
-  // 🎯 FASE 1 FIX: Enhanced Total Gains Calculation
+  // 🚨 FIX: getPortfolioTotalGains con controllo di sicurezza migliorato
   const getPortfolioTotalGains = (portfolio: Portfolio) => {
-    const currentValue = portfolio.type === 'crypto_wallet' 
+    // 🔧 ENHANCED CALCULATION: Determina il tipo in base all'array di provenienza  
+    const isCryptoWallet = cryptoPortfolios.includes(portfolio)
+    const currentValue = isCryptoWallet 
       ? (portfolio.stats.totalValueEur || 0)
       : getDCACurrentValue(portfolio)
     
@@ -190,11 +201,11 @@ export default function InvestmentsPage() {
     return realizedProfit + unrealizedGains
   }
 
-  // 🎯 FASE 1 FIX: Enhanced Overall Stats - SOLO Backend Stats + Consistent Calculations
+  // Enhanced Overall Stats - SOLO Backend Stats + Consistent Calculations
   const overallStats = useMemo(() => {
     const allPortfolios = [...dcaPortfolios, ...cryptoPortfolios]
     
-    // 🎯 ENHANCED CASH FLOW: Somma tutte le stats dai portfolio backend
+    // Enhanced Cash Flow: Somma tutte le stats dai portfolio backend
     const totalInvested = allPortfolios.reduce((sum, p) => sum + (p.stats.totalInvested || 0), 0)
     const totalCapitalRecovered = allPortfolios.reduce((sum, p) => sum + (p.stats.capitalRecovered || 0), 0)
     const totalEffectiveInvestment = allPortfolios.reduce((sum, p) => sum + (p.stats.effectiveInvestment || 0), 0)
@@ -203,7 +214,10 @@ export default function InvestmentsPage() {
     // Calcola current value usando helper functions Enhanced
     let totalCurrentValue = 0
     allPortfolios.forEach(portfolio => {
-      if (portfolio.type === 'crypto_wallet') {
+      // 🔧 FIX: Determina il tipo corretto in base all'array di provenienza
+      const portfolioType = dcaPortfolios.includes(portfolio) ? 'dca_bitcoin' : 'crypto_wallet'
+      
+      if (portfolioType === 'crypto_wallet') {
         // Crypto portfolios: usa totalValueEur dal backend
         totalCurrentValue += portfolio.stats.totalValueEur || 0
       } else {
@@ -212,7 +226,7 @@ export default function InvestmentsPage() {
       }
     })
     
-    // 🎯 Enhanced calculation per overall metrics
+    // Enhanced calculation per overall metrics
     const totalUnrealizedGains = totalCurrentValue - totalEffectiveInvestment
     const overallROI = totalInvested > 0 ? 
       ((totalRealizedProfit + totalUnrealizedGains) / totalInvested) * 100 : 0
@@ -418,7 +432,7 @@ export default function InvestmentsPage() {
           
           <div className="divide-y divide-adaptive">
             {dcaPortfolios.map(portfolio => {
-              // 🎯 USA SOLO Enhanced stats e helper functions - NO MORE HARDCODED VALUES
+              // USA SOLO Enhanced stats e helper functions - NO MORE HARDCODED VALUES
               const currentValue = getDCACurrentValue(portfolio)
               const totalROI = getPortfolioROI(portfolio)
               const totalGains = getPortfolioTotalGains(portfolio)
@@ -434,10 +448,12 @@ export default function InvestmentsPage() {
                           <span>{portfolio.stats.transactionCount} transazioni</span>
                           {/* 🎯 PRIORITÀ: Mostra netBTC se disponibile (include fee), altrimenti totalBTC */}
                           {(portfolio.stats.netBTC !== undefined && portfolio.stats.netBTC !== null) ? (
-                            <span>{formatBTC(portfolio.stats.netBTC)} (netto)</span>
+                            <span className="text-green-600">{formatBTC(portfolio.stats.netBTC)} (netto)</span>
                           ) : (portfolio.stats.totalBTC !== undefined && portfolio.stats.totalBTC !== null && portfolio.stats.totalBTC > 0) ? (
-                            <span>{formatBTC(portfolio.stats.totalBTC)} (lordo)</span>
-                          ) : null}
+                            <span className="text-orange-500">{formatBTC(portfolio.stats.totalBTC)} (lordo)</span>
+                          ) : (
+                            <span className="text-gray-400">BTC non disponibile</span>
+                          )}
                         </div>
                       </div>
 
@@ -495,7 +511,7 @@ export default function InvestmentsPage() {
           
           <div className="divide-y divide-adaptive">
             {cryptoPortfolios.map(portfolio => {
-              // 🎯 FASE 1 FIX: Usa Enhanced stats dal backend
+              // Usa Enhanced stats dal backend
               const currentValue = portfolio.stats.totalValueEur || 0
               const totalROI = getPortfolioROI(portfolio)
               const totalGains = getPortfolioTotalGains(portfolio)
