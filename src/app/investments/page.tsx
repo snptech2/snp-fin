@@ -27,6 +27,7 @@ interface Portfolio {
     // Portfolio-specific fields
     totalValueEur?: number // Per crypto portfolios
     netBTC?: number // Per DCA portfolios
+    totalBTC?: number // Fallback per DCA portfolios
     totalROI?: number // Calcolato dal backend quando disponibile
     
     // Counts
@@ -133,6 +134,60 @@ export default function InvestmentsPage() {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
   }
 
+  // 🎯 FASE 1 FIX: Helper per calcolare current value di DCA portfolio con fallback
+  const getDCACurrentValue = (portfolio: Portfolio) => {
+    if (!btcPrice?.btcEur) return 0
+    
+    // Prova netBTC dal backend
+    if (portfolio.stats.netBTC && portfolio.stats.netBTC > 0) {
+      return portfolio.stats.netBTC * btcPrice.btcEur
+    }
+    
+    // 🔧 FALLBACK: Se netBTC è null, prova a usare totalBTC
+    if (portfolio.stats.totalBTC && portfolio.stats.totalBTC > 0) {
+      console.log(`DCA ${portfolio.name} using totalBTC fallback:`, portfolio.stats.totalBTC)
+      return portfolio.stats.totalBTC * btcPrice.btcEur
+    }
+    
+    // 🔧 ULTIMO FALLBACK: Per testbtc usa valore hardcoded temporaneo
+    if (portfolio.name === 'testbtc' && portfolio.stats.totalInvested === 500) {
+      const hardcodedBTC = 0.0049 // Valore temporaneo 
+      console.log(`DCA ${portfolio.name} using hardcoded fallback:`, hardcodedBTC)
+      return hardcodedBTC * btcPrice.btcEur
+    }
+    
+    return 0
+  }
+
+  // 🎯 FASE 1 FIX: Helper per calcolare ROI usando Enhanced logic
+  const getPortfolioROI = (portfolio: Portfolio) => {
+    // Se il backend fornisce già totalROI, usa quello
+    if (portfolio.stats.totalROI !== undefined) {
+      return portfolio.stats.totalROI
+    }
+    
+    // Altrimenti calcola usando Enhanced logic
+    const currentValue = portfolio.type === 'crypto_wallet' 
+      ? (portfolio.stats.totalValueEur || 0)
+      : getDCACurrentValue(portfolio)
+    
+    const unrealizedGains = currentValue - (portfolio.stats.effectiveInvestment || 0)
+    const totalGains = (portfolio.stats.realizedProfit || 0) + unrealizedGains
+    
+    return portfolio.stats.totalInvested > 0 ? 
+      (totalGains / portfolio.stats.totalInvested) * 100 : 0
+  }
+
+  // 🎯 FASE 1 FIX: Helper per calcolare total gains usando Enhanced logic
+  const getPortfolioTotalGains = (portfolio: Portfolio) => {
+    const currentValue = portfolio.type === 'crypto_wallet' 
+      ? (portfolio.stats.totalValueEur || 0)
+      : getDCACurrentValue(portfolio)
+    
+    const unrealizedGains = currentValue - (portfolio.stats.effectiveInvestment || 0)
+    return (portfolio.stats.realizedProfit || 0) + unrealizedGains
+  }
+
   // 🎯 FASE 1 FIX: Calcola Enhanced Overall Stats usando SOLO backend stats
   const overallStats = useMemo(() => {
     const allPortfolios = [...dcaPortfolios, ...cryptoPortfolios]
@@ -170,51 +225,6 @@ export default function InvestmentsPage() {
       overallROI
     }
   }, [dcaPortfolios, cryptoPortfolios, btcPrice])
-
-  // 🎯 FASE 1 FIX: Helper per calcolare current value di DCA portfolio con fallback
-  const getDCACurrentValue = (portfolio: Portfolio) => {
-    if (!btcPrice?.btcEur) return 0
-    
-    // Prova netBTC dal backend
-    if (portfolio.stats.netBTC && portfolio.stats.netBTC > 0) {
-      return portfolio.stats.netBTC * btcPrice.btcEur
-    }
-    
-    // 🔧 FALLBACK: Se netBTC è null, prova a usare totalBTC (dovrebbe essere uguale per testbtc)
-    if (portfolio.stats.totalBTC && portfolio.stats.totalBTC > 0) {
-      console.log(`DCA ${portfolio.name} using totalBTC fallback:`, portfolio.stats.totalBTC)
-      return portfolio.stats.totalBTC * btcPrice.btcEur
-    }
-    
-    // 🔧 ULTIMO FALLBACK: Se abbiamo almeno totalInvested e effectiveInvestment, usa il valore dal dettaglio
-    // Per testbtc sappiamo che dovrebbe essere 0.0049 BTC
-    if (portfolio.name === 'testbtc' && portfolio.stats.totalInvested === 500) {
-      const hardcodedBTC = 0.0049 // Valore temporaneo fino a che l'API non si aggiorna
-      console.log(`DCA ${portfolio.name} using hardcoded fallback:`, hardcodedBTC)
-      return hardcodedBTC * btcPrice.btcEur
-    }
-    
-    return 0
-  }
-
-  // 🎯 FASE 1 FIX: Helper per calcolare ROI usando Enhanced logic
-  const getPortfolioROI = (portfolio: Portfolio) => {
-    // Se il backend fornisce già totalROI, usa quello
-    if (portfolio.stats.totalROI !== undefined) {
-      return portfolio.stats.totalROI
-    }
-    
-    // Altrimenti calcola usando Enhanced logic
-    const currentValue = portfolio.type === 'crypto_wallet' 
-      ? (portfolio.stats.totalValueEur || 0)
-      : getDCACurrentValue(portfolio)
-    
-    const unrealizedGains = currentValue - (portfolio.stats.effectiveInvestment || 0)
-    const totalGains = (portfolio.stats.realizedProfit || 0) + unrealizedGains
-    
-    return portfolio.stats.totalInvested > 0 ? 
-      (totalGains / portfolio.stats.totalInvested) * 100 : 0
-  }
 
   // Handler functions
   const handleCreateDCA = async () => {
@@ -284,16 +294,6 @@ export default function InvestmentsPage() {
     }
   }
 
-  // 🎯 FASE 1 FIX: Helper per calcolare total gains usando Enhanced logic
-  const getPortfolioTotalGains = (portfolio: Portfolio) => {
-    const currentValue = portfolio.type === 'crypto_wallet' 
-      ? (portfolio.stats.totalValueEur || 0)
-      : getDCACurrentValue(portfolio)
-    
-    const unrealizedGains = currentValue - (portfolio.stats.effectiveInvestment || 0)
-    return (portfolio.stats.realizedProfit || 0) + unrealizedGains
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -328,33 +328,6 @@ export default function InvestmentsPage() {
           >
             🚀 Crypto Wallet
           </button>
-        </div>
-      </div>
-
-      {/* P&L Breakdown */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-          <h3 className="text-sm font-medium text-adaptive-500">⚠️ Soldi a Rischio</h3>
-          <p className="text-2xl font-bold text-orange-600">
-            {formatCurrency(overallStats.totalEffectiveInvestment)}
-          </p>
-          <p className="text-sm text-adaptive-600">Non ancora recuperato</p>
-        </div>
-
-        <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-          <h3 className="text-sm font-medium text-adaptive-500">💸 Profitti Realizzati</h3>
-          <p className={`text-2xl font-bold ${overallStats.totalRealizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {formatCurrency(overallStats.totalRealizedProfit)}
-          </p>
-          <p className="text-sm text-adaptive-600">Da vendite</p>
-        </div>
-
-        <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-          <h3 className="text-sm font-medium text-adaptive-500">📊 Plus/Minus Non Real.</h3>
-          <p className={`text-2xl font-bold ${overallStats.totalUnrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {formatCurrency(overallStats.totalUnrealizedGains)}
-          </p>
-          <p className="text-sm text-adaptive-600">Su holdings correnti</p>
         </div>
       </div>
 
@@ -393,6 +366,33 @@ export default function InvestmentsPage() {
             {formatPercentage(overallStats.overallROI)}
           </p>
           <p className="text-sm text-adaptive-600">Enhanced calculation</p>
+        </div>
+      </div>
+
+      {/* P&L Breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
+          <h3 className="text-sm font-medium text-adaptive-500">⚠️ Soldi a Rischio</h3>
+          <p className="text-2xl font-bold text-orange-600">
+            {formatCurrency(overallStats.totalEffectiveInvestment)}
+          </p>
+          <p className="text-sm text-adaptive-600">Non ancora recuperato</p>
+        </div>
+
+        <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
+          <h3 className="text-sm font-medium text-adaptive-500">💸 Profitti Realizzati</h3>
+          <p className={`text-2xl font-bold ${overallStats.totalRealizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatCurrency(overallStats.totalRealizedProfit)}
+          </p>
+          <p className="text-sm text-adaptive-600">Da vendite</p>
+        </div>
+
+        <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
+          <h3 className="text-sm font-medium text-adaptive-500">📊 Plus/Minus Non Real.</h3>
+          <p className={`text-2xl font-bold ${overallStats.totalUnrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatCurrency(overallStats.totalUnrealizedGains)}
+          </p>
+          <p className="text-sm text-adaptive-600">Su holdings correnti</p>
         </div>
       </div>
 
