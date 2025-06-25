@@ -102,11 +102,11 @@ export async function POST(request: NextRequest) {
       })
 
       return NextResponse.json(portfolio, { status: 201 })
-    } catch (createError) {
+    } catch (createError: any) {
       console.error('Errore nella creazione del portfolio:', createError)
       
       // Se la tabella non esiste
-      if (createError.code === 'P2021') {
+      if (createError?.code === 'P2021') {
         return NextResponse.json({ 
           error: 'Database non ancora configurato. Esegui la migration del database prima di creare portfolio.' 
         }, { status: 500 })

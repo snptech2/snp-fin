@@ -7,7 +7,9 @@ import Link from 'next/link'
 import { 
   PlusIcon, 
   ArrowsRightLeftIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  PencilIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline'
 
 interface CryptoPortfolio {
@@ -82,8 +84,10 @@ export default function CryptoPortfolioPage() {
   
   // Modals
   const [showAddTransaction, setShowAddTransaction] = useState(false)
+  const [showEditTransaction, setShowEditTransaction] = useState(false)
   const [showAddAsset, setShowAddAsset] = useState(false)
   const [showSwap, setShowSwap] = useState(false)
+  const [editingTransaction, setEditingTransaction] = useState<CryptoTransaction | null>(null)
   
   // Forms
   const [transactionForm, setTransactionForm] = useState({
@@ -236,16 +240,7 @@ export default function CryptoPortfolioPage() {
       if (response.ok) {
         await fetchPortfolio()
         setShowAddTransaction(false)
-        setTransactionForm({
-          date: new Date().toISOString().split('T')[0],
-          type: 'buy',
-          assetSymbol: '',
-          quantity: '',
-          eurValue: '',
-          pricePerUnit: '',
-          broker: '',
-          notes: ''
-        })
+        resetTransactionForm()
       } else {
         const error = await response.json()
         alert(error.error || 'Errore nella creazione transazione')
@@ -256,12 +251,91 @@ export default function CryptoPortfolioPage() {
     }
   }
 
+  // Edit/Delete transaction functions
+  const editTransaction = (transaction: CryptoTransaction) => {
+    setEditingTransaction(transaction)
+    setTransactionForm({
+      date: transaction.date.split('T')[0],
+      type: transaction.type as 'buy' | 'sell',
+      assetSymbol: transaction.asset.symbol,
+      quantity: transaction.quantity.toString(),
+      eurValue: transaction.eurValue.toString(),
+      pricePerUnit: transaction.pricePerUnit.toString(),
+      broker: transaction.broker || '',
+      notes: transaction.notes || ''
+    })
+    setShowEditTransaction(true)
+  }
+
+  const updateTransaction = async () => {
+    if (!editingTransaction || !transactionForm.quantity) return
+
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions?transactionId=${editingTransaction.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...transactionForm,
+          quantity: parseFloat(transactionForm.quantity),
+          eurValue: transactionForm.eurValue ? parseFloat(transactionForm.eurValue) : undefined,
+          pricePerUnit: transactionForm.pricePerUnit ? parseFloat(transactionForm.pricePerUnit) : undefined
+        })
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        setShowEditTransaction(false)
+        setEditingTransaction(null)
+        resetTransactionForm()
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nella modifica transazione')
+      }
+    } catch (error) {
+      console.error('Errore nella modifica transazione:', error)
+      alert('Errore nella modifica transazione')
+    }
+  }
+
+  const deleteTransaction = async (transactionId: number) => {
+    if (!confirm('Sei sicuro di voler eliminare questa transazione? Questa azione non può essere annullata.')) return
+
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions?transactionId=${transactionId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nell\'eliminazione transazione')
+      }
+    } catch (error) {
+      console.error('Errore nell\'eliminazione transazione:', error)
+      alert('Errore nell\'eliminazione transazione')
+    }
+  }
+
+  const resetTransactionForm = () => {
+    setTransactionForm({
+      date: new Date().toISOString().split('T')[0],
+      type: 'buy',
+      assetSymbol: '',
+      quantity: '',
+      eurValue: '',
+      pricePerUnit: '',
+      broker: '',
+      notes: ''
+    })
+  }
+
   // Auto-calculate prices
   const handleQuantityChange = (value: string) => {
     setTransactionForm(prev => ({ ...prev, quantity: value }))
     
-    if (prev.pricePerUnit && value) {
-      const eurValue = parseFloat(value) * parseFloat(prev.pricePerUnit)
+    if (transactionForm.pricePerUnit && value) {
+      const eurValue = parseFloat(value) * parseFloat(transactionForm.pricePerUnit)
       setTransactionForm(prev => ({ ...prev, eurValue: eurValue.toFixed(2) }))
     }
   }
@@ -269,8 +343,8 @@ export default function CryptoPortfolioPage() {
   const handleEurValueChange = (value: string) => {
     setTransactionForm(prev => ({ ...prev, eurValue: value }))
     
-    if (prev.quantity && value) {
-      const pricePerUnit = parseFloat(value) / parseFloat(prev.quantity)
+    if (transactionForm.quantity && value) {
+      const pricePerUnit = parseFloat(value) / parseFloat(transactionForm.quantity)
       setTransactionForm(prev => ({ ...prev, pricePerUnit: pricePerUnit.toFixed(6) }))
     }
   }
@@ -278,8 +352,8 @@ export default function CryptoPortfolioPage() {
   const handlePriceChange = (value: string) => {
     setTransactionForm(prev => ({ ...prev, pricePerUnit: value }))
     
-    if (prev.quantity && value) {
-      const eurValue = parseFloat(prev.quantity) * parseFloat(value)
+    if (transactionForm.quantity && value) {
+      const eurValue = parseFloat(transactionForm.quantity) * parseFloat(value)
       setTransactionForm(prev => ({ ...prev, eurValue: eurValue.toFixed(2) }))
     }
   }
@@ -405,7 +479,7 @@ export default function CryptoPortfolioPage() {
           <div className="text-center py-8">
             <div className="text-4xl mb-4">🪙</div>
             <h3 className="text-lg font-medium text-adaptive-900 mb-2">Nessun Asset</h3>
-            <p className="text-adaptive-600">Inizia comprando il tuo primo asset</p>
+            <p className="text-adaptive-600">I tuoi asset appariranno qui dopo la prima transazione</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -415,7 +489,7 @@ export default function CryptoPortfolioPage() {
                   <th className="text-left py-3 px-4 font-medium text-adaptive-700">Asset</th>
                   <th className="text-right py-3 px-4 font-medium text-adaptive-700">Quantità</th>
                   <th className="text-right py-3 px-4 font-medium text-adaptive-700">Prezzo Medio</th>
-                  <th className="text-right py-3 px-4 font-medium text-adaptive-700">Prezzo Attuale</th>
+                  <th className="text-right py-3 px-4 font-medium text-adaptive-700">Prezzo Corrente</th>
                   <th className="text-right py-3 px-4 font-medium text-adaptive-700">Valore</th>
                   <th className="text-right py-3 px-4 font-medium text-adaptive-700">P&L</th>
                 </tr>
@@ -423,16 +497,14 @@ export default function CryptoPortfolioPage() {
               <tbody>
                 {portfolio.holdings.map(holding => {
                   const currentPrice = holding.currentPrice || holding.avgPrice
-                  const currentValue = holding.valueEur || (holding.quantity * holding.avgPrice)
+                  const currentValue = holding.valueEur || (holding.quantity * currentPrice)
                   const unrealizedPL = currentValue - holding.totalInvested
-                  
+
                   return (
                     <tr key={holding.id} className="border-b border-adaptive hover:bg-adaptive-50">
                       <td className="py-3 px-4">
-                        <div>
-                          <div className="font-medium text-adaptive-900">{holding.asset.symbol}</div>
-                          <div className="text-sm text-adaptive-600">{holding.asset.name}</div>
-                        </div>
+                        <div className="font-medium text-adaptive-900">{holding.asset.symbol}</div>
+                        <div className="text-sm text-adaptive-600">{holding.asset.name}</div>
                       </td>
                       <td className="text-right py-3 px-4">
                         {formatCrypto(holding.quantity, holding.asset.decimals)}
@@ -441,7 +513,8 @@ export default function CryptoPortfolioPage() {
                         {formatCurrency(holding.avgPrice)}
                       </td>
                       <td className="text-right py-3 px-4">
-                        <span className={currentPrice !== holding.avgPrice ? 
+                        <span className={
+                          holding.currentPrice ? 
                           (currentPrice > holding.avgPrice ? 'text-green-600' : 'text-red-600') : 
                           'text-adaptive-900'
                         }>
@@ -487,6 +560,7 @@ export default function CryptoPortfolioPage() {
                   <th className="text-right py-3 px-4 font-medium text-adaptive-700">Prezzo</th>
                   <th className="text-right py-3 px-4 font-medium text-adaptive-700">Valore EUR</th>
                   <th className="text-left py-3 px-4 font-medium text-adaptive-700">Broker</th>
+                  <th className="text-center py-3 px-4 font-medium text-adaptive-700">Azioni</th>
                 </tr>
               </thead>
               <tbody>
@@ -518,6 +592,24 @@ export default function CryptoPortfolioPage() {
                     </td>
                     <td className="py-3 px-4 text-sm">
                       {transaction.broker || '-'}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => editTransaction(transaction)}
+                          className="p-1 text-blue-600 hover:text-blue-800"
+                          title="Modifica transazione"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => deleteTransaction(transaction.id)}
+                          className="p-1 text-red-600 hover:text-red-800"
+                          title="Elimina transazione"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -560,7 +652,18 @@ export default function CryptoPortfolioPage() {
                 </button>
               </div>
 
-              {/* Asset Selection */}
+              {/* Date */}
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Data</label>
+                <input
+                  type="date"
+                  value={transactionForm.date}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full p-2 border border-adaptive rounded-md"
+                />
+              </div>
+
+              {/* Asset */}
               <div>
                 <label className="block text-sm font-medium text-adaptive-700 mb-1">Asset</label>
                 <select
@@ -586,33 +689,33 @@ export default function CryptoPortfolioPage() {
                   value={transactionForm.quantity}
                   onChange={(e) => handleQuantityChange(e.target.value)}
                   className="w-full p-2 border border-adaptive rounded-md"
-                  placeholder="0.000000"
+                  placeholder="0.001"
                 />
               </div>
 
-              {/* EUR Value */}
+              {/* Price per Unit */}
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Valore EUR</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={transactionForm.eurValue}
-                  onChange={(e) => handleEurValueChange(e.target.value)}
-                  className="w-full p-2 border border-adaptive rounded-md"
-                  placeholder="0.00"
-                />
-              </div>
-
-              {/* Price Per Unit */}
-              <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Prezzo Unitario</label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Prezzo per Unità (EUR)</label>
                 <input
                   type="number"
                   step="any"
                   value={transactionForm.pricePerUnit}
                   onChange={(e) => handlePriceChange(e.target.value)}
                   className="w-full p-2 border border-adaptive rounded-md"
-                  placeholder="0.00000"
+                  placeholder="0.00"
+                />
+              </div>
+
+              {/* EUR Value */}
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Valore EUR Totale</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={transactionForm.eurValue}
+                  onChange={(e) => handleEurValueChange(e.target.value)}
+                  className="w-full p-2 border border-adaptive rounded-md"
+                  placeholder="0.00"
                 />
               </div>
 
@@ -624,18 +727,18 @@ export default function CryptoPortfolioPage() {
                   value={transactionForm.broker}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, broker: e.target.value }))}
                   className="w-full p-2 border border-adaptive rounded-md"
-                  placeholder="es. Binance, Kraken..."
+                  placeholder="Binance, Kraken, ecc."
                 />
               </div>
 
               {/* Notes */}
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">Note (opzionale)</label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Note (opzionali)</label>
                 <textarea
                   value={transactionForm.notes}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, notes: e.target.value }))}
                   className="w-full p-2 border border-adaptive rounded-md"
-                  rows={2}
+                  rows={3}
                   placeholder="Note aggiuntive..."
                 />
               </div>
@@ -643,17 +746,160 @@ export default function CryptoPortfolioPage() {
 
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowAddTransaction(false)}
+                onClick={() => {
+                  setShowAddTransaction(false)
+                  resetTransactionForm()
+                }}
                 className="flex-1 px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-adaptive-50"
               >
                 Annulla
               </button>
               <button
                 onClick={createTransaction}
-                disabled={!transactionForm.assetSymbol || !transactionForm.quantity}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
                 Crea Transazione
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Transaction Modal */}
+      {showEditTransaction && editingTransaction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-adaptive p-6 rounded-lg shadow-lg max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold text-adaptive-900 mb-4">
+              ✏️ Modifica Transazione
+            </h2>
+            
+            <div className="space-y-4">
+              {/* Type Toggle */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setTransactionForm(prev => ({ ...prev, type: 'buy' }))}
+                  className={`flex-1 py-2 px-4 rounded-md ${
+                    transactionForm.type === 'buy' 
+                      ? 'bg-green-600 text-white' 
+                      : 'bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  Compra
+                </button>
+                <button
+                  onClick={() => setTransactionForm(prev => ({ ...prev, type: 'sell' }))}
+                  className={`flex-1 py-2 px-4 rounded-md ${
+                    transactionForm.type === 'sell' 
+                      ? 'bg-red-600 text-white' 
+                      : 'bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  Vendi
+                </button>
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Data</label>
+                <input
+                  type="date"
+                  value={transactionForm.date}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full p-2 border border-adaptive rounded-md"
+                />
+              </div>
+
+              {/* Asset (readonly in edit mode) */}
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Asset</label>
+                <input
+                  type="text"
+                  value={transactionForm.assetSymbol}
+                  disabled
+                  className="w-full p-2 border border-adaptive rounded-md bg-gray-100 text-gray-600"
+                />
+              </div>
+
+              {/* Quantity */}
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Quantità</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={transactionForm.quantity}
+                  onChange={(e) => handleQuantityChange(e.target.value)}
+                  className="w-full p-2 border border-adaptive rounded-md"
+                  placeholder="0.001"
+                />
+              </div>
+
+              {/* Price per Unit */}
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Prezzo per Unità (EUR)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={transactionForm.pricePerUnit}
+                  onChange={(e) => handlePriceChange(e.target.value)}
+                  className="w-full p-2 border border-adaptive rounded-md"
+                  placeholder="0.00"
+                />
+              </div>
+
+              {/* EUR Value */}
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Valore EUR Totale</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={transactionForm.eurValue}
+                  onChange={(e) => handleEurValueChange(e.target.value)}
+                  className="w-full p-2 border border-adaptive rounded-md"
+                  placeholder="0.00"
+                />
+              </div>
+
+              {/* Broker */}
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Broker (opzionale)</label>
+                <input
+                  type="text"
+                  value={transactionForm.broker}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, broker: e.target.value }))}
+                  className="w-full p-2 border border-adaptive rounded-md"
+                  placeholder="Binance, Kraken, ecc."
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Note (opzionali)</label>
+                <textarea
+                  value={transactionForm.notes}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full p-2 border border-adaptive rounded-md"
+                  rows={3}
+                  placeholder="Note aggiuntive..."
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditTransaction(false)
+                  setEditingTransaction(null)
+                  resetTransactionForm()
+                }}
+                className="flex-1 px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-adaptive-50"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={updateTransaction}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Salva Modifiche
               </button>
             </div>
           </div>
@@ -664,53 +910,41 @@ export default function CryptoPortfolioPage() {
       {showAddAsset && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-adaptive p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
-            <h2 className="text-xl font-semibold text-adaptive-900 mb-4">➕ Aggiungi Nuovo Asset</h2>
+            <h2 className="text-xl font-semibold text-adaptive-900 mb-4">➕ Aggiungi Asset</h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Ticker / Simbolo
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Simbolo (Ticker)</label>
                 <input
                   type="text"
                   value={assetForm.symbol}
                   onChange={(e) => setAssetForm(prev => ({ ...prev, symbol: e.target.value.toUpperCase() }))}
                   className="w-full p-2 border border-adaptive rounded-md"
-                  placeholder="es. SOL, ADA, DOT..."
-                  maxLength={10}
+                  placeholder="BTC, ETH, SOL..."
                 />
-                <p className="text-xs text-adaptive-500 mt-1">
-                  Scrivi il ticker in MAIUSCOLO (es. SOL per Solana)
-                </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Nome (opzionale)
-                </label>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Nome (opzionale)</label>
                 <input
                   type="text"
                   value={assetForm.name}
                   onChange={(e) => setAssetForm(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full p-2 border border-adaptive rounded-md"
-                  placeholder="es. Solana, Cardano..."
+                  placeholder="Bitcoin, Ethereum..."
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-adaptive-700 mb-1">
-                  Decimali (per visualizzazione)
-                </label>
-                <select
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Decimali</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="18"
                   value={assetForm.decimals}
                   onChange={(e) => setAssetForm(prev => ({ ...prev, decimals: e.target.value }))}
                   className="w-full p-2 border border-adaptive rounded-md"
-                >
-                  <option value="2">2 decimali</option>
-                  <option value="4">4 decimali</option>
-                  <option value="6">6 decimali</option>
-                  <option value="8">8 decimali</option>
-                </select>
+                />
               </div>
             </div>
 
@@ -723,8 +957,7 @@ export default function CryptoPortfolioPage() {
               </button>
               <button
                 onClick={addAsset}
-                disabled={!assetForm.symbol.trim()}
-                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
               >
                 Aggiungi Asset
               </button>
