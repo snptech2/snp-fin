@@ -1,23 +1,23 @@
-// src/app/api/dca-portfolios/route.ts - FIX PREZZO MEDIO
+// src/app/api/dca-portfolios/route.ts - FIX ENHANCED LOGIC
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// 🎯 ENHANCED CASH FLOW LOGIC - UNIFICATA con [id]/route.ts
+// 🎯 ENHANCED CASH FLOW LOGIC - UNIFICATA con crypto logic
 function calculateEnhancedStats(transactions: any[]) {
-  const buyTransactions = transactions.filter(tx => tx.type === 'buy' || !tx.type)
-  const sellTransactions = transactions.filter(tx => tx.type === 'sell')
+  const buyTransactions = transactions.filter((tx: any) => tx.type === 'buy' || !tx.type)
+  const sellTransactions = transactions.filter((tx: any) => tx.type === 'sell')
 
   // 🔧 FIX FASE 1: Applica esattamente la logica Enhanced definita nei documenti
-  const totalInvested = buyTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
-  const capitalRecovered = sellTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
+  const totalInvested = buyTransactions.reduce((sum: number, tx: any) => sum + tx.eurPaid, 0)
+  const capitalRecovered = sellTransactions.reduce((sum: number, tx: any) => sum + tx.eurPaid, 0)
   const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
   const realizedProfit = Math.max(0, capitalRecovered - totalInvested)
 
   // BTC calculations
-  const totalBuyBTC = buyTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
-  const totalSellBTC = sellTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
+  const totalBuyBTC = buyTransactions.reduce((sum: number, tx: any) => sum + Math.abs(tx.btcQuantity), 0)
+  const totalSellBTC = sellTransactions.reduce((sum: number, tx: any) => sum + Math.abs(tx.btcQuantity), 0)
   const totalBTC = totalBuyBTC - totalSellBTC
 
   // Advanced metrics
@@ -25,57 +25,49 @@ function calculateEnhancedStats(transactions: any[]) {
   const freeBTCAmount = isFullyRecovered ? totalBTC : 0
 
   return {
-    // 🆕 ENHANCED CASH FLOW FIELDS (source of truth)
-    totalInvested,           // Invariante - somma storica di tutti i buy
-    capitalRecovered,        // Somma di tutti i sell
-    effectiveInvestment,     // Denaro ancora "a rischio"
-    realizedProfit,          // Solo se capitalRecovered > totalInvested
-    isFullyRecovered,        // Flag se ho recuperato tutto l'investimento
-    
-    // 📊 BTC METRICS
-    totalBTC,
+    totalInvested,
+    capitalRecovered,
+    effectiveInvestment,
+    realizedProfit,
     totalBuyBTC,
     totalSellBTC,
-    freeBTCAmount,          // BTC "gratis" se fully recovered
-    
-    // 📊 COUNTERS
-    transactionCount: transactions.length,
-    buyCount: buyTransactions.length,
-    sellCount: sellTransactions.length
+    totalBTC,
+    isFullyRecovered,
+    freeBTCAmount
   }
 }
 
-// GET - Lista tutti i portafogli DCA con Enhanced Cash Flow
+// GET - Recupera tutti i portafogli DCA
 export async function GET() {
   try {
     const portfolios = await prisma.dCAPortfolio.findMany({
       where: { userId: 1 },
       include: {
-        transactions: true,
-        networkFees: true,
-        account: true,
-        _count: {
-          select: {
-            transactions: true,
-            networkFees: true
-          }
-        }
+        account: {
+          select: { id: true, name: true, balance: true }
+        },
+        transactions: {
+          orderBy: { date: 'desc' }
+        },
+        networkFees: true
       },
       orderBy: { createdAt: 'desc' }
     })
 
-    // 🎯 FASE 1: Calcola Enhanced statistics per ogni portfolio
+    // 🎯 FASE 1: Applica Enhanced Statistics a tutti i portfolio
     const portfoliosWithEnhancedStats = portfolios.map(portfolio => {
-      // Applica Enhanced Cash Flow Logic
       const enhancedStats = calculateEnhancedStats(portfolio.transactions)
 
-      // Fee di rete
-      const totalFeesSats = portfolio.networkFees.reduce((sum, fee) => sum + fee.sats, 0)
+      // Fee calculations
+      const totalFeesSats = portfolio.networkFees.reduce((sum: number, fee: any) => sum + fee.feeSats, 0)
       const totalFeesBTC = totalFeesSats / 100000000
-      const netBTC = enhancedStats.totalBTC - totalFeesBTC
 
-      // 🔧 FIX: Calcola prezzo medio sui BTC NETTI, non sui BTC comprati totali
-      const avgPurchasePrice = netBTC > 0 ? enhancedStats.totalInvested / netBTC : 0
+      // Net BTC (dopo fees)
+      const netBTC = Math.max(0, enhancedStats.totalBTC - totalFeesBTC)
+
+      // 🔧 FIX: Prezzo medio di acquisto corretto
+      const avgPurchasePrice = enhancedStats.totalInvested > 0 && netBTC > 0 ? 
+        enhancedStats.totalInvested / netBTC : 0
 
       // Final stats - Enhanced è source of truth
       const finalStats = {

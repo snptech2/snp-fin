@@ -1,39 +1,29 @@
-// src/app/api/crypto-portfolios/[id]/route.ts - VERSIONE CORRETTA COMPLETA
+// src/app/api/crypto-portfolios/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// 🎯 ENHANCED CASH FLOW LOGIC per Crypto Portfolios (CORRETTA)
+// 🎯 ENHANCED CASH FLOW LOGIC - UNIFICATA con DCA logic
 function calculateEnhancedStats(transactions: any[]) {
-  const buyTransactions = transactions.filter((tx: any) => tx.type === 'buy')
+  const buyTransactions = transactions.filter((tx: any) => tx.type === 'buy' || !tx.type)
   const sellTransactions = transactions.filter((tx: any) => tx.type === 'sell')
 
-  // 🔧 FIX: Applica esattamente la logica Enhanced definita nei documenti
+  // 🔧 FIX FASE 1: Applica esattamente la logica Enhanced definita nei documenti
   const totalInvested = buyTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
   const capitalRecovered = sellTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
   const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
   const realizedProfit = Math.max(0, capitalRecovered - totalInvested)
 
-  // Status
-  const isFullyRecovered = capitalRecovered >= totalInvested
-
   return {
-    // 🆕 ENHANCED CASH FLOW FIELDS (source of truth)
-    totalInvested,           // Invariante - somma storica di tutti i buy
-    capitalRecovered,        // Somma di tutti i sell 
-    effectiveInvestment,     // Denaro ancora "a rischio"
-    realizedProfit,          // Solo se capitalRecovered > totalInvested
-    isFullyRecovered,        // Flag se ho recuperato tutto l'investimento
-    
-    // 📊 COUNTERS
-    transactionCount: transactions.length,
-    buyCount: buyTransactions.length,
-    sellCount: sellTransactions.length
+    totalInvested,
+    capitalRecovered,
+    effectiveInvestment,
+    realizedProfit
   }
 }
 
-// GET - Recupera crypto portfolio singolo con Enhanced Stats
+// GET - Recupera crypto portfolio specifico
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -90,7 +80,7 @@ export async function GET(
     const unrealizedGains = totalValueEur - enhancedStats.effectiveInvestment
 
     // 🔧 FIX: ROI totale usando Enhanced logic  
-    const totalROI = enhancedStats.totalInvested > 0 ? 
+    const totalROI = enhancedStats.totalInvested > 0 ?
       ((enhancedStats.realizedProfit + unrealizedGains) / enhancedStats.totalInvested) * 100 : 0
 
     // Final stats - Enhanced è source of truth
@@ -174,21 +164,30 @@ export async function PUT(
       data: { 
         name: name.trim(),
         description: description?.trim() || null,
-        isActive: isActive !== undefined ? isActive : existingPortfolio.isActive
+        isActive: isActive !== undefined ? isActive : true
+      },
+      include: {
+        account: {
+          select: {
+            id: true,
+            name: true,
+            balance: true
+          }
+        }
       }
     })
 
     return NextResponse.json(updatedPortfolio)
   } catch (error) {
-    console.error('Errore nell\'aggiornamento portfolio:', error)
+    console.error('Errore aggiornamento crypto portfolio:', error)
     return NextResponse.json(
-      { error: 'Errore nell\'aggiornamento portfolio' },
+      { error: 'Errore aggiornamento crypto portfolio' },
       { status: 500 }
     )
   }
 }
 
-// DELETE - Elimina crypto portfolio e dati correlati
+// DELETE - Elimina crypto portfolio
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -215,18 +214,16 @@ export async function DELETE(
       )
     }
 
-    // Elimina holdings, transazioni e portfolio in una transazione
-    await prisma.$transaction([
-      prisma.cryptoTransaction.deleteMany({ where: { portfolioId: id } }),
-      prisma.cryptoHolding.deleteMany({ where: { portfolioId: id } }),
-      prisma.cryptoPortfolio.delete({ where: { id } })
-    ])
+    // Elimina portfolio e tutte le relazioni (cascade delete dovrebbe gestire)
+    await prisma.cryptoPortfolio.delete({
+      where: { id }
+    })
 
     return NextResponse.json({ message: 'Portfolio eliminato con successo' })
   } catch (error) {
-    console.error('Errore nell\'eliminazione portfolio:', error)
+    console.error('Errore eliminazione crypto portfolio:', error)
     return NextResponse.json(
-      { error: 'Errore nell\'eliminazione portfolio' },
+      { error: 'Errore eliminazione crypto portfolio' },
       { status: 500 }
     )
   }
