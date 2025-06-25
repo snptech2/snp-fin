@@ -1,4 +1,4 @@
-// src/app/accounts/page.tsx - VERSIONE COMPLETA CON FIX
+// src/app/accounts/page.tsx - VERSIONE COMPLETA CORRETTA
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -15,17 +15,27 @@ interface Account {
   isDefault: boolean
 }
 
+// 🆕 INTERFACCIA PORTFOLIO AGGIORNATA
 interface Portfolio {
   id: number
   name: string
   accountId: number
+  type?: string  // 🆕 Per distinguere DCA vs Crypto
   stats: {
     totalInvested: number
-    capitalRecovered: number
+    // DCA Portfolio stats
+    capitalRecovered?: number
     realizedGains: number
-    realizedLoss: number
-    effectiveInvestment: number
-    isFullyRecovered: boolean
+    realizedLoss?: number
+    effectiveInvestment?: number
+    isFullyRecovered?: boolean
+    
+    // Crypto Portfolio stats
+    totalValueEur?: number
+    unrealizedGains?: number
+    totalROI?: number
+    holdingsCount?: number
+    transactionCount?: number
   }
 }
 
@@ -90,53 +100,72 @@ export default function EnhancedAccountsPage() {
     fetchData()
   }, [])
 
+  // 🆕 FETCH DATA AGGIORNATA
   const fetchData = async () => {
     setLoading(true)
     try {
-      // Prima proviamo accounts e portfolios che sappiamo esistere
-      const [accountsRes, portfoliosRes] = await Promise.all([
+      // Fetch accounts, DCA portfolios e crypto portfolios
+      const [accountsRes, dcaPortfoliosRes, cryptoPortfoliosRes] = await Promise.all([
         fetch('/api/accounts'),
-        fetch('/api/dca-portfolios')
+        fetch('/api/dca-portfolios'),
+        fetch('/api/crypto-portfolios')
       ])
 
       let accountsData = []
-      let portfoliosData = []
+      let dcaPortfoliosData = []
+      let cryptoPortfoliosData = []
 
       if (accountsRes.ok) {
         accountsData = await accountsRes.json()
         setAccounts(Array.isArray(accountsData) ? accountsData : [])
       }
       
-      if (portfoliosRes.ok) {
-        portfoliosData = await portfoliosRes.json()
-        setPortfolios(Array.isArray(portfoliosData) ? portfoliosData : [])
+      if (dcaPortfoliosRes.ok) {
+        dcaPortfoliosData = await dcaPortfoliosRes.json()
       }
 
+      if (cryptoPortfoliosRes.ok) {
+        cryptoPortfoliosData = await cryptoPortfoliosRes.json()
+      }
+
+      // 🆕 UNISCI ENTRAMBI I TIPI DI PORTFOLIO
+      const allPortfolios = [
+        // DCA Portfolios (mantieni originali)
+        ...Array.isArray(dcaPortfoliosData) ? dcaPortfoliosData.map(p => ({
+          ...p,
+          type: 'dca_bitcoin'
+        })) : [],
+        // Crypto Portfolios (aggiungi type)
+        ...Array.isArray(cryptoPortfoliosData) ? cryptoPortfoliosData.map(cp => ({
+          ...cp,
+          type: 'crypto_wallet'
+        })) : []
+      ]
+      
+      setPortfolios(allPortfolios)
+
       // Calculate breakdowns for investment accounts
-      if (accountsData.length > 0 && portfoliosData.length > 0) {
-        calculateInvestmentBreakdowns(accountsData, portfoliosData)
+      if (accountsData.length > 0 && allPortfolios.length > 0) {
+        calculateInvestmentBreakdowns(accountsData, allPortfolios)
       }
       
-      // Prova a caricare i trasferimenti separatamente per evitare che un errore qui rompa tutto
+      // Prova a caricare i trasferimenti separatamente
       try {
         const transfersRes = await fetch('/api/transfers?limit=5')
         if (transfersRes.ok) {
           const transfersData = await transfersRes.json()
-          // L'API ritorna { transfers: [...], pagination: {...} }
           const transfersArray = transfersData.transfers || transfersData
           setTransfers(Array.isArray(transfersArray) ? transfersArray : [])
         } else {
-          // L'API dei trasferimenti potrebbe non esistere ancora
           setTransfers([])
         }
       } catch (transferError) {
         console.log('Transfers API not available:', transferError)
         setTransfers([])
       }
-      
+        
     } catch (error) {
       console.error('Error fetching data:', error)
-      // In caso di errore, assicuriamoci che tutti gli state siano array vuoti
       setAccounts([])
       setPortfolios([])
       setTransfers([])
@@ -146,37 +175,49 @@ export default function EnhancedAccountsPage() {
     }
   }
 
-const calculateInvestmentBreakdowns = (accounts: Account[], portfolios: Portfolio[]) => {
-  const breakdowns: {[key: number]: AccountBreakdown} = {}
-  
-  accounts.filter(acc => acc.type === 'investment').forEach(account => {
-    const accountPortfolios = portfolios.filter(p => p.accountId === account.id)
+  // 🆕 CALCULATE BREAKDOWNS AGGIORNATA
+  const calculateInvestmentBreakdowns = (accounts: Account[], portfolios: Portfolio[]) => {
+    const breakdowns: {[key: number]: AccountBreakdown} = {}
     
-    if (accountPortfolios.length > 0) {
-      // USA DIRETTAMENTE LE STATS DEI PORTFOLIO (corretto)
-      const totalCapitalRecovered = accountPortfolios.reduce((sum, p) => sum + p.stats.capitalRecovered, 0)
-      const totalRealizedGains = accountPortfolios.reduce((sum, p) => sum + p.stats.realizedGains, 0)
-      const totalRealizedLoss = accountPortfolios.reduce((sum, p) => sum + p.stats.realizedLoss, 0)
+    accounts.filter(acc => acc.type === 'investment').forEach(account => {
+      const accountPortfolios = portfolios.filter(p => p.accountId === account.id)
       
-      const netRealizedPL = totalRealizedGains - totalRealizedLoss
-      const trackedFunds = totalCapitalRecovered + netRealizedPL
-      const unknownFunds = Math.max(0, account.balance - trackedFunds)
-      
-      breakdowns[account.id] = {
-        totalBalance: account.balance,
-        originalCapital: totalCapitalRecovered,
-        realizedGains: totalRealizedGains,
-        realizedLoss: totalRealizedLoss,  // Questo sarà 0 come nei tuoi dati
-        unknownFunds,
-        netRealizedPL
+      if (accountPortfolios.length > 0) {
+        let totalCapitalRecovered = 0
+        let totalRealizedGains = 0
+        let totalRealizedLoss = 0
+        
+        accountPortfolios.forEach(portfolio => {
+          if (portfolio.type === 'crypto_wallet') {
+            // 🚀 Crypto Portfolio: usa totalInvested come approssimazione di capital recovered
+            totalCapitalRecovered += portfolio.stats.totalInvested || 0
+            totalRealizedGains += portfolio.stats.realizedGains || 0
+            // Crypto portfolios non hanno realizedLoss separato
+          } else {
+            // 🟠 DCA Portfolio: usa stats originali
+            totalCapitalRecovered += portfolio.stats.capitalRecovered || 0
+            totalRealizedGains += portfolio.stats.realizedGains || 0
+            totalRealizedLoss += portfolio.stats.realizedLoss || 0
+          }
+        })
+        
+        const netRealizedPL = totalRealizedGains - totalRealizedLoss
+        const trackedFunds = totalCapitalRecovered + netRealizedPL
+        const unknownFunds = Math.max(0, account.balance - trackedFunds)
+        
+        breakdowns[account.id] = {
+          totalBalance: account.balance,
+          originalCapital: totalCapitalRecovered,
+          realizedGains: totalRealizedGains,
+          realizedLoss: totalRealizedLoss,
+          unknownFunds,
+          netRealizedPL
+        }
       }
-    }
-  })
-  
-  setInvestmentBreakdowns(breakdowns)
-}
+    })
     
-  
+    setInvestmentBreakdowns(breakdowns)
+  }
 
   const handleAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -359,9 +400,9 @@ const calculateInvestmentBreakdowns = (accounts: Account[], portfolios: Portfoli
   const totalInvestmentBalance = investmentAccounts.reduce((sum, acc) => sum + acc.balance, 0)
 
   // Calculate total investments and recoveries for overview
-  const totalInvested = portfolios.reduce((sum, p) => sum + p.stats.totalInvested, 0)
-  const totalRecovered = portfolios.reduce((sum, p) => sum + p.stats.capitalRecovered, 0)
-  const totalRealizedGains = portfolios.reduce((sum, p) => sum + p.stats.realizedGains, 0)
+  const totalInvested = portfolios.reduce((sum, p) => sum + (p.stats.totalInvested || 0), 0)
+  const totalRecovered = portfolios.reduce((sum, p) => sum + (p.stats.capitalRecovered || p.stats.totalInvested || 0), 0)
+  const totalRealizedGains = portfolios.reduce((sum, p) => sum + (p.stats.realizedGains || 0), 0)
 
   if (loading) {
     return (
@@ -592,159 +633,80 @@ const calculateInvestmentBreakdowns = (accounts: Account[], portfolios: Portfoli
                           <span className="text-2xl">📈</span>
                           <div>
                             <h4 className="font-semibold text-adaptive-900">{account.name}</h4>
-                            <p className="text-sm text-adaptive-600">
-                              {linkedPortfolios.length} portfolio collegati
-                            </p>
+                            <p className="text-sm text-adaptive-600">Conto Investimento</p>
                           </div>
                         </div>
-                        
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="text-xl font-bold text-adaptive-900">
-                              {formatCurrency(account.balance)}
-                            </p>
-                            <p className="text-sm text-adaptive-600">Saldo totale</p>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                setEditingAccount(account)
-                                setAccountForm({ name: account.name, type: account.type })
-                                setShowAccountModal(true)
-                              }}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                            >
-                              <PencilIcon className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteAccount(account.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded"
-                            >
-                              <TrashIcon className="w-4 h-4" />
-                            </button>
-                          </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingAccount(account)
+                              setAccountForm({ name: account.name, type: account.type })
+                              setShowAccountModal(true)
+                            }}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAccount(account.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
 
-                      {/* Enhanced Cash Flow Breakdown */}
-                      {breakdown && (
-                        <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                          <h5 className="font-medium text-adaptive-900 mb-3">🔍 Enhanced Cash Flow Breakdown</h5>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-                            {/* Original Capital */}
-                            <div className="text-center">
-                              <p className="text-sm text-adaptive-500">💰 Capitale Originale</p>
-                              <p className="text-lg font-semibold text-blue-600">
-                                {formatCurrency(breakdown.originalCapital)}
-                              </p>
-                              <p className="text-xs text-adaptive-600">
-                                {breakdown.totalBalance > 0 ? ((breakdown.originalCapital / breakdown.totalBalance) * 100).toFixed(1) : 0}%
+                      {/* Balance and Breakdown */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                        <div>
+                          <h5 className="font-medium text-adaptive-700 mb-2">💳 Saldo Conto</h5>
+                          <p className="text-3xl font-bold text-adaptive-900">{formatCurrency(account.balance)}</p>
+                        </div>
+                        
+                        {breakdown && (
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <p className="text-adaptive-600">Capitale Originale</p>
+                              <p className="font-semibold text-purple-600">{formatCurrency(breakdown.originalCapital)}</p>
+                            </div>
+                            <div>
+                              <p className="text-adaptive-600">Profitti Realizzati</p>
+                              <p className="font-semibold text-green-600">{formatCurrency(breakdown.realizedGains)}</p>
+                            </div>
+                            <div>
+                              <p className="text-adaptive-600">Fondi Non Tracciati</p>
+                              <p className="font-semibold text-orange-600">{formatCurrency(breakdown.unknownFunds)}</p>
+                            </div>
+                            <div>
+                              <p className="text-adaptive-600">P&L Netto</p>
+                              <p className={`font-semibold ${breakdown.netRealizedPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {formatCurrency(breakdown.netRealizedPL)}
                               </p>
                             </div>
-
-                            {/* Realized Gains */}
-                            {breakdown.realizedGains > 0 && (
-                              <div className="text-center">
-                                <p className="text-sm text-adaptive-500">📈 Profitti Realizzati</p>
-                                <p className="text-lg font-semibold text-green-600">
-                                  {formatCurrency(breakdown.realizedGains)}
-                                </p>
-                                <p className="text-xs text-adaptive-600">
-                                  {breakdown.totalBalance > 0 ? ((breakdown.realizedGains / breakdown.totalBalance) * 100).toFixed(1) : 0}%
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Realized Loss */}
-                            {breakdown.realizedLoss > 0 && (
-                              <div className="text-center">
-                                <p className="text-sm text-adaptive-500">📉 Perdite Realizzate</p>
-                                <p className="text-lg font-semibold text-red-600">
-                                  -{formatCurrency(breakdown.realizedLoss)}
-                                </p>
-                                <p className="text-xs text-adaptive-600">
-                                  {breakdown.totalBalance > 0 ? ((breakdown.realizedLoss / breakdown.totalBalance) * 100).toFixed(1) : 0}%
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Unknown Funds */}
-                            {breakdown.unknownFunds > 0 && (
-                              <div className="text-center">
-                                <p className="text-sm text-adaptive-500">❓ Altri Fondi</p>
-                                <p className="text-lg font-semibold text-gray-600">
-                                  {formatCurrency(breakdown.unknownFunds)}
-                                </p>
-                                <p className="text-xs text-adaptive-600">
-                                  {breakdown.totalBalance > 0 ? ((breakdown.unknownFunds / breakdown.totalBalance) * 100).toFixed(1) : 0}%
-                                </p>
-                              </div>
-                            )}
                           </div>
+                        )}
+                      </div>
 
-                          {/* Visual Progress Bar */}
-<div className="space-y-2">
-  <div className="w-full bg-gray-200 rounded-full h-3 flex">
-    {/* Capitale Originale */}
-    <div 
-      className="bg-blue-600 h-3 rounded-l-full" 
-      style={{ 
-        width: `${breakdown.totalBalance > 0 ? (breakdown.originalCapital / breakdown.totalBalance) * 100 : 0}%` 
-      }}
-    />
-    {/* Profitti Realizzati */}
-    {breakdown.realizedGains > 0 && (
-      <div 
-        className="bg-green-600 h-3" 
-        style={{ 
-          width: `${breakdown.totalBalance > 0 ? (breakdown.realizedGains / breakdown.totalBalance) * 100 : 0}%` 
-        }}
-      />
-    )}
-    {/* Altri Fondi */}
-    {breakdown.unknownFunds > 0 && (
-      <div 
-        className="bg-gray-400 h-3 rounded-r-full" 
-        style={{ 
-          width: `${breakdown.totalBalance > 0 ? (breakdown.unknownFunds / breakdown.totalBalance) * 100 : 0}%` 
-        }}
-      />
-    )}
-  </div>
-  <div className="flex justify-between text-xs text-adaptive-600">
-    <span>Capitale: {formatCurrency(breakdown.originalCapital)}</span>
-    <span>Totale: {formatCurrency(breakdown.totalBalance)}</span>
-  </div>
-</div>
-                        </div>
-                      )}
-
-                      {/* Linked Portfolios */}
-                      <div>
-                        <h5 className="font-medium text-adaptive-900 mb-2">📊 Portfolio Collegati</h5>
+                      {/* 🆕 PORTFOLIO COLLEGATI SECTION CORRETTA */}
+                      <div className="mt-4">
+                        <h5 className="font-medium text-adaptive-700 mb-2">Portfolio Collegati:</h5>
                         {linkedPortfolios.length === 0 ? (
-                          <p className="text-adaptive-600 text-sm">Nessun portfolio collegato</p>
+                          <p className="text-sm text-adaptive-500">Nessun portfolio collegato</p>
                         ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {linkedPortfolios.map((portfolio) => (
-<div key={portfolio.id} className="card-adaptive border border-adaptive rounded p-3">                                <div className="flex justify-between items-center mb-2">
-                                  <h6 className="font-medium text-adaptive-900">{portfolio.name}</h6>
-                                  <span className="text-xs text-adaptive-500">
-                                    {portfolio.stats.isFullyRecovered ? '✅ Recuperato' : '🔄 Attivo'}
+                          <div className="space-y-2">
+                            {linkedPortfolios.map(portfolio => (
+                              <div key={`${portfolio.type || 'dca'}-${portfolio.id}`} className="text-sm">
+                                <span className="font-medium">
+                                  {portfolio.type === 'crypto_wallet' ? '🚀' : '🟠'} {portfolio.name}
+                                </span>
+                                <span className="text-adaptive-500 ml-2">
+                                  ({portfolio.type === 'crypto_wallet' ? 'Crypto Wallet' : 'DCA Bitcoin'})
+                                </span>
+                                {portfolio.stats && (
+                                  <span className="text-adaptive-600 ml-2">
+                                    - Investiti: {formatCurrency(portfolio.stats.totalInvested)}
                                   </span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                  <div>
-                                    <span className="text-adaptive-500">Investito:</span>
-                                    <span className="font-semibold ml-1">{formatCurrency(portfolio.stats.totalInvested)}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-adaptive-500">Recuperato:</span>
-                                    <span className="font-semibold ml-1">{formatCurrency(portfolio.stats.capitalRecovered)}</span>
-                                  </div>
-                                </div>
+                                )}
                               </div>
                             ))}
                           </div>

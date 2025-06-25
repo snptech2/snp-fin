@@ -1,7 +1,7 @@
-// src/app/investments/crypto-portfolio/[id]/page.tsx
+// src/app/investments/crypto-portfolio/[id]/page.tsx - CON FUNZIONALITÀ DELETE
 'use client'
 
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { 
@@ -9,7 +9,8 @@ import {
   ArrowsRightLeftIcon,
   ArrowPathIcon,
   PencilIcon,
-  TrashIcon
+  TrashIcon,
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline'
 
 interface CryptoPortfolio {
@@ -74,6 +75,7 @@ interface CryptoAsset {
 
 export default function CryptoPortfolioPage() {
   const params = useParams()
+  const router = useRouter()
   const portfolioId = params.id as string
 
   // State
@@ -87,7 +89,10 @@ export default function CryptoPortfolioPage() {
   const [showEditTransaction, setShowEditTransaction] = useState(false)
   const [showAddAsset, setShowAddAsset] = useState(false)
   const [showSwap, setShowSwap] = useState(false)
+  const [showEditPortfolio, setShowEditPortfolio] = useState(false)
+  const [showDeletePortfolio, setShowDeletePortfolio] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<CryptoTransaction | null>(null)
+  const [submitLoading, setSubmitLoading] = useState(false)
   
   // Forms
   const [transactionForm, setTransactionForm] = useState({
@@ -115,6 +120,13 @@ export default function CryptoPortfolioPage() {
     notes: ''
   })
 
+  // 🆕 PORTFOLIO EDIT FORM
+  const [portfolioForm, setPortfolioForm] = useState({
+    name: '',
+    description: '',
+    isActive: true
+  })
+
   // Format functions
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('it-IT', {
@@ -139,6 +151,12 @@ export default function CryptoPortfolioPage() {
       if (response.ok) {
         const data = await response.json()
         setPortfolio(data)
+        // 🆕 Popolamento form di modifica
+        setPortfolioForm({
+          name: data.name,
+          description: data.description || '',
+          isActive: data.isActive
+        })
       } else {
         console.error('Errore nel caricamento portfolio')
       }
@@ -317,6 +335,69 @@ export default function CryptoPortfolioPage() {
     }
   }
 
+  // 🆕 PORTFOLIO MANAGEMENT FUNCTIONS
+  const updatePortfolio = async () => {
+    if (!portfolioForm.name.trim()) {
+      alert('Nome portfolio obbligatorio')
+      return
+    }
+
+    try {
+      setSubmitLoading(true)
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: portfolioForm.name.trim(),
+          description: portfolioForm.description.trim() || null,
+          isActive: portfolioForm.isActive
+        })
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        setShowEditPortfolio(false)
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nell\'aggiornamento del portfolio')
+      }
+    } catch (error) {
+      console.error('Errore nell\'aggiornamento portfolio:', error)
+      alert('Errore nell\'aggiornamento del portfolio')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  const deletePortfolio = async () => {
+    if (!portfolio) return
+
+    // Double confirmation
+    if (!confirm(`Sei sicuro di voler eliminare il portfolio "${portfolio.name}"?`)) return
+    
+    if (!confirm('⚠️ ATTENZIONE: Questa azione eliminerà permanentemente il portfolio e tutte le transazioni associate. Questa azione NON PUÒ essere annullata. Continuare?')) return
+
+    try {
+      setSubmitLoading(true)
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        // Redirect to investments page after successful deletion
+        router.push('/investments')
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nell\'eliminazione del portfolio')
+      }
+    } catch (error) {
+      console.error('Errore nell\'eliminazione portfolio:', error)
+      alert('Errore nell\'eliminazione del portfolio')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
   const resetTransactionForm = () => {
     setTransactionForm({
       date: new Date().toISOString().split('T')[0],
@@ -404,6 +485,11 @@ export default function CryptoPortfolioPage() {
             </Link>
             <span className="text-adaptive-500">/</span>
             <h1 className="text-3xl font-bold text-adaptive-900">🚀 {portfolio.name}</h1>
+            {!portfolio.isActive && (
+              <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded">
+                Inattivo
+              </span>
+            )}
           </div>
           <p className="text-adaptive-600">Crypto Wallet Multi-Asset</p>
           {portfolio.description && (
@@ -434,6 +520,17 @@ export default function CryptoPortfolioPage() {
             <PlusIcon className="w-4 h-4" />
             Aggiungi Asset
           </button>
+          
+          {/* 🆕 PORTFOLIO SETTINGS DROPDOWN */}
+          <div className="relative">
+            <button
+              onClick={() => setShowEditPortfolio(true)}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+            >
+              <Cog6ToothIcon className="w-4 h-4" />
+              Impostazioni
+            </button>
+          </div>
         </div>
       </div>
 
@@ -960,6 +1057,128 @@ export default function CryptoPortfolioPage() {
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
               >
                 Aggiungi Asset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 EDIT PORTFOLIO MODAL */}
+      {showEditPortfolio && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-adaptive p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+            <h2 className="text-xl font-semibold text-adaptive-900 mb-4">⚙️ Impostazioni Portfolio</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Nome Portfolio</label>
+                <input
+                  type="text"
+                  value={portfolioForm.name}
+                  onChange={(e) => setPortfolioForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full p-2 border border-adaptive rounded-md"
+                  placeholder="Il mio crypto wallet"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">Descrizione (opzionale)</label>
+                <textarea
+                  value={portfolioForm.description}
+                  onChange={(e) => setPortfolioForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full p-2 border border-adaptive rounded-md"
+                  rows={3}
+                  placeholder="Descrizione del portfolio..."
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={portfolioForm.isActive}
+                  onChange={(e) => setPortfolioForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                  className="rounded"
+                />
+                <label htmlFor="isActive" className="text-sm text-adaptive-700">Portfolio attivo</label>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowEditPortfolio(false)}
+                className="flex-1 px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-adaptive-50"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={updatePortfolio}
+                disabled={submitLoading}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                {submitLoading ? 'Salvando...' : 'Salva'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowEditPortfolio(false)
+                  setShowDeletePortfolio(true)
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                <TrashIcon className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 DELETE PORTFOLIO MODAL */}
+      {showDeletePortfolio && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-adaptive p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+            <h2 className="text-xl font-semibold text-red-600 mb-4">🗑️ Elimina Portfolio</h2>
+            
+            <div className="space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h3 className="font-medium text-red-800 mb-2">⚠️ Attenzione!</h3>
+                <p className="text-red-700 text-sm mb-2">
+                  Stai per eliminare definitivamente il portfolio <strong>"{portfolio.name}"</strong>.
+                </p>
+                <p className="text-red-700 text-sm">
+                  Questa azione eliminerà:
+                </p>
+                <ul className="text-red-700 text-sm mt-2 list-disc list-inside">
+                  <li>Il portfolio stesso</li>
+                  <li>Tutte le {portfolio.stats.transactionCount} transazioni</li>
+                  <li>Tutti i {portfolio.stats.holdingsCount} holdings</li>
+                </ul>
+                <p className="text-red-800 text-sm font-medium mt-3">
+                  ⚠️ Questa azione NON PUÒ essere annullata!
+                </p>
+              </div>
+
+              {(portfolio.stats.holdingsCount > 0 || portfolio.stats.transactionCount > 0) && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-yellow-800 text-sm">
+                    💡 <strong>Suggerimento:</strong> Prima di eliminare il portfolio, potresti voler esportare i dati delle transazioni per backup.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowDeletePortfolio(false)}
+                className="flex-1 px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-adaptive-50"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={deletePortfolio}
+                disabled={submitLoading}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 font-medium"
+              >
+                {submitLoading ? 'Eliminando...' : 'ELIMINA DEFINITIVAMENTE'}
               </button>
             </div>
           </div>
