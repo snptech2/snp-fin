@@ -1,4 +1,4 @@
-// src/app/api/crypto-portfolios/[id]/transactions/route.ts - ENHANCED VERSION
+// src/app/api/crypto-portfolios/[id]/transactions/route.ts - VERSIONE CORRETTA CON AGGIORNAMENTO SALDO CONTO
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
@@ -60,7 +60,8 @@ export async function POST(
 
     // Verifica portfolio
     const portfolio = await prisma.cryptoPortfolio.findFirst({
-      where: { id: portfolioId, userId: 1 }
+      where: { id: portfolioId, userId: 1 },
+      include: { account: true }
     })
 
     if (!portfolio) {
@@ -89,8 +90,40 @@ export async function POST(
     const finalEurValue = eurValue ? parseFloat(eurValue) : (finalQuantity * parseFloat(pricePerUnit || '0'))
     const finalPricePerUnit = pricePerUnit ? parseFloat(pricePerUnit) : (finalEurValue / finalQuantity)
 
+    // 🔧 NUOVO: Verifica liquidità per acquisti
+    if (type === 'buy' && portfolio.account) {
+      if (portfolio.account.balance < finalEurValue) {
+        return NextResponse.json({
+          error: 'Liquidità insufficiente',
+          currentBalance: portfolio.account.balance,
+          required: finalEurValue,
+          deficit: finalEurValue - portfolio.account.balance,
+          accountName: portfolio.account.name
+        }, { status: 400 })
+      }
+    }
+
+    // 🔧 NUOVO: Verifica asset sufficienti per vendite
+    if (type === 'sell') {
+      const existingHolding = await prisma.cryptoPortfolioHolding.findUnique({
+        where: {
+          portfolioId_assetId: { portfolioId, assetId: asset.id }
+        }
+      })
+
+      if (!existingHolding || existingHolding.quantity < finalQuantity) {
+        return NextResponse.json({
+          error: 'Asset insufficienti nel portfolio',
+          currentQuantity: existingHolding?.quantity || 0,
+          required: finalQuantity,
+          deficit: finalQuantity - (existingHolding?.quantity || 0),
+          assetSymbol: asset.symbol
+        }, { status: 400 })
+      }
+    }
+
     const result = await prisma.$transaction(async (tx) => {
-      // Crea transazione
+      // Crea la transazione
       const transaction = await tx.cryptoPortfolioTransaction.create({
         data: {
           portfolioId,
@@ -106,7 +139,24 @@ export async function POST(
         include: { asset: true }
       })
 
-      // Aggiorna holding
+      // 🔧 NUOVO: AGGIORNA IL SALDO DEL CONTO COLLEGATO
+      if (portfolio.account) {
+        if (type === 'buy') {
+          // ACQUISTO: Scala i soldi dal conto
+          await tx.account.update({
+            where: { id: portfolio.account.id },
+            data: { balance: { decrement: finalEurValue } }
+          })
+        } else if (type === 'sell') {
+          // VENDITA: Aggiungi i soldi al conto
+          await tx.account.update({
+            where: { id: portfolio.account.id },
+            data: { balance: { increment: finalEurValue } }
+          })
+        }
+      }
+
+      // Aggiorna holdings
       await updateHolding(tx, portfolioId, asset.id, type, finalQuantity, finalEurValue)
 
       return transaction
@@ -119,7 +169,7 @@ export async function POST(
   }
 }
 
-// PUT - Modifica transazione specifica
+// PUT - Modifica transazione esistente
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -129,7 +179,7 @@ export async function PUT(
     const portfolioId = parseInt(resolvedParams.id)
     const { searchParams } = new URL(request.url)
     const transactionId = parseInt(searchParams.get('transactionId') || '0')
-    
+
     if (!transactionId) {
       return NextResponse.json({ error: 'transactionId richiesto come query parameter' }, { status: 400 })
     }
@@ -146,16 +196,7 @@ export async function PUT(
       date
     } = body
 
-    // Validazioni
-    if (!type || !['buy', 'sell'].includes(type)) {
-      return NextResponse.json({ error: 'Tipo transazione non valido' }, { status: 400 })
-    }
-
-    if (!quantity || quantity <= 0) {
-      return NextResponse.json({ error: 'Quantità richiesta' }, { status: 400 })
-    }
-
-    // Verifica che la transazione esista e appartenga all'utente
+    // Verifica che la transazione esista
     const existingTransaction = await prisma.cryptoPortfolioTransaction.findFirst({
       where: { 
         id: transactionId,
@@ -169,16 +210,23 @@ export async function PUT(
       return NextResponse.json({ error: 'Transazione non trovata' }, { status: 404 })
     }
 
-    // Trova asset (deve esistere se stiamo modificando)
+    // Trova asset
     let asset = await prisma.cryptoPortfolioAsset.findUnique({
       where: { symbol: assetSymbol.toUpperCase() }
     })
 
     if (!asset) {
-      return NextResponse.json({ error: 'Asset non trovato' }, { status: 404 })
+      asset = await prisma.cryptoPortfolioAsset.create({
+        data: {
+          symbol: assetSymbol.toUpperCase(),
+          name: assetSymbol.toUpperCase(),
+          decimals: 6,
+          isActive: true
+        }
+      })
     }
 
-    // Calcola valori
+    // Calcola valori finali
     const finalQuantity = parseFloat(quantity)
     const finalEurValue = eurValue ? parseFloat(eurValue) : (finalQuantity * parseFloat(pricePerUnit || '0'))
     const finalPricePerUnit = pricePerUnit ? parseFloat(pricePerUnit) : (finalEurValue / finalQuantity)
@@ -186,6 +234,54 @@ export async function PUT(
     const result = await prisma.$transaction(async (tx) => {
       // Prima: rimuovi l'impatto della vecchia transazione sui holdings
       await revertHoldingUpdate(tx, portfolioId, existingTransaction)
+
+      // 🔧 NUOVO: RIPRISTINA IL SALDO DEL CONTO PER LA VECCHIA TRANSAZIONE
+      const portfolio = await tx.cryptoPortfolio.findUnique({
+        where: { id: portfolioId },
+        include: { account: true }
+      })
+
+      if (portfolio?.account) {
+        // Ripristina la vecchia transazione
+        if (existingTransaction.type === 'buy') {
+          // Era un acquisto: rimetti i soldi nel conto
+          await tx.account.update({
+            where: { id: portfolio.account.id },
+            data: { balance: { increment: existingTransaction.eurValue } }
+          })
+        } else if (existingTransaction.type === 'sell') {
+          // Era una vendita: togli i soldi dal conto
+          await tx.account.update({
+            where: { id: portfolio.account.id },
+            data: { balance: { decrement: existingTransaction.eurValue } }
+          })
+        }
+
+        // 🔧 NUOVO: Verifica liquidità per nuovi acquisti
+        if (type === 'buy') {
+          const currentBalance = await tx.account.findUnique({
+            where: { id: portfolio.account.id },
+            select: { balance: true }
+          })
+
+          if (currentBalance && currentBalance.balance < finalEurValue) {
+            throw new Error(`Liquidità insufficiente. Saldo attuale: ${currentBalance.balance}€, richiesto: ${finalEurValue}€`)
+          }
+        }
+
+        // Applica la nuova transazione al saldo
+        if (type === 'buy') {
+          await tx.account.update({
+            where: { id: portfolio.account.id },
+            data: { balance: { decrement: finalEurValue } }
+          })
+        } else if (type === 'sell') {
+          await tx.account.update({
+            where: { id: portfolio.account.id },
+            data: { balance: { increment: finalEurValue } }
+          })
+        }
+      }
 
       // Poi: aggiorna la transazione
       const updatedTransaction = await tx.cryptoPortfolioTransaction.update({
@@ -249,6 +345,28 @@ export async function DELETE(
     const result = await prisma.$transaction(async (tx) => {
       // Prima: rimuovi l'impatto sui holdings
       await revertHoldingUpdate(tx, portfolioId, transaction)
+
+      // 🔧 NUOVO: RIPRISTINA IL SALDO DEL CONTO
+      const portfolio = await tx.cryptoPortfolio.findUnique({
+        where: { id: portfolioId },
+        include: { account: true }
+      })
+
+      if (portfolio?.account) {
+        if (transaction.type === 'buy') {
+          // Era un acquisto: rimetti i soldi nel conto
+          await tx.account.update({
+            where: { id: portfolio.account.id },
+            data: { balance: { increment: transaction.eurValue } }
+          })
+        } else if (transaction.type === 'sell') {
+          // Era una vendita: togli i soldi dal conto
+          await tx.account.update({
+            where: { id: portfolio.account.id },
+            data: { balance: { decrement: transaction.eurValue } }
+          })
+        }
+      }
 
       // Poi: elimina la transazione
       await tx.cryptoPortfolioTransaction.delete({
@@ -314,7 +432,7 @@ async function revertHoldingUpdate(tx: any, portfolioId: number, transaction: an
   }
 }
 
-// Helper per aggiornare holding (esistente, mantenuto uguale)
+// Helper per aggiornare holding
 async function updateHolding(tx: any, portfolioId: number, assetId: number, type: string, quantity: number, eurValue: number) {
   const existingHolding = await tx.cryptoPortfolioHolding.findUnique({
     where: {
