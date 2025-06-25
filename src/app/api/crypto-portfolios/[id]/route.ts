@@ -1,10 +1,10 @@
-// src/app/api/crypto-portfolios/[id]/route.ts
+// src/app/api/crypto-portfolios/[id]/route.ts - FIXED VERSION CON LOGICA DCA
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// GET - Dettagli portfolio singolo con holdings e statistiche
+// GET - Dettagli portfolio singolo con statistiche corrette (COPIATO LOGICA DCA)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -34,8 +34,7 @@ export async function GET(
         },
         transactions: {
           include: { asset: true },
-          orderBy: { date: 'desc' },
-          take: 10 // Ultime 10 transazioni per performance
+          orderBy: { date: 'desc' }
         },
         _count: {
           select: { transactions: true, holdings: true }
@@ -47,22 +46,36 @@ export async function GET(
       return NextResponse.json({ error: 'Portfolio non trovato' }, { status: 404 })
     }
 
-    // Calcola statistiche dettagliate
-    const totalValueEur = portfolio.holdings.reduce((sum, h) => sum + (h.quantity * h.avgPrice), 0)
-    const totalInvested = portfolio.holdings.reduce((sum, h) => sum + h.totalInvested, 0)
+    // ✅ FIX: Calcola statistiche corrette (COPIA LOGICA DCA)
+    const buyTransactions = portfolio.transactions.filter(tx => tx.type === 'buy')
+    const sellTransactions = portfolio.transactions.filter(tx => tx.type === 'sell')
+
+    // ✅ COPIA LOGICA DCA: Investimento totale = TUTTE le transazioni buy storiche
+    const totalInvested = buyTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
+    
+    // ✅ COPIA LOGICA DCA: Profitti realizzati = somma dai holdings
     const realizedGains = portfolio.holdings.reduce((sum, h) => sum + h.realizedGains, 0)
-    const unrealizedGains = totalValueEur - totalInvested // Senza prezzi live, usiamo avgPrice
-    const totalROI = totalInvested > 0 ? ((totalValueEur - totalInvested) / totalInvested) * 100 : 0
+    
+    // ✅ COPIA LOGICA DCA: Valore attuale = holdings attuali
+    const totalValueEur = portfolio.holdings.reduce((sum, h) => sum + (h.quantity * h.avgPrice), 0)
+    
+    // ✅ COPIA LOGICA DCA: Plus/Minus non realizzati
+    const investmentInCurrentHoldings = portfolio.holdings.reduce((sum, h) => sum + h.totalInvested, 0)
+    const unrealizedGains = totalValueEur - investmentInCurrentHoldings
+    
+    // ✅ COPIA LOGICA DCA: ROI totale = (profitti + non realizzati) / investimento totale
+    const totalGains = realizedGains + unrealizedGains
+    const totalROI = totalInvested > 0 ? (totalGains / totalInvested) * 100 : 0
 
     // Aggiungi statistiche al portfolio
     const portfolioWithStats = {
       ...portfolio,
       stats: {
         totalValueEur,
-        totalInvested,
+        totalInvested, // ✅ FIX: Ora usa investimento storico totale
         realizedGains,
         unrealizedGains,
-        totalROI,
+        totalROI, // ✅ FIX: Ora calcolato correttamente
         holdingsCount: portfolio._count.holdings,
         transactionCount: portfolio._count.transactions
       }
