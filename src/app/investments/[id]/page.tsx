@@ -1,4 +1,4 @@
-// src/app/investments/[id]/page.tsx - FASE 1 FIX
+// src/app/investments/[id]/page.tsx - VERSIONE COMPLETA CON MODALS
 'use client'
 
 import { useParams, useRouter } from 'next/navigation'
@@ -10,7 +10,8 @@ import {
   PencilIcon,
   TrashIcon,
   Cog6ToothIcon,
-  ArrowLeftIcon
+  ArrowLeftIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline'
 
 interface DCAPortfolio {
@@ -70,11 +71,13 @@ export default function DCAPortfolioPage() {
   const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null)
   const [loading, setLoading] = useState(true)
   const [priceLoading, setPriceLoading] = useState(false)
+  const [submitLoading, setSubmitLoading] = useState(false)
 
   // Modals
   const [showAddTransaction, setShowAddTransaction] = useState(false)
   const [showEditTransaction, setShowEditTransaction] = useState(false)
   const [showEditPortfolio, setShowEditPortfolio] = useState(false)
+  const [showDeletePortfolio, setShowDeletePortfolio] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<DCATransaction | null>(null)
 
   // Forms
@@ -103,6 +106,10 @@ export default function DCAPortfolioPage() {
 
   const formatBTC = (amount: number) => {
     return `${amount.toFixed(8)} BTC`
+  }
+
+  const formatPercentage = (value: number) => {
+    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
   }
 
   useEffect(() => {
@@ -147,9 +154,169 @@ export default function DCAPortfolioPage() {
     }
   }
 
+  // Transaction actions
+  const createTransaction = async () => {
+    if (!transactionForm.btcQuantity || !transactionForm.eurPaid || !transactionForm.broker) {
+      alert('Compila tutti i campi obbligatori')
+      return
+    }
+
+    try {
+      setSubmitLoading(true)
+      const response = await fetch('/api/dca-transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          portfolioId: parseInt(portfolioId),
+          ...transactionForm,
+          btcQuantity: parseFloat(transactionForm.btcQuantity),
+          eurPaid: parseFloat(transactionForm.eurPaid)
+        })
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        setShowAddTransaction(false)
+        setTransactionForm({
+          date: new Date().toISOString().split('T')[0],
+          type: 'buy',
+          broker: '',
+          info: '',
+          btcQuantity: '',
+          eurPaid: '',
+          notes: ''
+        })
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nella creazione transazione')
+      }
+    } catch (error) {
+      console.error('Errore:', error)
+      alert('Errore nella creazione transazione')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  const updateTransaction = async () => {
+    if (!editingTransaction || !transactionForm.btcQuantity || !transactionForm.eurPaid) return
+
+    try {
+      setSubmitLoading(true)
+      const response = await fetch(`/api/dca-transactions/${editingTransaction.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...transactionForm,
+          btcQuantity: parseFloat(transactionForm.btcQuantity),
+          eurPaid: parseFloat(transactionForm.eurPaid)
+        })
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        setShowEditTransaction(false)
+        setEditingTransaction(null)
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nell\'aggiornamento transazione')
+      }
+    } catch (error) {
+      console.error('Errore:', error)
+      alert('Errore nell\'aggiornamento transazione')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  const deleteTransaction = async (transactionId: number) => {
+    if (!confirm('Sei sicuro di voler eliminare questa transazione?')) return
+
+    try {
+      const response = await fetch(`/api/dca-transactions/${transactionId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nell\'eliminazione transazione')
+      }
+    } catch (error) {
+      console.error('Errore:', error)
+      alert('Errore nell\'eliminazione transazione')
+    }
+  }
+
+  // Portfolio actions
+  const updatePortfolio = async () => {
+    if (!portfolioForm.name.trim()) {
+      alert('Il nome del portfolio è obbligatorio')
+      return
+    }
+
+    try {
+      setSubmitLoading(true)
+      const response = await fetch(`/api/dca-portfolios/${portfolioId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(portfolioForm)
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        setShowEditPortfolio(false)
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nell\'aggiornamento portfolio')
+      }
+    } catch (error) {
+      console.error('Errore:', error)
+      alert('Errore nell\'aggiornamento portfolio')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  const deletePortfolio = async () => {
+    if (!confirm('Sei sicuro di voler eliminare questo portfolio? Tutte le transazioni associate verranno eliminate. Questa azione non può essere annullata.')) return
+
+    try {
+      const response = await fetch(`/api/dca-portfolios/${portfolioId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        router.push('/investments')
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nell\'eliminazione del portfolio')
+      }
+    } catch (error) {
+      console.error('Errore:', error)
+      alert('Errore nell\'eliminazione del portfolio')
+    }
+  }
+
+  // Edit transaction
+  const editTransaction = (transaction: DCATransaction) => {
+    setEditingTransaction(transaction)
+    setTransactionForm({
+      date: transaction.date.split('T')[0],
+      type: transaction.type,
+      broker: transaction.broker,
+      info: transaction.info,
+      btcQuantity: Math.abs(transaction.btcQuantity).toString(),
+      eurPaid: transaction.eurPaid.toString(),
+      notes: transaction.notes || ''
+    })
+    setShowEditTransaction(true)
+  }
+
   // 🎯 FASE 1 FIX: Usa SOLO Enhanced stats dal backend, rimuovi calcoli duplicati
   const currentValue = portfolio && btcPrice ? portfolio.stats.netBTC * btcPrice.btcEur : 0
-  const unrealizedGains = currentValue - portfolio?.stats.effectiveInvestment || 0
+  const unrealizedGains = currentValue - (portfolio?.stats.effectiveInvestment || 0)
   const totalGains = (portfolio?.stats.realizedProfit || 0) + unrealizedGains
   const totalROI = portfolio?.stats.totalInvested && portfolio.stats.totalInvested > 0 ?
     ((portfolio.stats.realizedProfit + unrealizedGains) / portfolio.stats.totalInvested) * 100 : 0
@@ -211,6 +378,12 @@ export default function DCAPortfolioPage() {
             >
               <Cog6ToothIcon className="w-5 h-5" />
             </button>
+            <button
+              onClick={() => setShowDeletePortfolio(true)}
+              className="p-2 text-red-600 hover:bg-red-50 rounded"
+            >
+              <TrashIcon className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
@@ -255,7 +428,7 @@ export default function DCAPortfolioPage() {
           <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4">
             <h3 className="text-sm font-medium text-adaptive-500">🎯 ROI Totale</h3>
             <p className={`text-2xl font-bold ${totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {totalROI.toFixed(2)}%
+              {formatPercentage(totalROI)}
             </p>
             <p className="text-sm text-adaptive-600">
               {totalROI >= 0 ? '📈 Profitto' : '📉 Perdita'}
@@ -416,24 +589,20 @@ export default function DCAPortfolioPage() {
                         {transaction.broker}
                       </td>
                       <td className="text-center py-3 px-4">
-                        <button
-                          onClick={() => {
-                            setEditingTransaction(transaction)
-                            setTransactionForm({
-                              date: transaction.date.split('T')[0],
-                              type: transaction.type,
-                              broker: transaction.broker,
-                              info: transaction.info,
-                              btcQuantity: Math.abs(transaction.btcQuantity).toString(),
-                              eurPaid: transaction.eurPaid.toString(),
-                              notes: transaction.notes || ''
-                            })
-                            setShowEditTransaction(true)
-                          }}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                        >
-                          <PencilIcon className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => editTransaction(transaction)}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteTransaction(transaction.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -444,8 +613,335 @@ export default function DCAPortfolioPage() {
         </div>
       </div>
 
-      {/* Modals vanno qui - Add Transaction, Edit Transaction, Edit Portfolio */}
-      {/* Per brevità non li includo, ma dovrebbero rimanere gli stessi */}
+      {/* Modal: Add Transaction */}
+      {showAddTransaction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Nuova Transazione</h3>
+              <button
+                onClick={() => setShowAddTransaction(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                <input
+                  type="date"
+                  value={transactionForm.date}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                <select
+                  value={transactionForm.type}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, type: e.target.value as 'buy' | 'sell' }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="buy">Acquisto</option>
+                  <option value="sell">Vendita</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Broker *</label>
+                <input
+                  type="text"
+                  value={transactionForm.broker}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, broker: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="es. Binance, Coinbase..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Info *</label>
+                <input
+                  type="text"
+                  value={transactionForm.info}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, info: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="es. DCA settimanale"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantità BTC *</label>
+                <input
+                  type="number"
+                  step="0.00000001"
+                  value={transactionForm.btcQuantity}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, btcQuantity: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="0.00100000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Euro Pagati *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={transactionForm.eurPaid}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, eurPaid: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="100.00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
+                <textarea
+                  value={transactionForm.notes}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  rows={3}
+                  placeholder="Note aggiuntive..."
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowAddTransaction(false)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={createTransaction}
+                disabled={submitLoading}
+                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
+              >
+                {submitLoading ? 'Creazione...' : 'Crea Transazione'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Transaction */}
+      {showEditTransaction && editingTransaction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Modifica Transazione</h3>
+              <button
+                onClick={() => setShowEditTransaction(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                <input
+                  type="date"
+                  value={transactionForm.date}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                <select
+                  value={transactionForm.type}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, type: e.target.value as 'buy' | 'sell' }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="buy">Acquisto</option>
+                  <option value="sell">Vendita</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Broker</label>
+                <input
+                  type="text"
+                  value={transactionForm.broker}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, broker: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Info</label>
+                <input
+                  type="text"
+                  value={transactionForm.info}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, info: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantità BTC</label>
+                <input
+                  type="number"
+                  step="0.00000001"
+                  value={transactionForm.btcQuantity}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, btcQuantity: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Euro Pagati</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={transactionForm.eurPaid}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, eurPaid: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
+                <textarea
+                  value={transactionForm.notes}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowEditTransaction(false)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={updateTransaction}
+                disabled={submitLoading}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                {submitLoading ? 'Aggiornamento...' : 'Aggiorna'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Portfolio */}
+      {showEditPortfolio && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Modifica Portfolio</h3>
+              <button
+                onClick={() => setShowEditPortfolio(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome Portfolio</label>
+                <input
+                  type="text"
+                  value={portfolioForm.name}
+                  onChange={(e) => setPortfolioForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={portfolioForm.isActive}
+                  onChange={(e) => setPortfolioForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                />
+                <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
+                  Portfolio attivo
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowEditPortfolio(false)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={updatePortfolio}
+                disabled={submitLoading}
+                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
+              >
+                {submitLoading ? 'Aggiornamento...' : 'Aggiorna Portfolio'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Delete Portfolio */}
+      {showDeletePortfolio && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-red-600">Elimina Portfolio</h3>
+              <button
+                onClick={() => setShowDeletePortfolio(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-700 mb-2">
+                Sei sicuro di voler eliminare il portfolio "{portfolio.name}"?
+              </p>
+              <p className="text-red-600 text-sm font-medium">
+                ⚠️ Questa azione eliminerà definitivamente:
+              </p>
+              <ul className="text-sm text-gray-600 mt-2 space-y-1">
+                <li>• Tutte le {portfolio.stats.transactionCount} transazioni</li>
+                <li>• Tutti i dati storici</li>
+                <li>• Le statistiche del portfolio</li>
+              </ul>
+              <p className="text-red-600 text-sm font-bold mt-3">
+                Questa azione non può essere annullata!
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeletePortfolio(false)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={deletePortfolio}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Elimina Definitivamente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

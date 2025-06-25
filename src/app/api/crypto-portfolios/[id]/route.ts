@@ -1,15 +1,15 @@
-// src/app/api/crypto-portfolios/[id]/route.ts - FASE 1 FIX
+// src/app/api/crypto-portfolios/[id]/route.ts - VERSIONE CORRETTA COMPLETA
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// 🎯 ENHANCED CASH FLOW LOGIC per Crypto Portfolios
+// 🎯 ENHANCED CASH FLOW LOGIC per Crypto Portfolios (CORRETTA)
 function calculateEnhancedStats(transactions: any[]) {
   const buyTransactions = transactions.filter(tx => tx.type === 'buy')
   const sellTransactions = transactions.filter(tx => tx.type === 'sell')
 
-  // 🔧 FIX FASE 1: Applica esattamente la logica Enhanced definita nei documenti
+  // 🔧 FIX: Applica esattamente la logica Enhanced definita nei documenti
   const totalInvested = buyTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
   const capitalRecovered = sellTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
   const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
@@ -83,7 +83,7 @@ export async function GET(
     // 🎯 FASE 1: Applica Enhanced Statistics 
     const enhancedStats = calculateEnhancedStats(portfolio.transactions)
 
-    // Calcola valore attuale dei holdings
+    // Calcola valore attuale dei holdings (usa avgPrice come fallback)
     const totalValueEur = portfolio.holdings.reduce((sum, h) => sum + (h.quantity * h.avgPrice), 0)
     
     // 🔧 FIX: Calcola unrealized gains usando Enhanced logic
