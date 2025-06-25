@@ -1,193 +1,233 @@
-// src/app/api/crypto-portfolios/[id]/route.ts - FIXED VERSION CON LOGICA DCA
+// src/app/api/crypto-portfolios/[id]/route.ts - FASE 1 FIX
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// GET - Dettagli portfolio singolo con statistiche corrette (COPIATO LOGICA DCA)
+// 🎯 ENHANCED CASH FLOW LOGIC per Crypto Portfolios
+function calculateEnhancedStats(transactions: any[]) {
+  const buyTransactions = transactions.filter(tx => tx.type === 'buy')
+  const sellTransactions = transactions.filter(tx => tx.type === 'sell')
+
+  // 🔧 FIX FASE 1: Applica esattamente la logica Enhanced definita nei documenti
+  const totalInvested = buyTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
+  const capitalRecovered = sellTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
+  const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
+  const realizedProfit = Math.max(0, capitalRecovered - totalInvested)
+
+  // Status
+  const isFullyRecovered = capitalRecovered >= totalInvested
+
+  return {
+    // 🆕 ENHANCED CASH FLOW FIELDS (source of truth)
+    totalInvested,           // Invariante - somma storica di tutti i buy
+    capitalRecovered,        // Somma di tutti i sell 
+    effectiveInvestment,     // Denaro ancora "a rischio"
+    realizedProfit,          // Solo se capitalRecovered > totalInvested
+    isFullyRecovered,        // Flag se ho recuperato tutto l'investimento
+    
+    // 📊 COUNTERS
+    transactionCount: transactions.length,
+    buyCount: buyTransactions.length,
+    sellCount: sellTransactions.length
+  }
+}
+
+// GET - Recupera crypto portfolio singolo con Enhanced Stats
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const resolvedParams = await params
-    const portfolioId = parseInt(resolvedParams.id)
+    const id = parseInt(params.id)
 
-    if (isNaN(portfolioId)) {
-      return NextResponse.json({ error: 'ID portfolio non valido' }, { status: 400 })
+    if (isNaN(id)) {
+      return NextResponse.json(
+        { error: 'ID portfolio non valido' },
+        { status: 400 }
+      )
     }
 
-    const portfolio = await prisma.cryptoPortfolio.findFirst({
-      where: { 
-        id: portfolioId,
-        userId: 1 
-      },
+    const portfolio = await prisma.cryptoPortfolio.findUnique({
+      where: { id, userId: 1 },
       include: {
         account: {
-          select: { id: true, name: true, balance: true, type: true }
+          select: {
+            id: true,
+            name: true,
+            balance: true
+          }
         },
         holdings: {
-          include: { 
-            asset: true 
+          include: {
+            asset: true
           },
-          orderBy: { totalInvested: 'desc' }
+          orderBy: { id: 'desc' }
         },
         transactions: {
-          include: { asset: true },
+          include: {
+            asset: true
+          },
           orderBy: { date: 'desc' }
-        },
-        _count: {
-          select: { transactions: true, holdings: true }
         }
       }
     })
 
     if (!portfolio) {
-      return NextResponse.json({ error: 'Portfolio non trovato' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Portfolio non trovato' },
+        { status: 404 }
+      )
     }
 
-    // ✅ FIX: Calcola statistiche corrette (COPIA LOGICA DCA)
-    const buyTransactions = portfolio.transactions.filter(tx => tx.type === 'buy')
-    const sellTransactions = portfolio.transactions.filter(tx => tx.type === 'sell')
+    // 🎯 FASE 1: Applica Enhanced Statistics 
+    const enhancedStats = calculateEnhancedStats(portfolio.transactions)
 
-    // ✅ COPIA LOGICA DCA: Investimento totale = TUTTE le transazioni buy storiche
-    const totalInvested = buyTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
-    
-    // ✅ COPIA LOGICA DCA: Profitti realizzati = somma dai holdings
-    const realizedGains = portfolio.holdings.reduce((sum, h) => sum + h.realizedGains, 0)
-    
-    // ✅ COPIA LOGICA DCA: Valore attuale = holdings attuali
+    // Calcola valore attuale dei holdings
     const totalValueEur = portfolio.holdings.reduce((sum, h) => sum + (h.quantity * h.avgPrice), 0)
     
-    // ✅ COPIA LOGICA DCA: Plus/Minus non realizzati
-    const investmentInCurrentHoldings = portfolio.holdings.reduce((sum, h) => sum + h.totalInvested, 0)
-    const unrealizedGains = totalValueEur - investmentInCurrentHoldings
-    
-    // ✅ COPIA LOGICA DCA: ROI totale = (profitti + non realizzati) / investimento totale
-    const totalGains = realizedGains + unrealizedGains
-    const totalROI = totalInvested > 0 ? (totalGains / totalInvested) * 100 : 0
+    // 🔧 FIX: Calcola unrealized gains usando Enhanced logic
+    const unrealizedGains = totalValueEur - enhancedStats.effectiveInvestment
 
-    // Aggiungi statistiche al portfolio
+    // 🔧 FIX: ROI totale usando Enhanced logic  
+    const totalROI = enhancedStats.totalInvested > 0 ? 
+      ((enhancedStats.realizedProfit + unrealizedGains) / enhancedStats.totalInvested) * 100 : 0
+
+    // Final stats - Enhanced è source of truth
+    const finalStats = {
+      ...enhancedStats,
+      totalValueEur,
+      unrealizedGains,
+      totalROI,
+      holdingsCount: portfolio.holdings.length
+    }
+
     const portfolioWithStats = {
       ...portfolio,
-      stats: {
-        totalValueEur,
-        totalInvested, // ✅ FIX: Ora usa investimento storico totale
-        realizedGains,
-        unrealizedGains,
-        totalROI, // ✅ FIX: Ora calcolato correttamente
-        holdingsCount: portfolio._count.holdings,
-        transactionCount: portfolio._count.transactions
-      }
+      stats: finalStats
     }
 
     return NextResponse.json(portfolioWithStats)
   } catch (error) {
-    console.error('Errore recupero portfolio:', error)
-    return NextResponse.json({ error: 'Errore recupero portfolio' }, { status: 500 })
+    console.error('Errore nel recupero crypto portfolio:', error)
+    return NextResponse.json(
+      { error: 'Errore nel recupero crypto portfolio' },
+      { status: 500 }
+    )
   }
 }
 
-// PUT - Aggiorna portfolio
+// PUT - Aggiorna crypto portfolio
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const resolvedParams = await params
-    const portfolioId = parseInt(resolvedParams.id)
+    const id = parseInt(params.id)
     const body = await request.json()
-
-    if (isNaN(portfolioId)) {
-      return NextResponse.json({ error: 'ID portfolio non valido' }, { status: 400 })
-    }
-
     const { name, description, isActive } = body
 
-    // Validazioni
-    if (name && !name.trim()) {
-      return NextResponse.json({ error: 'Nome portfolio non può essere vuoto' }, { status: 400 })
+    if (isNaN(id)) {
+      return NextResponse.json(
+        { error: 'ID portfolio non valido' },
+        { status: 400 }
+      )
     }
 
-    // Verifica che il portfolio esista e appartenga all'utente
-    const existingPortfolio = await prisma.cryptoPortfolio.findFirst({
-      where: { 
-        id: portfolioId,
-        userId: 1 
-      }
+    if (!name || !name.trim()) {
+      return NextResponse.json(
+        { error: 'Nome portfolio richiesto' },
+        { status: 400 }
+      )
+    }
+
+    // Verifica che il portfolio esista ed appartenga all'utente
+    const existingPortfolio = await prisma.cryptoPortfolio.findUnique({
+      where: { id, userId: 1 }
     })
 
     if (!existingPortfolio) {
-      return NextResponse.json({ error: 'Portfolio non trovato' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Portfolio non trovato' },
+        { status: 404 }
+      )
     }
 
-    // Aggiorna solo i campi forniti
-    const updateData: any = { updatedAt: new Date() }
-    if (name !== undefined) updateData.name = name.trim()
-    if (description !== undefined) updateData.description = description?.trim() || null
-    if (isActive !== undefined) updateData.isActive = isActive
+    // Controlla se esiste già un altro portfolio con lo stesso nome
+    const duplicatePortfolio = await prisma.cryptoPortfolio.findFirst({
+      where: {
+        userId: 1,
+        name: name.trim(),
+        id: { not: id }
+      }
+    })
+
+    if (duplicatePortfolio) {
+      return NextResponse.json(
+        { error: 'Esiste già un portfolio con questo nome' },
+        { status: 400 }
+      )
+    }
 
     const updatedPortfolio = await prisma.cryptoPortfolio.update({
-      where: { id: portfolioId },
-      data: updateData,
-      include: {
-        account: {
-          select: { id: true, name: true, balance: true, type: true }
-        }
+      where: { id },
+      data: { 
+        name: name.trim(),
+        description: description?.trim() || null,
+        isActive: isActive !== undefined ? isActive : existingPortfolio.isActive
       }
     })
 
     return NextResponse.json(updatedPortfolio)
   } catch (error) {
-    console.error('Errore aggiornamento portfolio:', error)
-    return NextResponse.json({ error: 'Errore aggiornamento portfolio' }, { status: 500 })
+    console.error('Errore nell\'aggiornamento portfolio:', error)
+    return NextResponse.json(
+      { error: 'Errore nell\'aggiornamento portfolio' },
+      { status: 500 }
+    )
   }
 }
 
-// DELETE - Elimina portfolio (solo se vuoto)
+// DELETE - Elimina crypto portfolio e dati correlati
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const resolvedParams = await params
-    const portfolioId = parseInt(resolvedParams.id)
+    const id = parseInt(params.id)
 
-    if (isNaN(portfolioId)) {
-      return NextResponse.json({ error: 'ID portfolio non valido' }, { status: 400 })
+    if (isNaN(id)) {
+      return NextResponse.json(
+        { error: 'ID portfolio non valido' },
+        { status: 400 }
+      )
     }
 
-    // Verifica che il portfolio esista e appartenga all'utente
-    const portfolio = await prisma.cryptoPortfolio.findFirst({
-      where: { 
-        id: portfolioId,
-        userId: 1 
-      },
-      include: {
-        _count: {
-          select: { transactions: true, holdings: true }
-        }
-      }
+    // Verifica che il portfolio esista ed appartenga all'utente
+    const existingPortfolio = await prisma.cryptoPortfolio.findUnique({
+      where: { id, userId: 1 }
     })
 
-    if (!portfolio) {
-      return NextResponse.json({ error: 'Portfolio non trovato' }, { status: 404 })
+    if (!existingPortfolio) {
+      return NextResponse.json(
+        { error: 'Portfolio non trovato' },
+        { status: 404 }
+      )
     }
 
-    // Verifica che il portfolio sia vuoto
-    if (portfolio._count.transactions > 0 || portfolio._count.holdings > 0) {
-      return NextResponse.json({ 
-        error: 'Impossibile eliminare portfolio con transazioni o holdings esistenti' 
-      }, { status: 400 })
-    }
-
-    await prisma.cryptoPortfolio.delete({
-      where: { id: portfolioId }
-    })
+    // Elimina holdings, transazioni e portfolio in una transazione
+    await prisma.$transaction([
+      prisma.cryptoTransaction.deleteMany({ where: { portfolioId: id } }),
+      prisma.cryptoHolding.deleteMany({ where: { portfolioId: id } }),
+      prisma.cryptoPortfolio.delete({ where: { id } })
+    ])
 
     return NextResponse.json({ message: 'Portfolio eliminato con successo' })
   } catch (error) {
-    console.error('Errore eliminazione portfolio:', error)
-    return NextResponse.json({ error: 'Errore eliminazione portfolio' }, { status: 500 })
+    console.error('Errore nell\'eliminazione portfolio:', error)
+    return NextResponse.json(
+      { error: 'Errore nell\'eliminazione portfolio' },
+      { status: 500 }
+    )
   }
 }
