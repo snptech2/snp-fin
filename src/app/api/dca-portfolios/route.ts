@@ -1,4 +1,4 @@
-// src/app/api/dca-portfolios/route.ts - FIX ENHANCED LOGIC
+// src/app/api/dca-portfolios/route.ts - FIX ENHANCED LOGIC COMPLETO
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
@@ -24,6 +24,11 @@ function calculateEnhancedStats(transactions: any[]) {
   const isFullyRecovered = capitalRecovered >= totalInvested
   const freeBTCAmount = isFullyRecovered ? totalBTC : 0
 
+  // Counters
+  const transactionCount = transactions.length
+  const buyCount = buyTransactions.length
+  const sellCount = sellTransactions.length
+
   return {
     totalInvested,
     capitalRecovered,
@@ -33,7 +38,10 @@ function calculateEnhancedStats(transactions: any[]) {
     totalSellBTC,
     totalBTC,
     isFullyRecovered,
-    freeBTCAmount
+    freeBTCAmount,
+    transactionCount,
+    buyCount,
+    sellCount
   }
 }
 
@@ -65,7 +73,7 @@ export async function GET() {
       // Net BTC (dopo fees)
       const netBTC = Math.max(0, enhancedStats.totalBTC - totalFeesBTC)
 
-      // 🔧 FIX: Prezzo medio di acquisto corretto
+      // 🔧 FIX: Prezzo medio di acquisto corretto usando Enhanced logic
       const avgPurchasePrice = enhancedStats.totalInvested > 0 && netBTC > 0 ? 
         enhancedStats.totalInvested / netBTC : 0
 
@@ -135,6 +143,7 @@ export async function POST(request: NextRequest) {
     const portfolio = await prisma.dCAPortfolio.create({
       data: {
         name: name.trim(),
+        type: 'dca_bitcoin',      // 🔧 FIX: Campo obbligatorio dal schema
         userId: 1,
         accountId: parseInt(accountId),
         isActive: true

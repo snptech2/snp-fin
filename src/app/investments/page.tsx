@@ -1,9 +1,9 @@
-// src/app/investments/page.tsx - FASE 1 FIX
+// src/app/investments/page.tsx - ORIGINALE CON FIX ENHANCED
 'use client'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { PlusIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, XMarkIcon } from '@heroicons/react/24/outline'
 
 interface Portfolio {
   id: number
@@ -71,6 +71,8 @@ export default function InvestmentsPage() {
     description: '',
     accountId: undefined as number | undefined
   })
+
+  const [submitLoading, setSubmitLoading] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -196,6 +198,74 @@ export default function InvestmentsPage() {
       overallROI,
       dcaCurrentValue,
       cryptoCurrentValue
+    }
+  }
+
+  // Form handlers
+  const handleCreateDCA = async () => {
+    if (!formData.name.trim() || !formData.accountId) {
+      alert('Nome e account sono obbligatori')
+      return
+    }
+
+    try {
+      setSubmitLoading(true)
+      const response = await fetch('/api/dca-portfolios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          accountId: formData.accountId
+        })
+      })
+
+      if (response.ok) {
+        await fetchData()
+        setShowCreateModal(false)
+        setFormData({ name: '', type: 'dca_bitcoin', accountId: undefined })
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nella creazione del portfolio')
+      }
+    } catch (error) {
+      console.error('Errore:', error)
+      alert('Errore nella creazione del portfolio')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  const handleCreateCrypto = async () => {
+    if (!cryptoFormData.name.trim() || !cryptoFormData.accountId) {
+      alert('Nome e account sono obbligatori')
+      return
+    }
+
+    try {
+      setSubmitLoading(true)
+      const response = await fetch('/api/crypto-portfolios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cryptoFormData.name.trim(),
+          description: cryptoFormData.description?.trim() || '',
+          accountId: cryptoFormData.accountId
+        })
+      })
+
+      if (response.ok) {
+        await fetchData()
+        setShowCreateCryptoModal(false)
+        setCryptoFormData({ name: '', description: '', accountId: undefined })
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Errore nella creazione del portfolio')
+      }
+    } catch (error) {
+      console.error('Errore:', error)
+      alert('Errore nella creazione del portfolio')
+    } finally {
+      setSubmitLoading(false)
     }
   }
 
@@ -479,7 +549,150 @@ export default function InvestmentsPage() {
         </div>
       )}
 
-      {/* Modals per creazione portfolio - da implementare */}
+      {/* Modal DCA Bitcoin */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="card-adaptive p-6 rounded-lg max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-adaptive-900">Nuovo Portfolio DCA Bitcoin</h3>
+              <button 
+                onClick={() => setShowCreateModal(false)}
+                className="text-adaptive-500 hover:text-adaptive-700"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                  Nome Portfolio
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
+                  className="input-adaptive w-full"
+                  placeholder="es. Bitcoin DCA 2024"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                  Account di Investimento
+                </label>
+                <select
+                  value={formData.accountId || ''}
+                  onChange={(e) => setFormData(prev => ({...prev, accountId: parseInt(e.target.value)}))}
+                  className="input-adaptive w-full"
+                >
+                  <option value="">Seleziona account...</option>
+                  {investmentAccounts.map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} ({formatCurrency(account.balance)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 px-4 py-2 text-adaptive-600 border border-adaptive-300 rounded-md hover:bg-adaptive-50"
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={handleCreateDCA}
+                  disabled={!formData.name.trim() || !formData.accountId || submitLoading}
+                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {submitLoading ? 'Creazione...' : 'Crea Portfolio'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Crypto Wallet */}
+      {showCreateCryptoModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="card-adaptive p-6 rounded-lg max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-adaptive-900">Nuovo Crypto Wallet</h3>
+              <button 
+                onClick={() => setShowCreateCryptoModal(false)}
+                className="text-adaptive-500 hover:text-adaptive-700"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                  Nome Wallet
+                </label>
+                <input
+                  type="text"
+                  value={cryptoFormData.name}
+                  onChange={(e) => setCryptoFormData(prev => ({...prev, name: e.target.value}))}
+                  className="input-adaptive w-full"
+                  placeholder="es. My Crypto Portfolio"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                  Descrizione (opzionale)
+                </label>
+                <input
+                  type="text"
+                  value={cryptoFormData.description}
+                  onChange={(e) => setCryptoFormData(prev => ({...prev, description: e.target.value}))}
+                  className="input-adaptive w-full"
+                  placeholder="es. Portfolio crypto diversificato"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                  Account di Investimento
+                </label>
+                <select
+                  value={cryptoFormData.accountId || ''}
+                  onChange={(e) => setCryptoFormData(prev => ({...prev, accountId: parseInt(e.target.value)}))}
+                  className="input-adaptive w-full"
+                >
+                  <option value="">Seleziona account...</option>
+                  {investmentAccounts.map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} ({formatCurrency(account.balance)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowCreateCryptoModal(false)}
+                  className="flex-1 px-4 py-2 text-adaptive-600 border border-adaptive-300 rounded-md hover:bg-adaptive-50"
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={handleCreateCrypto}
+                  disabled={!cryptoFormData.name.trim() || !cryptoFormData.accountId || submitLoading}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {submitLoading ? 'Creazione...' : 'Crea Wallet'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
