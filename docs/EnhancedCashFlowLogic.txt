@@ -1,0 +1,162 @@
+# Enhanced Cash Flow Logic - Investment Tracking System
+
+## 📖 Panoramica
+
+Questo documento definisce la **logica Enhanced Cash Flow** utilizzata per tracciare investimenti in tutti i tipi di portfolio nell'applicazione. Questa logica fornisce una visione chiara e unificata di:
+- Quanto è stato investito originalmente
+- Quanto capitale è stato recuperato
+- Quanto denaro è ancora "a rischio"
+- Profitti/perdite realizzati e non realizzati
+
+## 🎯 Principi Fondamentali
+
+### Metriche Core
+```
+totalInvested = Σ di tutte le transazioni BUY storiche (invariante)
+capitalRecovered = Σ di tutte le transazioni SELL storiche
+effectiveInvestment = max(0, totalInvested - capitalRecovered)
+realizedProfit = max(0, capitalRecovered - totalInvested)
+unrealizedProfit = valoreAttuale - effectiveInvestment
+```
+
+### Caratteristiche Chiave
+- **totalInvested**: Non cambia mai, rappresenta l'investimento storico totale
+- **capitalRecovered**: Aumenta ad ogni vendita, indipendentemente dal prezzo
+- **effectiveInvestment**: Denaro ancora "a rischio", può arrivare a zero
+- **realizedProfit**: Esiste solo DOPO aver recuperato tutto l'investimento iniziale
+- **unrealizedProfit**: Guadagno potenziale sugli holdings attuali
+
+## 📊 Esempi Pratici
+
+### Esempio 1: DCA Bitcoin
+```
+Situazione:
+- Compro: 1 BTC a 1.000€
+- BTC sale a 1.500€/BTC
+- Vendo: 0.5 BTC per 750€
+- Holdings: 0.5 BTC del valore di 750€
+
+Calcoli:
+totalInvested = 1.000€
+capitalRecovered = 750€
+effectiveInvestment = 1.000€ - 750€ = 250€
+realizedProfit = 0€ (non ho ancora recuperato tutto)
+unrealizedProfit = 750€ - 250€ = 500€
+```
+
+### Esempio 2: Recovery Completo + Profitto
+```
+Situazione (continua esempio 1):
+- BTC sale a 3.000€/BTC  
+- Vendo: 0.25 BTC per 750€
+- Holdings: 0.25 BTC del valore di 750€
+
+Calcoli:
+totalInvested = 1.000€
+capitalRecovered = 750€ + 750€ = 1.500€
+effectiveInvestment = max(0, 1.000€ - 1.500€) = 0€ ("investimento gratis")
+realizedProfit = 1.500€ - 1.000€ = 500€
+unrealizedProfit = 750€ - 0€ = 750€
+```
+
+### Esempio 3: Crypto Wallet Multi-Asset
+```
+Situazione:
+- Compro: 1 BTC a 1.000€ + 10 ETH a 2.000€ + 100 SOL a 500€
+- totalInvested = 3.500€
+- Vendo: 0.5 BTC (750€) + 5 ETH (2.000€)
+- capitalRecovered = 2.750€
+
+Calcoli:
+effectiveInvestment = 3.500€ - 2.750€ = 750€
+realizedProfit = 0€ (non ancora recovery completo)
+Holdings attuali = 0.5 BTC + 5 ETH + 100 SOL = 52.500€ (esempio)
+unrealizedProfit = 52.500€ - 750€ = 51.750€
+```
+
+## 🔧 Implementazione Tecnica
+
+### Formule per Backend API
+```javascript
+function calculateEnhancedStats(transactions) {
+  const buyTransactions = transactions.filter(tx => tx.type === 'buy')
+  const sellTransactions = transactions.filter(tx => tx.type === 'sell')
+  
+  const totalInvested = buyTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
+  const capitalRecovered = sellTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
+  const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
+  const realizedProfit = Math.max(0, capitalRecovered - totalInvested)
+  
+  return {
+    totalInvested,
+    capitalRecovered, 
+    effectiveInvestment,
+    realizedProfit,
+    isFullyRecovered: capitalRecovered >= totalInvested
+  }
+}
+```
+
+### Calcolo ROI
+```javascript
+// Per calcolare unrealized profit nel frontend:
+const currentValue = holdings.reduce((sum, h) => sum + h.valueEur, 0)
+const unrealizedProfit = currentValue - stats.effectiveInvestment
+
+// ROI Totale
+const totalROI = stats.totalInvested > 0 ? 
+  ((stats.realizedProfit + unrealizedProfit) / stats.totalInvested) * 100 : 0
+```
+
+## 🎯 Applicazioni
+
+### Portfolio DCA Bitcoin
+- Applica la logica Enhanced direttamente
+- Holdings singolo asset (BTC)
+- Include fee di rete nel calcolo delle quantità
+
+### Portfolio Crypto Wallet Multi-Asset  
+- Applica la stessa logica Enhanced a livello di portfolio
+- Holdings multipli asset
+- Visione unificata dell'intero wallet
+- **FEATURE DA IMPLEMENTARE**: Swap interni tra asset
+
+## 🚀 Funzionalità Future
+
+### Swap Interno tra Asset
+I crypto wallet dovranno supportare la funzionalità di **swap interno** tra asset senza uscire dal wallet:
+
+```
+Esempio:
+- Swap: 1 ETH → 0.01 BTC
+- NON modifica totalInvested, capitalRecovered o effectiveInvestment
+- Aggiorna solo le quantità degli holdings interni
+- Mantiene la stessa logica Enhanced Cash Flow
+```
+
+**Implementazione Swap:**
+- Nuova transazione type: 'swap'
+- Due operazioni atomiche: sell asset A + buy asset B
+- Nessun impatto su metriche cash flow (solo redistribuzione interna)
+- Tracciamento dello swap per audit trail
+
+## 📈 Vantaggi della Logica Enhanced
+
+✅ **Semplicità**: Facile da capire e spiegare  
+✅ **Coerenza**: Stessa logica per tutti i tipi di portfolio  
+✅ **Informativa**: Traccia capitale a rischio vs recuperato  
+✅ **Scalabile**: Funziona con 1 o 100 asset diversi  
+✅ **Realistica**: Distingue tra profitti realizzati e potenziali  
+
+## 🔄 Compatibilità
+
+Questa logica mantiene compatibilità con i sistemi esistenti attraverso:
+- Mapping dei valori legacy quando necessario
+- Calcoli Enhanced come fonte primaria di verità
+- Frontend unificato che mostra sempre le stesse metriche
+
+---
+
+**Versione**: 1.0  
+**Data**: Giugno 2025  
+**Status**: Definizione Completa - Pronto per Implementazione
