@@ -1,30 +1,42 @@
-// src/app/api/crypto-portfolios/route.ts - FASE 1 FIX
+// src/app/api/dca-portfolios/route.ts - FIX PREZZO MEDIO
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// 🎯 ENHANCED CASH FLOW LOGIC per Crypto Portfolios (UNIFICATA)
+// 🎯 ENHANCED CASH FLOW LOGIC - UNIFICATA con [id]/route.ts
 function calculateEnhancedStats(transactions: any[]) {
-  const buyTransactions = transactions.filter(tx => tx.type === 'buy')
-  const sellTransactions = transactions.filter(tx => tx.type === 'sell')
+  const buyTransactions = transactions.filter((tx: any) => tx.type === 'buy' || !tx.type)
+  const sellTransactions = transactions.filter((tx: any) => tx.type === 'sell')
 
   // 🔧 FIX FASE 1: Applica esattamente la logica Enhanced definita nei documenti
-  const totalInvested = buyTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
-  const capitalRecovered = sellTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
+  const totalInvested = buyTransactions.reduce((sum: number, tx: any) => sum + tx.eurPaid, 0)
+  const capitalRecovered = sellTransactions.reduce((sum: number, tx: any) => sum + tx.eurPaid, 0)
   const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
   const realizedProfit = Math.max(0, capitalRecovered - totalInvested)
 
-  // Status
+  // BTC calculations
+  const totalBuyBTC = buyTransactions.reduce((sum: number, tx: any) => sum + Math.abs(tx.btcQuantity), 0)
+  const totalSellBTC = sellTransactions.reduce((sum: number, tx: any) => sum + Math.abs(tx.btcQuantity), 0)
+  const totalBTC = totalBuyBTC - totalSellBTC
+
+  // Advanced metrics
   const isFullyRecovered = capitalRecovered >= totalInvested
+  const freeBTCAmount = isFullyRecovered ? totalBTC : 0
 
   return {
     // 🆕 ENHANCED CASH FLOW FIELDS (source of truth)
     totalInvested,           // Invariante - somma storica di tutti i buy
-    capitalRecovered,        // Somma di tutti i sell 
+    capitalRecovered,        // Somma di tutti i sell
     effectiveInvestment,     // Denaro ancora "a rischio"
     realizedProfit,          // Solo se capitalRecovered > totalInvested
     isFullyRecovered,        // Flag se ho recuperato tutto l'investimento
+    
+    // 📊 BTC METRICS
+    totalBTC,
+    totalBuyBTC,
+    totalSellBTC,
+    freeBTCAmount,          // BTC "gratis" se fully recovered
     
     // 📊 COUNTERS
     transactionCount: transactions.length,
@@ -33,74 +45,70 @@ function calculateEnhancedStats(transactions: any[]) {
   }
 }
 
-// GET - Lista crypto portfolios con Enhanced Statistics
-export async function GET(request: NextRequest) {
+// GET - Lista tutti i portafogli DCA con Enhanced Cash Flow
+export async function GET() {
   try {
-    const portfolios = await prisma.cryptoPortfolio.findMany({
+    const portfolios = await prisma.dCAPortfolio.findMany({
       where: { userId: 1 },
       include: {
-        account: {
-          select: { id: true, name: true, balance: true }
-        },
-        holdings: {
-          include: { asset: true }
-        },
-        transactions: true, // ✅ CRITICO: serve per calcolare Enhanced stats
+        transactions: true,
+        networkFees: true,
+        account: true,
         _count: {
-          select: { transactions: true, holdings: true }
+          select: {
+            transactions: true,
+            networkFees: true
+          }
         }
       },
       orderBy: { createdAt: 'desc' }
     })
 
-    // 🎯 FIX FASE 1: Calcola Enhanced statistics per ogni portfolio
-    const portfoliosWithStats = portfolios.map(portfolio => {
+    // 🎯 FASE 1: Calcola Enhanced statistics per ogni portfolio
+    const portfoliosWithEnhancedStats = portfolios.map((portfolio: any) => {
       // Applica Enhanced Cash Flow Logic
       const enhancedStats = calculateEnhancedStats(portfolio.transactions)
 
-      // Calcola valore attuale dei holdings (prezzo corrente - per ora usa avgPrice)
-      const totalValueEur = portfolio.holdings.reduce((sum, h) => sum + (h.quantity * h.avgPrice), 0)
-      
-      // 🔧 FIX: Calcola unrealized gains usando Enhanced logic
-      const unrealizedGains = totalValueEur - enhancedStats.effectiveInvestment
+      // Fee di rete
+      const totalFeesSats = portfolio.networkFees.reduce((sum: number, fee: any) => sum + fee.sats, 0)
+      const totalFeesBTC = totalFeesSats / 100000000
+      const netBTC = enhancedStats.totalBTC - totalFeesBTC
 
-      // 🔧 FIX: ROI totale usando Enhanced logic  
-      const totalROI = enhancedStats.totalInvested > 0 ? 
-        ((enhancedStats.realizedProfit + unrealizedGains) / enhancedStats.totalInvested) * 100 : 0
+      // 🔧 FIX: Calcola prezzo medio sui BTC NETTI, non sui BTC comprati totali
+      const avgPurchasePrice = netBTC > 0 ? enhancedStats.totalInvested / netBTC : 0
+
+      // Final stats - Enhanced è source of truth
+      const finalStats = {
+        ...enhancedStats,
+        totalFeesSats,
+        totalFeesBTC,
+        netBTC,
+        avgPurchasePrice,    // 🔧 FIX: Ora calcolato correttamente
+        feesCount: portfolio.networkFees.length
+      }
 
       return {
         ...portfolio,
-        stats: {
-          // Enhanced Cash Flow fields (source of truth)
-          ...enhancedStats,
-          
-          // Derived calculations
-          totalValueEur,
-          unrealizedGains,
-          totalROI,
-          
-          // Counts
-          holdingsCount: portfolio._count.holdings
-        }
+        stats: finalStats
       }
     })
 
-    return NextResponse.json(portfoliosWithStats)
+    return NextResponse.json(portfoliosWithEnhancedStats)
   } catch (error) {
-    console.error('Errore recupero crypto portfolios:', error)
-    return NextResponse.json({ error: 'Errore recupero crypto portfolios' }, { status: 500 })
+    console.error('Errore recupero DCA portfolios:', error)
+    return NextResponse.json({ error: 'Errore recupero DCA portfolios' }, { status: 500 })
   }
 }
 
-// POST - Crea nuovo crypto portfolio
+// POST - Crea nuovo portafoglio DCA
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, description, accountId } = body
+    const { name, accountId } = body
 
     // Validazioni
     if (!name || !name.trim()) {
-      return NextResponse.json({ error: 'Nome portfolio richiesto' }, { status: 400 })
+      return NextResponse.json({ error: 'Nome portafoglio richiesto' }, { status: 400 })
     }
 
     if (!accountId) {
@@ -121,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verifica che non esista già un portfolio con lo stesso nome
-    const existingPortfolio = await prisma.cryptoPortfolio.findFirst({
+    const existingPortfolio = await prisma.dCAPortfolio.findFirst({
       where: {
         userId: 1,
         name: name.trim()
@@ -132,10 +140,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Esiste già un portfolio con questo nome' }, { status: 400 })
     }
 
-    const portfolio = await prisma.cryptoPortfolio.create({
+    const portfolio = await prisma.dCAPortfolio.create({
       data: {
         name: name.trim(),
-        description: description?.trim() || null,
         userId: 1,
         accountId: parseInt(accountId),
         isActive: true
@@ -149,7 +156,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(portfolio, { status: 201 })
   } catch (error) {
-    console.error('Errore creazione crypto portfolio:', error)
-    return NextResponse.json({ error: 'Errore creazione crypto portfolio' }, { status: 500 })
+    console.error('Errore creazione DCA portfolio:', error)
+    return NextResponse.json({ error: 'Errore creazione DCA portfolio' }, { status: 500 })
   }
 }

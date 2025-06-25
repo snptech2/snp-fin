@@ -6,12 +6,12 @@ const prisma = new PrismaClient()
 
 // 🎯 ENHANCED CASH FLOW LOGIC per Crypto Portfolios (CORRETTA)
 function calculateEnhancedStats(transactions: any[]) {
-  const buyTransactions = transactions.filter(tx => tx.type === 'buy')
-  const sellTransactions = transactions.filter(tx => tx.type === 'sell')
+  const buyTransactions = transactions.filter((tx: any) => tx.type === 'buy')
+  const sellTransactions = transactions.filter((tx: any) => tx.type === 'sell')
 
   // 🔧 FIX: Applica esattamente la logica Enhanced definita nei documenti
-  const totalInvested = buyTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
-  const capitalRecovered = sellTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
+  const totalInvested = buyTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
+  const capitalRecovered = sellTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
   const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
   const realizedProfit = Math.max(0, capitalRecovered - totalInvested)
 
@@ -84,7 +84,7 @@ export async function GET(
     const enhancedStats = calculateEnhancedStats(portfolio.transactions)
 
     // Calcola valore attuale dei holdings (usa avgPrice come fallback)
-    const totalValueEur = portfolio.holdings.reduce((sum, h) => sum + (h.quantity * h.avgPrice), 0)
+    const totalValueEur = portfolio.holdings.reduce((sum: number, h: any) => sum + (h.quantity * h.avgPrice), 0)
     
     // 🔧 FIX: Calcola unrealized gains usando Enhanced logic
     const unrealizedGains = totalValueEur - enhancedStats.effectiveInvestment

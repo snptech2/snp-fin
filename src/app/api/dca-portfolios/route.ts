@@ -1,4 +1,4 @@
-// src/app/api/dca-portfolios/route.ts - FASE 1 FIX
+// src/app/api/dca-portfolios/route.ts - FIX PREZZO MEDIO
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
@@ -23,9 +23,6 @@ function calculateEnhancedStats(transactions: any[]) {
   // Advanced metrics
   const isFullyRecovered = capitalRecovered >= totalInvested
   const freeBTCAmount = isFullyRecovered ? totalBTC : 0
-  
-  // Average purchase price
-  const avgPurchasePrice = totalBuyBTC > 0 ? totalInvested / totalBuyBTC : 0
 
   return {
     // 🆕 ENHANCED CASH FLOW FIELDS (source of truth)
@@ -39,7 +36,6 @@ function calculateEnhancedStats(transactions: any[]) {
     totalBTC,
     totalBuyBTC,
     totalSellBTC,
-    avgPurchasePrice,
     freeBTCAmount,          // BTC "gratis" se fully recovered
     
     // 📊 COUNTERS
@@ -78,12 +74,16 @@ export async function GET() {
       const totalFeesBTC = totalFeesSats / 100000000
       const netBTC = enhancedStats.totalBTC - totalFeesBTC
 
+      // 🔧 FIX: Calcola prezzo medio sui BTC NETTI, non sui BTC comprati totali
+      const avgPurchasePrice = netBTC > 0 ? enhancedStats.totalInvested / netBTC : 0
+
       // Final stats - Enhanced è source of truth
       const finalStats = {
         ...enhancedStats,
         totalFeesSats,
         totalFeesBTC,
         netBTC,
+        avgPurchasePrice,    // 🔧 FIX: Ora calcolato correttamente
         feesCount: portfolio.networkFees.length
       }
 

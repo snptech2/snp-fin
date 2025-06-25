@@ -1,4 +1,4 @@
-// src/app/api/dca-portfolios/[id]/route.ts - FASE 1 FIX
+// src/app/api/dca-portfolios/[id]/route.ts - FIX PREZZO MEDIO
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
@@ -6,26 +6,23 @@ const prisma = new PrismaClient()
 
 // 🎯 ENHANCED CASH FLOW LOGIC - VERSIONE CORRETTA FASE 1
 function calculateEnhancedStats(transactions: any[]) {
-  const buyTransactions = transactions.filter(tx => tx.type === 'buy' || !tx.type)
-  const sellTransactions = transactions.filter(tx => tx.type === 'sell')
+  const buyTransactions = transactions.filter((tx: any) => tx.type === 'buy' || !tx.type)
+  const sellTransactions = transactions.filter((tx: any) => tx.type === 'sell')
 
   // 🔧 FIX FASE 1: Applica esattamente la logica Enhanced definita nei documenti
-  const totalInvested = buyTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
-  const capitalRecovered = sellTransactions.reduce((sum, tx) => sum + tx.eurPaid, 0)
+  const totalInvested = buyTransactions.reduce((sum: number, tx: any) => sum + tx.eurPaid, 0)
+  const capitalRecovered = sellTransactions.reduce((sum: number, tx: any) => sum + tx.eurPaid, 0)
   const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
   const realizedProfit = Math.max(0, capitalRecovered - totalInvested)
 
   // BTC calculations
-  const totalBuyBTC = buyTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
-  const totalSellBTC = sellTransactions.reduce((sum, tx) => sum + Math.abs(tx.btcQuantity), 0)
+  const totalBuyBTC = buyTransactions.reduce((sum: number, tx: any) => sum + Math.abs(tx.btcQuantity), 0)
+  const totalSellBTC = sellTransactions.reduce((sum: number, tx: any) => sum + Math.abs(tx.btcQuantity), 0)
   const totalBTC = totalBuyBTC - totalSellBTC
 
   // Advanced metrics
   const isFullyRecovered = capitalRecovered >= totalInvested
   const freeBTCAmount = isFullyRecovered ? totalBTC : 0
-  
-  // Average purchase price
-  const avgPurchasePrice = totalBuyBTC > 0 ? totalInvested / totalBuyBTC : 0
 
   return {
     // 🆕 ENHANCED CASH FLOW FIELDS (source of truth)
@@ -39,7 +36,6 @@ function calculateEnhancedStats(transactions: any[]) {
     totalBTC,
     totalBuyBTC,
     totalSellBTC,
-    avgPurchasePrice,
     freeBTCAmount,          // BTC "gratis" se fully recovered
     
     // 📊 COUNTERS
@@ -94,12 +90,15 @@ export async function GET(
     const enhancedStats = calculateEnhancedStats(portfolio.transactions)
 
     // Fee di rete
-    const totalFeesSats = portfolio.networkFees.reduce((sum, fee) => sum + fee.sats, 0)
+    const totalFeesSats = portfolio.networkFees.reduce((sum: number, fee: any) => sum + fee.sats, 0)
     const totalFeesBTC = totalFeesSats / 100000000
     const netBTC = enhancedStats.totalBTC - totalFeesBTC
 
+    // 🔧 FIX: Calcola prezzo medio sui BTC NETTI, non sui BTC comprati totali
+    const avgPurchasePrice = netBTC > 0 ? enhancedStats.totalInvested / netBTC : 0
+
     // Aggiungi prezzo di acquisto per ogni transazione
-    const transactionsWithPrice = portfolio.transactions.map(tx => ({
+    const transactionsWithPrice = portfolio.transactions.map((tx: any) => ({
       ...tx,
       purchasePrice: tx.eurPaid / Math.abs(tx.btcQuantity)
     }))
@@ -110,6 +109,7 @@ export async function GET(
       totalFeesSats,
       totalFeesBTC,
       netBTC,
+      avgPurchasePrice,       // 🔧 FIX: Ora calcolato correttamente
       feesCount: portfolio.networkFees.length
     }
 
@@ -221,7 +221,7 @@ export async function DELETE(
 
     if (!existingPortfolio) {
       return NextResponse.json(
-        { error: 'Portafoglio non trovato' },
+        { error: 'Portfolio non trovato' },
         { status: 404 }
       )
     }
