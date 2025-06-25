@@ -1,0 +1,279 @@
+# Developer Quick Reference - Enhanced Cash Flow System
+
+## 🎯 Core Concepts (5-Minute Briefing)
+
+### What is Enhanced Cash Flow?
+A unified investment tracking system that clearly separates:
+- **Money In** (totalInvested) vs **Money Out** (capitalRecovered)
+- **Money at Risk** (effectiveInvestment) vs **Money Secured** (recovered)
+- **Realized Profits** (from sales) vs **Unrealized Profits** (potential)
+
+### Why Enhanced Cash Flow?
+- ✅ **Clear Risk Assessment**: Shows exactly how much money is still "at risk"
+- ✅ **Realistic Profit Tracking**: Separates real profits from paper profits
+- ✅ **Universal Logic**: Same calculation for all portfolio types
+- ✅ **Recovery Tracking**: Shows when investment has been "paid back"
+
+## 📊 Core Formulas (MEMORIZE THESE)
+
+```javascript
+// 🔑 THE FUNDAMENTAL ENHANCED FORMULAS
+totalInvested = Σ(all BUY transactions)           // NEVER changes
+capitalRecovered = Σ(all SELL transactions)       // Increases with each sale
+effectiveInvestment = max(0, totalInvested - capitalRecovered)  // Money still at risk
+realizedProfit = max(0, capitalRecovered - totalInvested)       // Only after full recovery
+
+// Frontend calculations
+unrealizedProfit = currentValue - effectiveInvestment
+totalROI = ((realizedProfit + unrealizedProfit) / totalInvested) * 100
+```
+
+## 🏗️ Architecture Overview
+
+### Backend: Enhanced Stats Calculation
+```javascript
+// Pattern used in ALL API routes
+function calculateEnhancedStats(transactions) {
+  const buyTx = transactions.filter(tx => tx.type === 'buy')
+  const sellTx = transactions.filter(tx => tx.type === 'sell')
+  
+  return {
+    totalInvested: buyTx.reduce((sum, tx) => sum + tx.eurValue, 0),
+    capitalRecovered: sellTx.reduce((sum, tx) => sum + tx.eurValue, 0),
+    effectiveInvestment: Math.max(0, totalInvested - capitalRecovered),
+    realizedProfit: Math.max(0, capitalRecovered - totalInvested),
+    isFullyRecovered: capitalRecovered >= totalInvested
+  }
+}
+```
+
+### Frontend: Safety Checks Pattern
+```javascript
+// Pattern used in ALL frontend calculations
+const getDCACurrentValue = (portfolio) => {
+  // 🛡️ ALWAYS check portfolio type first
+  if (portfolio.type !== 'dca_bitcoin') {
+    console.warn(`getDCACurrentValue called for non-DCA portfolio`)
+    return 0
+  }
+  // ... rest of calculation
+}
+
+const getPortfolioROI = (portfolio) => {
+  // 🛡️ Determine type from array membership, not portfolio.type field
+  const isCryptoWallet = cryptoPortfolios.includes(portfolio)
+  const currentValue = isCryptoWallet 
+    ? (portfolio.stats.totalValueEur || 0)
+    : getDCACurrentValue(portfolio)
+  // ... rest of Enhanced calculation
+}
+```
+
+## 📁 Key Files & Their Purpose
+
+### 🎯 Frontend Components
+```
+src/app/investments/page.tsx
+- Portfolio overview with Enhanced stats
+- Safety checks for DCA calculations
+- Cross-portfolio aggregation
+
+src/app/accounts/page.tsx  
+- Account-level Enhanced breakdowns
+- Investment account analysis
+- Cross-page consistency validation
+
+src/app/investments/[id]/page.tsx
+src/app/investments/crypto-portfolio/[id]/page.tsx
+- Individual portfolio details
+- Enhanced stats display
+- Transaction history with Enhanced context
+```
+
+### 🎯 Backend APIs
+```
+src/app/api/dca-portfolios/route.ts
+src/app/api/crypto-portfolios/route.ts
+- Enhanced stats calculation for lists
+- Portfolio aggregation with Enhanced logic
+
+src/app/api/dca-portfolios/[id]/route.ts
+src/app/api/crypto-portfolios/[id]/route.ts
+- Enhanced stats calculation for individual portfolios
+- Detailed Enhanced metrics
+```
+
+## 🔧 Common Patterns & Best Practices
+
+### ✅ Always Use Enhanced Stats
+```javascript
+// ✅ CORRECT: Use Enhanced stats from backend
+const totalGains = portfolio.stats.realizedProfit + unrealizedGains
+
+// ❌ WRONG: Don't calculate legacy metrics
+const totalGains = portfolio.stats.totalGains // Legacy field
+```
+
+### ✅ Type-Safe Portfolio Determination
+```javascript
+// ✅ CORRECT: Determine type from array membership
+const isCryptoWallet = cryptoPortfolios.includes(portfolio)
+
+// ❌ WRONG: Unreliable portfolio.type field
+const isCryptoWallet = portfolio.type === 'crypto_wallet'
+```
+
+### ✅ Safe Current Value Calculation
+```javascript
+// ✅ CORRECT: Type-specific current value
+const currentValue = isCryptoWallet 
+  ? (portfolio.stats.totalValueEur || 0)
+  : getDCACurrentValue(portfolio)
+
+// ❌ WRONG: Generic calculation without type checks
+const currentValue = portfolio.currentValue // Doesn't exist
+```
+
+### ✅ Null-Safe Calculations
+```javascript
+// ✅ CORRECT: Always handle undefined/null
+const effectiveInvestment = portfolio.stats.effectiveInvestment || 0
+const totalInvested = portfolio.stats.totalInvested || 0
+
+// ❌ WRONG: Assuming values exist
+const roi = totalGains / portfolio.stats.totalInvested // Could divide by undefined
+```
+
+## 🧪 Testing & Validation
+
+### Test Data Reference
+```javascript
+// testbtc (DCA Bitcoin) - Expected Values
+const testbtcExpected = {
+  totalInvested: 500,      // 0.01 BTC buy
+  capitalRecovered: 400,   // 0.005 BTC sell  
+  effectiveInvestment: 100, // Still at risk
+  realizedProfit: 0,       // No profit yet (400 < 500)
+  totalROI: 70.68         // With current BTC price
+}
+
+// testcrypto (Crypto Wallet) - Expected Values  
+const testcryptoExpected = {
+  totalInvested: 50,       // 2 SOL buy
+  capitalRecovered: 110,   // 1 SOL sell
+  effectiveInvestment: 0,  // Fully recovered
+  realizedProfit: 60,      // 110 - 50 = 60
+  totalROI: 170.00        // With current SOL price
+}
+```
+
+### Validation Checklist
+```javascript
+// ✅ Cross-page consistency checks
+console.assert(
+  investmentsPageROI === accountsPageROI,
+  'ROI mismatch between pages'
+)
+
+console.assert(
+  totalRealizedProfits === expectedRealizedProfits,
+  'Realized profits calculation error'
+)
+
+console.assert(
+  overallInvested === dcaInvested + cryptoInvested,
+  'Total invested aggregation error'
+)
+```
+
+## 🚨 Common Gotchas & Solutions
+
+### 1. Portfolio Type Confusion
+```javascript
+// 🚨 PROBLEM: portfolio.type might be undefined
+if (portfolio.type === 'crypto_wallet') // Could fail
+
+// ✅ SOLUTION: Use array membership
+const isCryptoWallet = cryptoPortfolios.includes(portfolio)
+```
+
+### 2. Division by Zero in ROI
+```javascript
+// 🚨 PROBLEM: Dividing by zero totalInvested
+const roi = totalGains / totalInvested
+
+// ✅ SOLUTION: Always check denominator
+const roi = totalInvested > 0 ? (totalGains / totalInvested) * 100 : 0
+```
+
+### 3. Negative Effective Investment
+```javascript
+// 🚨 PROBLEM: effectiveInvestment could go negative
+const effectiveInvestment = totalInvested - capitalRecovered
+
+// ✅ SOLUTION: Use Math.max(0, ...)
+const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
+```
+
+### 4. Inconsistent Current Value
+```javascript
+// 🚨 PROBLEM: Using wrong current value calculation
+const currentValue = portfolio.holdings.reduce(...) // Generic approach
+
+// ✅ SOLUTION: Type-specific calculation with safety checks
+const currentValue = isCryptoWallet 
+  ? (portfolio.stats.totalValueEur || 0)
+  : getDCACurrentValue(portfolio)
+```
+
+## 🔄 Modification Guidelines
+
+### Adding New Portfolio Types
+1. Update TypeScript interfaces
+2. Add Enhanced stats calculation in backend
+3. Add type detection in frontend
+4. Add safety checks in calculation functions
+5. Update test cases
+
+### Adding New Metrics
+1. Calculate in backend using Enhanced base metrics
+2. Add to stats interface
+3. Display in frontend using existing patterns
+4. Validate consistency across pages
+
+### Performance Considerations
+- Use `useMemo` for expensive calculations
+- Avoid recalculating Enhanced stats in frontend
+- Batch API calls when possible
+- Cache Bitcoin price appropriately
+
+## 📞 Emergency Debugging
+
+### Quick Diagnostic Commands
+```javascript
+// Check portfolio Enhanced stats
+console.log('Enhanced Stats:', portfolio.stats)
+
+// Verify current value calculation
+console.log('Current Value:', getDCACurrentValue(portfolio))
+
+// Check type determination
+console.log('Is Crypto:', cryptoPortfolios.includes(portfolio))
+
+// Validate ROI calculation
+console.log('ROI Components:', {
+  realizedProfit: portfolio.stats.realizedProfit,
+  unrealizedProfit: currentValue - portfolio.stats.effectiveInvestment,
+  totalInvested: portfolio.stats.totalInvested
+})
+```
+
+### Common Fix Patterns
+1. **Console errors about type**: Add safety checks
+2. **ROI inconsistency**: Check current value calculation
+3. **Cross-page differences**: Verify same calculation logic
+4. **Performance issues**: Add `useMemo` wrapper
+
+---
+
+**Remember**: Enhanced Cash Flow is about **clarity and consistency**. When in doubt, follow the established patterns and always use the Enhanced stats as source of truth.
