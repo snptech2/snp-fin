@@ -1,10 +1,9 @@
-// src/app/accounts/page.tsx - FIXED VERSION with Transfer functionality
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
 import { 
   PlusIcon, PencilIcon, TrashIcon, 
-  ArrowsRightLeftIcon, CheckIcon, ChevronDownIcon 
+  ArrowsRightLeftIcon, CheckIcon, XMarkIcon 
 } from '@heroicons/react/24/outline'
 
 interface Account {
@@ -50,6 +49,12 @@ interface Transfer {
   toAccount: { name: string }
 }
 
+interface BitcoinPrice {
+  btcUsd: number
+  btcEur: number
+  cached: boolean
+}
+
 export default function AccountsPage() {
   // Stati esistenti
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -69,15 +74,31 @@ export default function AccountsPage() {
     toAccountId: '',
     amount: '',
     description: '',
-    date: new Date().toISOString().split('T')[0] // 🔧 AGGIUNTO: campo data
+    date: new Date().toISOString().split('T')[0]
   })
   const [transferLoading, setTransferLoading] = useState(false)
+
+  // 🔧 FIX: Aggiungi stato per prezzo Bitcoin
+  const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null)
 
   const formatCurrency = (amount: number) => 
     new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
 
   const formatPercentage = (value: number) => 
     new Intl.NumberFormat('it-IT', { style: 'percent', minimumFractionDigits: 2 }).format(value / 100)
+
+  // 🔧 FIX: Aggiungi fetch prezzo Bitcoin
+  const fetchBitcoinPrice = async () => {
+    try {
+      const response = await fetch('/api/bitcoin-price')
+      if (response.ok) {
+        const data = await response.json()
+        setBtcPrice(data)
+      }
+    } catch (error) {
+      console.error('Errore nel recupero prezzo Bitcoin:', error)
+    }
+  }
 
   // Caricamento dati
   const fetchData = async () => {
@@ -87,22 +108,20 @@ export default function AccountsPage() {
         fetch('/api/accounts'),
         fetch('/api/dca-portfolios'),
         fetch('/api/crypto-portfolios'),
-        fetch('/api/transfers').catch(() => ({ ok: false })) // 🔧 SICUREZZA: Gestisci errore se API non esiste
+        fetch('/api/transfers').catch(() => ({ ok: false }))
       ])
 
       if (accountsRes.ok) setAccounts(await accountsRes.json())
       if (dcaRes.ok) setDCAPortfolios(await dcaRes.json())
       if (cryptoRes.ok) setCryptoPortfolios(await cryptoRes.json())
       
-      // 🔧 SICUREZZA: Controlla che la risposta sia un array valido
-      if (transfersRes.ok) {
+      // 🔧 FIX: Controlla che transfersRes sia un vero Response object prima di chiamare .json()
+      if (transfersRes.ok && 'json' in transfersRes) {
         try {
           const transfersData = await transfersRes.json()
-          // 🔧 CORRETTO: L'API restituisce { transfers: [...], pagination: {...} }
           if (transfersData && transfersData.transfers && Array.isArray(transfersData.transfers)) {
             setTransfers(transfersData.transfers)
           } else if (Array.isArray(transfersData)) {
-            // Fallback se l'API cambia e restituisce direttamente l'array
             setTransfers(transfersData)
           } else {
             console.warn('Transfers API returned unexpected format:', transfersData)
@@ -110,15 +129,13 @@ export default function AccountsPage() {
           }
         } catch (error) {
           console.warn('Transfers API error:', error)
-          setTransfers([]) // Fallback a array vuoto
+          setTransfers([])
         }
       } else {
-        console.warn('Transfers API not available or returned error')
-        setTransfers([]) // Fallback a array vuoto se API non esiste
+        setTransfers([])
       }
     } catch (error) {
       console.error('Error fetching data:', error)
-      // 🔧 SICUREZZA: Assicurati che gli stati siano sempre array validi
       setTransfers([])
     } finally {
       setLoading(false)
@@ -127,6 +144,7 @@ export default function AccountsPage() {
 
   useEffect(() => {
     fetchData()
+    fetchBitcoinPrice() // 🔧 FIX: Carica anche il prezzo Bitcoin
   }, [])
 
   // 🔧 NUOVA FUNZIONE: Modifica trasferimento
@@ -134,7 +152,6 @@ export default function AccountsPage() {
     e.preventDefault()
     if (transferLoading || !editingTransfer) return
 
-    // Validazioni (stesse del create)
     if (!transferForm.fromAccountId || !transferForm.toAccountId || !transferForm.amount) {
       alert('Compila tutti i campi obbligatori')
       return
@@ -225,7 +242,7 @@ export default function AccountsPage() {
     }
   }
 
-  // 🔧 NUOVA FUNZIONE: Utility per reset e gestione form trasferimenti
+  // 🔧 UTILITY per reset e gestione form trasferimenti
   const resetTransferForm = () => {
     setTransferForm({ 
       fromAccountId: '', 
@@ -247,11 +264,11 @@ export default function AccountsPage() {
     })
     setShowTransferModal(true)
   }
+
   const handleTransferSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (transferLoading) return
 
-    // Validazioni
     if (!transferForm.fromAccountId || !transferForm.toAccountId || !transferForm.amount) {
       alert('Compila tutti i campi obbligatori')
       return
@@ -268,7 +285,6 @@ export default function AccountsPage() {
       return
     }
 
-    // Controlla saldo sufficiente
     const fromAccount = accounts.find(a => a.id === parseInt(transferForm.fromAccountId))
     if (fromAccount && fromAccount.balance < amount) {
       alert('Saldo insufficiente nel conto di origine')
@@ -285,15 +301,15 @@ export default function AccountsPage() {
           toAccountId: parseInt(transferForm.toAccountId),
           amount: amount,
           description: transferForm.description || `Trasferimento di ${formatCurrency(amount)}`,
-          date: transferForm.date // 🔧 AGGIUNTO: includi la data nel submit
+          date: transferForm.date
         })
       })
 
       if (response.ok) {
-        await fetchData() // Ricarica tutto per aggiornare saldi e trasferimenti
+        await fetchData()
         setShowTransferModal(false)
-        setEditingTransfer(null) // 🔧 AGGIUNTO: Reset editing transfer
-        resetTransferForm() // 🔧 USATO: Funzione di reset corretta
+        setEditingTransfer(null)
+        resetTransferForm()
         alert('Trasferimento completato con successo!')
       } else {
         const error = await response.json()
@@ -307,7 +323,7 @@ export default function AccountsPage() {
     }
   }
 
-  // Enhanced account breakdowns (logica esistente)
+  // 🔧 FIX: Enhanced account breakdowns con prezzo Bitcoin corretto
   const enhancedAccountBreakdowns = useMemo(() => {
     const breakdowns: Record<number, any> = {}
     
@@ -328,8 +344,9 @@ export default function AccountsPage() {
           totalCurrentValue += portfolio.stats.totalValueEur || 0
         } else {
           const netBTC = portfolio.stats.netBTC || portfolio.stats.totalBTC || 0
-          const btcPrice = 92534 // Prezzo di esempio, da sostituire con API reale
-          totalCurrentValue += netBTC * btcPrice
+          // 🔧 FIX: Usa il prezzo Bitcoin dall'API invece di hardcoded
+          const currentBtcPrice = btcPrice?.btcEur || 0
+          totalCurrentValue += netBTC * currentBtcPrice
         }
       })
       
@@ -350,7 +367,7 @@ export default function AccountsPage() {
     })
     
     return breakdowns
-  }, [accounts, dcaPortfolios, cryptoPortfolios])
+  }, [accounts, dcaPortfolios, cryptoPortfolios, btcPrice]) // 🔧 FIX: Aggiungi btcPrice alle dependencies
 
   // Funzioni esistenti per account
   const handleAccountSubmit = async (e: React.FormEvent) => {
@@ -425,7 +442,6 @@ export default function AccountsPage() {
           <p className="text-adaptive-600 mt-2">Gestisci i tuoi conti bancari e di investimento con Enhanced Cash Flow</p>
         </div>
         <div className="flex gap-3">
-          {/* 🔧 AGGIUNTO: Tasto Trasferimento */}
           <button
             onClick={() => setShowTransferModal(true)}
             disabled={accounts.length < 2}
@@ -487,7 +503,7 @@ export default function AccountsPage() {
                 setAccountForm({ name: '', type: 'bank' })
                 setShowAccountModal(true)
               }}
-              className="btn-primary px-4 py-2 rounded-md"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
             >
               Crea il tuo primo conto bancario
             </button>
@@ -557,7 +573,7 @@ export default function AccountsPage() {
                 setAccountForm({ name: '', type: 'investment' })
                 setShowAccountModal(true)
               }}
-              className="btn-primary px-4 py-2 rounded-md"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
             >
               Crea il tuo primo conto investimento
             </button>
@@ -678,10 +694,9 @@ export default function AccountsPage() {
         )}
       </div>
 
-      {/* Recent Transfers - SEMPRE VISIBILE */}
+      {/* Recent Transfers */}
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-adaptive-900 mb-4">🔄 Trasferimenti</h2>
-        {/* 🔧 SICUREZZA: Controlla che transfers sia un array e che abbia lunghezza */}
         {!Array.isArray(transfers) || transfers.length === 0 ? (
           <div className="bg-adaptive-50 border border-adaptive rounded-lg p-8 text-center">
             <div className="text-4xl mb-4">🔄</div>
@@ -690,7 +705,7 @@ export default function AccountsPage() {
             <button
               onClick={() => setShowTransferModal(true)}
               disabled={accounts.length < 2}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 font-medium"
             >
               Crea Primo Trasferimento
             </button>
@@ -710,7 +725,6 @@ export default function AccountsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* 🔧 SICUREZZA: Doppio controllo che transfers sia un array */}
                   {Array.isArray(transfers) && transfers.map((transfer) => (
                     <tr key={transfer.id} className="border-t border-adaptive hover:bg-adaptive-100">
                       <td className="py-3 px-4 text-sm">
@@ -725,7 +739,6 @@ export default function AccountsPage() {
                         {transfer.description}
                       </td>
                       <td className="text-center py-3 px-4">
-                        {/* 🔧 TASTI AZIONI SINGOLO TRASFERIMENTO */}
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => openEditTransfer(transfer)}
@@ -749,7 +762,6 @@ export default function AccountsPage() {
               </table>
             </div>
             
-            {/* Paginazione se ci sono molti trasferimenti */}
             {Array.isArray(transfers) && transfers.length > 10 && (
               <div className="p-4 bg-adaptive-100 text-center">
                 <p className="text-sm text-adaptive-600">
@@ -777,7 +789,7 @@ export default function AccountsPage() {
                 }}
                 className="text-gray-500 hover:text-gray-700"
               >
-                ✕
+                <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
 
@@ -834,7 +846,7 @@ export default function AccountsPage() {
         </div>
       )}
 
-      {/* 🔧 NUOVO: Transfer Modal */}
+      {/* Transfer Modal */}
       {showTransferModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
@@ -850,7 +862,7 @@ export default function AccountsPage() {
                 }}
                 className="text-gray-500 hover:text-gray-700"
               >
-                ✕
+                <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
 

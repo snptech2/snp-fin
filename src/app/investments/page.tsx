@@ -29,15 +29,16 @@ interface Portfolio {
     netBTC?: number // Per DCA portfolios (PRIORITÀ ASSOLUTA)
     totalBTC?: number // Fallback per DCA portfolios
     totalROI?: number // Calcolato dal backend quando disponibile
+    unrealizedGains?: number // Calcolato dal backend per crypto portfolios
     
     // Counts
     transactionCount: number
     buyCount: number
     sellCount?: number
+    holdingsCount?: number // Per crypto portfolios
     
     // Legacy fields (backwards compatibility)
     realizedGains?: number
-    unrealizedGains?: number
     totalGains?: number
   }
 }
@@ -499,7 +500,7 @@ export default function InvestmentsPage() {
         </div>
       )}
 
-      {/* Crypto Portfolios */}
+      {/* 🔧 FIX: Crypto Portfolios - Usa Enhanced Stats dal Backend */}
       {cryptoPortfolios.length > 0 && (
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-8">
           <div className="p-6 border-b border-adaptive">
@@ -511,10 +512,13 @@ export default function InvestmentsPage() {
           
           <div className="divide-y divide-adaptive">
             {cryptoPortfolios.map(portfolio => {
-              // Usa Enhanced stats dal backend
+              // 🔧 FIX: Usa le Enhanced stats dal backend invece di calcoli frontend
+              const totalInvested = portfolio.stats.totalInvested || 0
               const currentValue = portfolio.stats.totalValueEur || 0
-              const totalROI = getPortfolioROI(portfolio)
-              const totalGains = getPortfolioTotalGains(portfolio)
+              const totalROI = portfolio.stats.totalROI || 0
+              const realizedProfit = portfolio.stats.realizedProfit || 0
+              const unrealizedGains = portfolio.stats.unrealizedGains || 0
+              const totalGains = realizedProfit + unrealizedGains
 
               return (
                 <Link key={portfolio.id} href={`/investments/crypto-portfolio/${portfolio.id}`}>
@@ -525,27 +529,28 @@ export default function InvestmentsPage() {
                         <div className="flex items-center gap-4 text-sm text-adaptive-600">
                           <span>🚀 Crypto Wallet</span>
                           <span>{portfolio.stats.transactionCount} transazioni</span>
+                          <span>{portfolio.stats.holdingsCount || 0} asset</span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-6">
-                        {/* Invested */}
+                        {/* Investito */}
                         <div className="text-center min-w-[100px]">
                           <p className="text-xs text-adaptive-500">Investito</p>
                           <p className="font-semibold text-adaptive-900">
-                            {formatCurrency(portfolio.stats.totalInvested)}
+                            {formatCurrency(totalInvested)}
                           </p>
                         </div>
 
-                        {/* Current Value */}
-                        <div className="text-center min-w-[120px]">
+                        {/* Valore Attuale */}
+                        <div className="text-center min-w-[100px]">
                           <p className="text-xs text-adaptive-500">Valore Attuale</p>
-                          <p className="font-semibold text-green-600">
+                          <p className="font-semibold text-adaptive-900">
                             {formatCurrency(currentValue)}
                           </p>
                         </div>
 
-                        {/* Total Gains */}
+                        {/* P&L Totale */}
                         <div className="text-center min-w-[100px]">
                           <p className="text-xs text-adaptive-500">P&L Totale</p>
                           <p className={`font-semibold ${totalGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>

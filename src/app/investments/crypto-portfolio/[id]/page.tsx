@@ -1,4 +1,3 @@
-// src/app/investments/crypto-portfolio/[id]/page.tsx - COMPLETE VERSION with all missing functionality
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -62,9 +61,11 @@ interface CryptoPortfolio {
     isFullyRecovered: boolean
     totalValueEur: number
     totalROI: number
+    unrealizedGains: number
     transactionCount: number
     buyCount: number
     sellCount: number
+    holdingsCount: number
   }
   holdings: Holding[]
   transactions: Transaction[]
@@ -88,7 +89,7 @@ export default function CryptoPortfolioDetailPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
 
-  // 🔧 FORM TRANSAZIONE con auto-fetch prezzo
+  // 🔧 FORM TRANSAZIONE
   const [transactionForm, setTransactionForm] = useState({
     type: 'buy' as 'buy' | 'sell',
     ticker: '',
@@ -109,71 +110,12 @@ export default function CryptoPortfolioDetailPage() {
     description: ''
   })
 
-  // 🔧 FETCH PREZZO DA CRYPTOPRICES.CC con debounce
-  const debouncedFetchPrice = (ticker: string) => {
-    // Cancella il timeout precedente
-    if (priceTimeout) {
-      clearTimeout(priceTimeout)
-    }
-    
-    // Imposta un nuovo timeout
-    const newTimeout = setTimeout(() => {
-      fetchCryptoPrice(ticker)
-    }, 500) // Attende 500ms dopo l'ultimo input
-    
-    setPriceTimeout(newTimeout)
-  }
-
-  // 🔧 FETCH PREZZO DA CRYPTOPRICES.CC
-  const fetchCryptoPrice = async (ticker: string) => {
-    const cleanTicker = ticker.trim().toUpperCase()
-    
-    if (!cleanTicker || cleanTicker.length < 2) {
-      setCurrentPrice(null)
-      return
-    }
-
-    console.log(`🔍 Fetching price for: ${cleanTicker}`)
-    setFetchingPrice(true)
-    
-    try {
-      const response = await fetch(`/api/crypto-prices?symbols=${cleanTicker}`)
-      
-      if (response.ok) {
-        const data = await response.json()
-        const price = data.prices?.[cleanTicker]
-        
-        if (price && price > 0) {
-          console.log(`✅ Price found for ${cleanTicker}: €${price}`)
-          setCurrentPrice(price)
-          
-          // Se abbiamo quantità, calcola automaticamente il valore EUR
-          if (transactionForm.quantity && !isNaN(parseFloat(transactionForm.quantity))) {
-            const quantity = parseFloat(transactionForm.quantity)
-            const calculatedValue = Math.round(quantity * price * 100) / 100
-            setTransactionForm(prev => ({ ...prev, eurValue: calculatedValue.toString() }))
-          }
-        } else {
-          console.warn(`⚠️ Prezzo non disponibile per ${cleanTicker}`)
-          setCurrentPrice(null)
-        }
-      } else {
-        console.error(`❌ Errore API (${response.status}) per ${cleanTicker}`)
-        setCurrentPrice(null)
-      }
-    } catch (error) {
-      console.error(`💥 Errore fetch prezzo per ${cleanTicker}:`, error)
-      setCurrentPrice(null)
-    } finally {
-      setFetchingPrice(false)
-    }
-  }
-
+  // Format functions
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
 
   const formatPercentage = (value: number) =>
-    new Intl.NumberFormat('it-IT', { style: 'percent', minimumFractionDigits: 2 }).format(value / 100)
+    `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
 
   const formatCrypto = (amount: number, decimals = 8) =>
     new Intl.NumberFormat('it-IT', { 
@@ -265,192 +207,78 @@ export default function CryptoPortfolioDetailPage() {
         alert('Prezzi aggiornati con successo!')
       } else {
         console.error('❌ Errore aggiornamento prezzi:', response.status)
-        alert('Errore nell\'aggiornamento dei prezzi')
+        alert('Errore durante l\'aggiornamento dei prezzi')
       }
     } catch (error) {
       console.error('💥 Errore aggiornamento prezzi:', error)
-      alert('Errore nell\'aggiornamento dei prezzi')
+      alert('Errore durante l\'aggiornamento dei prezzi')
     } finally {
       setPriceLoading(false)
     }
   }
 
-  // 🔧 GESTIONE TRANSAZIONI - AGGIUNTA (LOGICA COME DCA BTC)
-  const handleAddTransaction = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (submitLoading) return
+  // 🔧 FETCH PREZZO DA CRYPTOPRICES.CC con debounce
+  const debouncedFetchPrice = (ticker: string) => {
+    if (priceTimeout) {
+      clearTimeout(priceTimeout)
+    }
+    
+    const newTimeout = setTimeout(() => {
+      fetchCryptoPrice(ticker)
+    }, 500)
+    
+    setPriceTimeout(newTimeout)
+  }
 
-    // Validazioni
-    if (!transactionForm.ticker || !transactionForm.quantity || !transactionForm.eurValue) {
-      alert('Compila tutti i campi obbligatori')
+  // 🔧 FETCH PREZZO DA CRYPTOPRICES.CC
+  const fetchCryptoPrice = async (ticker: string) => {
+    const cleanTicker = ticker.trim().toUpperCase()
+    
+    if (!cleanTicker || cleanTicker.length < 2) {
+      setCurrentPrice(null)
       return
     }
 
-    const quantity = parseFloat(transactionForm.quantity)
-    const eurValue = parseFloat(transactionForm.eurValue)
-
-    if (isNaN(quantity) || quantity <= 0 || isNaN(eurValue) || eurValue <= 0) {
-      alert('Quantità e valore EUR devono essere positivi')
-      return
-    }
-
-    // 🔧 USA PREZZO DA CRYPTOPRICES.CC se disponibile, altrimenti calcola manualmente
-    const pricePerUnit = currentPrice || (eurValue / quantity)
-
-    // Controllo saldo per acquisti
-    if (transactionForm.type === 'buy' && portfolio?.account && portfolio.account.balance < eurValue) {
-      alert('Saldo insufficiente nel conto collegato')
-      return
-    }
-
-    setSubmitLoading(true)
+    console.log(`🔍 Fetching price for: ${cleanTicker}`)
+    setFetchingPrice(true)
+    
     try {
-      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: transactionForm.type,
-          assetSymbol: transactionForm.ticker.toUpperCase(), // 🔧 CORRETTO: assetSymbol invece di ticker
-          quantity: quantity,
-          eurValue: eurValue,
-          pricePerUnit: pricePerUnit, // 🔧 USA PREZZO DA CRYPTOPRICES.CC se disponibile
-          broker: 'Manual Entry', // 🔧 AGGIUNTO: campo richiesto dall'API
-          date: transactionForm.date,
-          notes: transactionForm.notes || null
-        })
-      })
-
+      const response = await fetch(`/api/crypto-prices?symbols=${cleanTicker}`)
+      
       if (response.ok) {
-        await fetchPortfolio()
-        setShowAddTransaction(false)
-        resetTransactionForm()
-        alert('Transazione aggiunta con successo!')
+        const data = await response.json()
+        const price = data.prices?.[cleanTicker]
+        
+        if (price && price > 0) {
+          console.log(`✅ Price found for ${cleanTicker}: €${price}`)
+          setCurrentPrice(price)
+          
+          if (transactionForm.quantity && !isNaN(parseFloat(transactionForm.quantity))) {
+            const quantity = parseFloat(transactionForm.quantity)
+            const calculatedValue = Math.round(quantity * price * 100) / 100
+            setTransactionForm(prev => ({ ...prev, eurValue: calculatedValue.toString() }))
+          }
+        } else {
+          console.warn(`⚠️ Prezzo non disponibile per ${cleanTicker}`)
+          setCurrentPrice(null)
+        }
       } else {
-        const error = await response.json()
-        alert(`Errore: ${error.error || 'Aggiunta transazione fallita'}`)
+        console.error(`❌ Errore API (${response.status}) per ${cleanTicker}`)
+        setCurrentPrice(null)
       }
     } catch (error) {
-      console.error('Error adding transaction:', error)
-      alert('Errore durante l\'aggiunta della transazione')
+      console.error(`💥 Errore fetch prezzo per ${cleanTicker}:`, error)
+      setCurrentPrice(null)
     } finally {
-      setSubmitLoading(false)
+      setFetchingPrice(false)
     }
   }
 
-  // 🔧 GESTIONE TRANSAZIONI - MODIFICA (LOGICA COME DCA BTC)
-  const handleEditTransaction = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (submitLoading || !editingTransaction) return
-
-    const quantity = parseFloat(transactionForm.quantity)
-    const eurValue = parseFloat(transactionForm.eurValue)
-
-    if (isNaN(quantity) || quantity <= 0 || isNaN(eurValue) || eurValue <= 0) {
-      alert('Quantità e valore EUR devono essere positivi')
-      return
-    }
-
-    // 🔧 USA PREZZO DA CRYPTOPRICES.CC se disponibile, altrimenti calcola manualmente
-    const pricePerUnit = currentPrice || (eurValue / quantity)
-
-    setSubmitLoading(true)
-    try {
-      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transactionId: editingTransaction.id,
-          type: transactionForm.type,
-          assetSymbol: transactionForm.ticker.toUpperCase(), // 🔧 CORRETTO: assetSymbol invece di ticker
-          quantity: quantity,
-          eurValue: eurValue,
-          pricePerUnit: pricePerUnit, // 🔧 USA PREZZO DA CRYPTOPRICES.CC se disponibile
-          broker: 'Manual Entry', // 🔧 AGGIUNTO: campo richiesto dall'API
-          date: transactionForm.date,
-          notes: transactionForm.notes || null
-        })
-      })
-
-      if (response.ok) {
-        await fetchPortfolio()
-        setShowEditTransaction(false)
-        setEditingTransaction(null)
-        resetTransactionForm()
-        alert('Transazione modificata con successo!')
-      } else {
-        const error = await response.json()
-        alert(`Errore: ${error.error || 'Modifica transazione fallita'}`)
-      }
-    } catch (error) {
-      console.error('Error editing transaction:', error)
-      alert('Errore durante la modifica della transazione')
-    } finally {
-      setSubmitLoading(false)
-    }
-  }
-
-  // 🔧 GESTIONE TRANSAZIONI - CANCELLAZIONE
-  const handleDeleteTransaction = async (transactionId: number) => {
-    if (!confirm('Sei sicuro di voler eliminare questa transazione?')) return
-
-    try {
-      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions?transactionId=${transactionId}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
-        await fetchPortfolio()
-        alert('Transazione eliminata con successo!')
-      } else {
-        const error = await response.json()
-        alert(`Errore: ${error.error || 'Eliminazione fallita'}`)
-      }
-    } catch (error) {
-      console.error('Error deleting transaction:', error)
-      alert('Errore durante l\'eliminazione della transazione')
-    }
-  }
-
-  // 🔧 GESTIONE PORTFOLIO - MODIFICA IMPOSTAZIONI
-  const handleEditPortfolio = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (submitLoading) return
-
-    if (!portfolioForm.name.trim()) {
-      alert('Il nome del portfolio è obbligatorio')
-      return
-    }
-
-    setSubmitLoading(true)
-    try {
-      const response = await fetch(`/api/crypto-portfolios/${portfolioId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: portfolioForm.name.trim(),
-          description: portfolioForm.description.trim() || null
-        })
-      })
-
-      if (response.ok) {
-        await fetchPortfolio()
-        setShowEditPortfolio(false)
-        alert('Portfolio modificato con successo!')
-      } else {
-        const error = await response.json()
-        alert(`Errore: ${error.error || 'Modifica portfolio fallita'}`)
-      }
-    } catch (error) {
-      console.error('Error editing portfolio:', error)
-      alert('Errore durante la modifica del portfolio')
-    } finally {
-      setSubmitLoading(false)
-    }
-  }
-
-  // 🔧 GESTIONE PORTFOLIO - CANCELLAZIONE
+  // Handle delete portfolio
   const handleDeletePortfolio = async () => {
-    if (!confirm(`Sei sicuro di voler eliminare il portfolio "${portfolio?.name}"?\n\nTutte le transazioni collegate verranno eliminate e i saldi dei conti ripristinati.`)) return
+    if (!confirm('Sei sicuro di voler eliminare questo portfolio? Questa azione non può essere annullata.')) {
+      return
+    }
 
     try {
       const response = await fetch(`/api/crypto-portfolios/${portfolioId}`, {
@@ -458,7 +286,6 @@ export default function CryptoPortfolioDetailPage() {
       })
 
       if (response.ok) {
-        alert('Portfolio eliminato con successo!')
         router.push('/investments')
       } else {
         const error = await response.json()
@@ -470,7 +297,7 @@ export default function CryptoPortfolioDetailPage() {
     }
   }
 
-  // 🔧 UTILITY FUNCTIONS
+  // Utility functions
   const resetTransactionForm = () => {
     setTransactionForm({
       type: 'buy',
@@ -480,7 +307,6 @@ export default function CryptoPortfolioDetailPage() {
       date: new Date().toISOString().split('T')[0],
       notes: ''
     })
-    // 🔧 PULISCI ANCHE PREZZO CORRENTE E TIMEOUT
     setCurrentPrice(null)
     if (priceTimeout) {
       clearTimeout(priceTimeout)
@@ -492,14 +318,13 @@ export default function CryptoPortfolioDetailPage() {
     setEditingTransaction(transaction)
     setTransactionForm({
       type: transaction.type,
-      ticker: transaction.asset.symbol, // Usa il symbol dell'asset
+      ticker: transaction.asset.symbol,
       quantity: transaction.quantity.toString(),
       eurValue: transaction.eurValue.toString(),
       date: transaction.date.split('T')[0],
       notes: transaction.notes || ''
     })
     
-    // 🔧 FETCH PREZZO CORRENTE per il ticker esistente (immediato, non debounced)
     if (transaction.asset.symbol && transaction.asset.symbol.length >= 3) {
       fetchCryptoPrice(transaction.asset.symbol)
     }
@@ -559,7 +384,6 @@ export default function CryptoPortfolioDetailPage() {
           </div>
         </div>
         <div className="flex gap-3">
-          {/* 🔧 TASTO IMPOSTAZIONI */}
           <button
             onClick={() => setShowEditPortfolio(true)}
             className="flex items-center gap-2 px-4 py-2 text-adaptive-600 border border-adaptive-300 rounded-md hover:bg-adaptive-50"
@@ -569,7 +393,6 @@ export default function CryptoPortfolioDetailPage() {
             Impostazioni
           </button>
           
-          {/* 🔧 TASTO CANCELLA PORTFOLIO */}
           <button
             onClick={handleDeletePortfolio}
             className="flex items-center gap-2 px-4 py-2 text-red-600 border border-red-300 rounded-md hover:bg-red-50"
@@ -579,7 +402,6 @@ export default function CryptoPortfolioDetailPage() {
             Elimina
           </button>
           
-          {/* 🔧 TASTO AGGIUNGI TRANSAZIONE */}
           <button
             onClick={() => setShowAddTransaction(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
@@ -590,7 +412,7 @@ export default function CryptoPortfolioDetailPage() {
         </div>
       </div>
 
-      {/* Enhanced Stats Overview */}
+      {/* 🚀 Enhanced Statistics Overview - Sostituisce le 4 card esistenti */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-adaptive-50 border border-adaptive rounded-lg p-6">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">💰 Investimento Totale</h3>
@@ -605,21 +427,109 @@ export default function CryptoPortfolioDetailPage() {
         </div>
         
         <div className="bg-adaptive-50 border border-adaptive rounded-lg p-6">
-          <h3 className="text-sm font-medium text-adaptive-500 mb-2">⚠️ Investimento Effettivo</h3>
-          <p className="text-2xl font-bold text-orange-600">{formatCurrency(portfolio.stats.effectiveInvestment)}</p>
-          <p className="text-xs text-adaptive-600 mt-1">
-            {portfolio.stats.isFullyRecovered ? 'Tutto recuperato' : 'Ancora a rischio'}
-          </p>
+          <h3 className="text-sm font-medium text-adaptive-500 mb-2">📈 Valore Attuale</h3>
+          <p className="text-2xl font-bold text-green-600">{formatCurrency(portfolio.stats.totalValueEur)}</p>
+          <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.holdingsCount} asset</p>
         </div>
         
         <div className="bg-adaptive-50 border border-adaptive rounded-lg p-6">
-          <h3 className="text-sm font-medium text-adaptive-500 mb-2">💹 Profitti Realizzati</h3>
-          <p className={`text-2xl font-bold ${portfolio.stats.realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {formatCurrency(portfolio.stats.realizedProfit)}
+          <h3 className="text-sm font-medium text-adaptive-500 mb-2">🎯 ROI Totale</h3>
+          <p className={`text-2xl font-bold ${portfolio.stats.totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatPercentage(portfolio.stats.totalROI)}
           </p>
           <p className="text-xs text-adaptive-600 mt-1">
-            ROI: {formatPercentage(portfolio.stats.totalROI)}
+            {portfolio.stats.isFullyRecovered ? 'Recuperato' : 'A rischio'}
           </p>
+        </div>
+      </div>
+
+      {/* 🆕 Riepilogo P&L Multi-Asset */}
+      <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-8">
+        <div className="p-6 border-b border-adaptive">
+          <h2 className="text-lg font-semibold text-adaptive-900">📊 Riepilogo P&L Multi-Asset</h2>
+        </div>
+        
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="text-center">
+              <div className="text-sm text-adaptive-500 mb-1">Profitti Realizzati</div>
+              <div className="text-2xl font-bold text-green-600">
+                {formatCurrency(portfolio.stats.realizedProfit)}
+              </div>
+              <div className="text-xs text-adaptive-600 mt-1">Da vendite</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-sm text-adaptive-500 mb-1">Plus/Minus Non Realizzati</div>
+              <div className={`text-2xl font-bold ${portfolio.stats.unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatCurrency(portfolio.stats.unrealizedGains)}
+              </div>
+              <div className="text-xs text-adaptive-600 mt-1">Su holdings correnti</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-sm text-adaptive-500 mb-1">Totale P&L</div>
+              <div className={`text-2xl font-bold ${(portfolio.stats.realizedProfit + portfolio.stats.unrealizedGains) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatCurrency(portfolio.stats.realizedProfit + portfolio.stats.unrealizedGains)}
+              </div>
+              <div className="text-xs text-adaptive-600 mt-1">Performance totale</div>
+            </div>
+          </div>
+
+          {/* 🆕 Performance per Asset */}
+          <div className="mt-6">
+            <h3 className="text-sm font-medium text-adaptive-500 mb-4">📈 Performance per Asset</h3>
+            <div className="space-y-3">
+              {portfolio.holdings.map(holding => {
+                const livePrice = livePrices[holding.asset.symbol]
+                const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                const currentValue = livePrice 
+                  ? holding.quantity * livePrice 
+                  : holding.quantity * (holding.currentPrice || holding.avgPrice)
+                const investedValue = holding.quantity * holding.avgPrice
+                const assetPnL = currentValue - investedValue
+                const assetROI = investedValue > 0 ? ((assetPnL / investedValue) * 100) : 0
+                const portfolioWeight = portfolio.stats.totalValueEur > 0 ? ((currentValue / portfolio.stats.totalValueEur) * 100) : 0
+
+                return (
+                  <div key={holding.asset.symbol} className="flex items-center justify-between p-3 bg-adaptive-50 rounded">
+                    <div className="flex items-center gap-3">
+                      <div className="text-lg font-bold">{holding.asset.symbol}</div>
+                      <div className="text-sm text-adaptive-600">{holding.asset.name}</div>
+                    </div>
+                    
+                    <div className="flex items-center gap-6 text-sm">
+                      <div className="text-center">
+                        <div className="text-xs text-adaptive-500">Valore</div>
+                        <div className="font-semibold">{formatCurrency(currentValue)}</div>
+                      </div>
+                      
+                      <div className="text-center">
+                        <div className="text-xs text-adaptive-500">P&L</div>
+                        <div className={`font-semibold ${assetPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(assetPnL)}
+                        </div>
+                      </div>
+                      
+                      <div className="text-center">
+                        <div className="text-xs text-adaptive-500">ROI</div>
+                        <div className={`font-semibold ${assetROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatPercentage(assetROI)}
+                        </div>
+                      </div>
+                      
+                      <div className="text-center">
+                        <div className="text-xs text-adaptive-500">% Portfolio</div>
+                        <div className="font-semibold text-adaptive-900">
+                          {portfolioWeight.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -660,44 +570,48 @@ export default function CryptoPortfolioDetailPage() {
                 </thead>
                 <tbody>
                   {portfolio.holdings.map(holding => {
-                    // 🔧 USA PREZZI LIVE invece di quelli nel database
                     const livePrice = livePrices[holding.asset.symbol]
                     const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
                     const currentValue = livePrice 
                       ? holding.quantity * livePrice 
-                      : (holding.valueEur || (holding.quantity * currentPrice))
-                    const unrealizedPL = currentValue - holding.totalInvested
+                      : holding.quantity * (holding.currentPrice || holding.avgPrice)
+                    const investedValue = holding.quantity * holding.avgPrice
+                    const unrealizedPnL = currentValue - investedValue
 
                     return (
                       <tr key={holding.id} className="border-b border-adaptive hover:bg-adaptive-50">
-                        <td className="py-3 px-4">
-                          <div className="font-medium text-adaptive-900">{holding.asset.symbol}</div>
-                          <div className="text-sm text-adaptive-600">{holding.asset.name}</div>
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <div className="font-semibold text-adaptive-900">{holding.asset.symbol}</div>
+                              <div className="text-sm text-adaptive-600">{holding.asset.name}</div>
+                            </div>
+                          </div>
                         </td>
-                        <td className="text-right py-3 px-4">
+                        <td className="py-4 px-4 text-right font-mono">
                           {formatCrypto(holding.quantity, holding.asset.decimals)}
                         </td>
-                        <td className="text-right py-3 px-4">
+                        <td className="py-4 px-4 text-right">
                           {formatCurrency(holding.avgPrice)}
                         </td>
-                        <td className="text-right py-3 px-4">
-                          <span className={
-                            livePrice ? 'text-green-600 font-semibold' : 
-                            (holding.currentPrice ? 
-                            (currentPrice > holding.avgPrice ? 'text-green-600' : 'text-red-600') : 
-                            'text-adaptive-600')
-                          }>
+                        <td className="py-4 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
                             {formatCurrency(currentPrice)}
-                            {livePrice && <span className="text-xs ml-1">🔴 LIVE</span>}
-                          </span>
+                            {livePrice && (
+                              <span className="text-xs bg-green-100 text-green-600 px-1 rounded">LIVE</span>
+                            )}
+                          </div>
                         </td>
-                        <td className="text-right py-3 px-4 font-semibold">
+                        <td className="py-4 px-4 text-right font-semibold">
                           {formatCurrency(currentValue)}
                         </td>
-                        <td className="text-right py-3 px-4">
-                          <span className={`font-semibold ${unrealizedPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatCurrency(unrealizedPL)}
-                          </span>
+                        <td className="py-4 px-4 text-right">
+                          <div className={`font-semibold ${unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrency(unrealizedPnL)}
+                          </div>
+                          <div className={`text-xs ${unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatPercentage(investedValue > 0 ? (unrealizedPnL / investedValue) * 100 : 0)}
+                          </div>
                         </td>
                       </tr>
                     )
@@ -712,22 +626,22 @@ export default function CryptoPortfolioDetailPage() {
       {/* Transactions Table */}
       <div className="bg-adaptive-50 border border-adaptive rounded-lg">
         <div className="flex items-center justify-between p-6 border-b border-adaptive">
-          <h2 className="text-xl font-bold text-adaptive-900">📊 Transazioni</h2>
-          <span className="text-sm text-adaptive-600">{portfolio.transactions.length} transazioni</span>
+          <h2 className="text-xl font-bold text-adaptive-900">📊 Transazioni ({portfolio.transactions.length})</h2>
+          <button
+            onClick={() => setShowAddTransaction(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Aggiungi
+          </button>
         </div>
         
         <div className="p-6">
           {portfolio.transactions.length === 0 ? (
             <div className="text-center py-8">
-              <div className="text-4xl mb-4">💳</div>
+              <div className="text-4xl mb-4">📊</div>
               <h3 className="text-lg font-medium text-adaptive-900 mb-2">Nessuna Transazione</h3>
-              <p className="text-adaptive-600 mb-4">Le tue transazioni appariranno qui</p>
-              <button
-                onClick={() => setShowAddTransaction(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Aggiungi Prima Transazione
-              </button>
+              <p className="text-adaptive-600">Le tue transazioni appariranno qui</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -746,43 +660,44 @@ export default function CryptoPortfolioDetailPage() {
                 <tbody>
                   {portfolio.transactions.map(transaction => (
                     <tr key={transaction.id} className="border-b border-adaptive hover:bg-adaptive-50">
-                      <td className="py-3 px-4 text-adaptive-900">
+                      <td className="py-4 px-4 text-sm">
                         {new Date(transaction.date).toLocaleDateString('it-IT')}
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-adaptive-900">{transaction.asset.symbol}</div>
-                        <div className="text-sm text-adaptive-600">{transaction.asset.name}</div>
+                      <td className="py-4 px-4">
+                        <div className="font-semibold">{transaction.asset.symbol}</div>
+                        <div className="text-xs text-adaptive-600">{transaction.asset.name}</div>
                       </td>
-                      <td className="text-center py-3 px-4">
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          transaction.type === 'buy' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                      <td className="py-4 px-4 text-center">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          transaction.type === 'buy' 
+                            ? 'bg-green-100 text-green-600' 
+                            : 'bg-red-100 text-red-600'
                         }`}>
-                          {transaction.type === 'buy' ? '📈 Buy' : '📉 Sell'}
+                          {transaction.type === 'buy' ? 'Buy' : 'Sell'}
                         </span>
                       </td>
-                      <td className="text-right py-3 px-4 font-mono">
+                      <td className="py-4 px-4 text-right font-mono">
                         {formatCrypto(transaction.quantity, transaction.asset.decimals)}
                       </td>
-                      <td className="text-right py-3 px-4 font-semibold">
+                      <td className="py-4 px-4 text-right font-semibold">
                         {formatCurrency(transaction.eurValue)}
                       </td>
-                      <td className="text-right py-3 px-4">
+                      <td className="py-4 px-4 text-right">
                         {formatCurrency(transaction.pricePerUnit)}
                       </td>
-                      <td className="text-center py-3 px-4">
-                        {/* 🔧 TASTI AZIONI SINGOLA TRANSAZIONE */}
-                        <div className="flex items-center justify-center gap-1">
+                      <td className="py-4 px-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => openEditTransaction(transaction)}
-                            className="p-1 text-adaptive-600 hover:text-blue-600"
-                            title="Modifica transazione"
+                            className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+                            title="Modifica"
                           >
                             <PencilIcon className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteTransaction(transaction.id)}
-                            className="p-1 text-adaptive-600 hover:text-red-600"
-                            title="Elimina transazione"
+                            className="p-1 text-red-600 hover:bg-red-100 rounded"
+                            title="Elimina"
                           >
                             <TrashIcon className="w-4 h-4" />
                           </button>
@@ -802,7 +717,7 @@ export default function CryptoPortfolioDetailPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">💳 Nuova Transazione</h3>
+              <h3 className="text-lg font-semibold">➕ Nuova Transazione</h3>
               <button
                 onClick={() => {
                   setShowAddTransaction(false)
@@ -817,69 +732,70 @@ export default function CryptoPortfolioDetailPage() {
             <form onSubmit={handleAddTransaction} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                <select
-                  value={transactionForm.type}
-                  onChange={(e) => setTransactionForm(prev => ({ ...prev, type: e.target.value as 'buy' | 'sell' }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="buy">📈 Acquisto (Buy)</option>
-                  <option value="sell">📉 Vendita (Sell)</option>
-                </select>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setTransactionForm(prev => ({ ...prev, type: 'buy' }))}
+                    className={`flex-1 px-3 py-2 border rounded-md text-sm font-medium ${
+                      transactionForm.type === 'buy'
+                        ? 'bg-green-100 border-green-500 text-green-700'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    💰 Buy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTransactionForm(prev => ({ ...prev, type: 'sell' }))}
+                    className={`flex-1 px-3 py-2 border rounded-md text-sm font-medium ${
+                      transactionForm.type === 'sell'
+                        ? 'bg-red-100 border-red-500 text-red-700'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    💸 Sell
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ticker Crypto
+                  Asset (Ticker)
+                  {fetchingPrice && <span className="text-blue-500 ml-2">🔍 Cercando prezzo...</span>}
                 </label>
                 <input
                   type="text"
                   value={transactionForm.ticker}
                   onChange={(e) => {
-                    const ticker = e.target.value.toUpperCase()
-                    setTransactionForm(prev => ({ ...prev, ticker }))
+                    const value = e.target.value.toUpperCase()
+                    setTransactionForm(prev => ({ ...prev, ticker: value }))
                     
-                    // 🔧 FETCH PREZZO CON DEBOUNCE quando cambia ticker
-                    if (ticker.length >= 3) {
-                      debouncedFetchPrice(ticker)
+                    if (value.length >= 3) {
+                      debouncedFetchPrice(value)
                     } else {
                       setCurrentPrice(null)
-                      // Cancella timeout se ticker troppo corto
-                      if (priceTimeout) {
-                        clearTimeout(priceTimeout)
-                        setPriceTimeout(null)
-                      }
                     }
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="es. SOL, ETH, BTC"
+                  placeholder="es. BTC, ETH, SOL"
                   required
                 />
-                {/* 🔧 INDICATORE PREZZO CORRENTE */}
-                {fetchingPrice && (
-                  <div className="text-sm text-blue-600 mt-1">
-                    🔄 Recupero prezzo...
-                  </div>
-                )}
-                {currentPrice && !fetchingPrice && (
-                  <div className="text-sm text-green-600 mt-1">
-                    💰 Prezzo corrente: {formatCurrency(currentPrice)}
+                {currentPrice && (
+                  <div className="text-xs text-green-600 mt-1">
+                    💹 Prezzo corrente: {formatCurrency(currentPrice)}
                   </div>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Quantità
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantità</label>
                 <input
                   type="number"
                   step="any"
-                  min="0"
                   value={transactionForm.quantity}
                   onChange={(e) => {
                     setTransactionForm(prev => ({ ...prev, quantity: e.target.value }))
                     
-                    // 🔧 RICALCOLA VALORE EUR quando cambia quantità
                     if (currentPrice && e.target.value && !isNaN(parseFloat(e.target.value))) {
                       const quantity = parseFloat(e.target.value)
                       const calculatedValue = Math.round(quantity * currentPrice * 100) / 100
@@ -887,26 +803,23 @@ export default function CryptoPortfolioDetailPage() {
                     }
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="0.00"
+                  placeholder="es. 1.5"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Valore EUR {currentPrice && '(calcolato automaticamente)'}
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Valore EUR</label>
                 <input
                   type="number"
                   step="0.01"
-                  min="0"
                   value={transactionForm.eurValue}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, eurValue: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="0.00"
+                  placeholder="es. 100.00"
                   required
                 />
-                {currentPrice && transactionForm.quantity && (
+                {currentPrice && transactionForm.quantity && !isNaN(parseFloat(transactionForm.quantity)) && (
                   <div className="text-xs text-gray-500 mt-1">
                     💡 {transactionForm.quantity} × {formatCurrency(currentPrice)} = {formatCurrency(parseFloat(transactionForm.quantity) * currentPrice)}
                   </div>
@@ -980,69 +893,70 @@ export default function CryptoPortfolioDetailPage() {
             <form onSubmit={handleEditTransaction} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                <select
-                  value={transactionForm.type}
-                  onChange={(e) => setTransactionForm(prev => ({ ...prev, type: e.target.value as 'buy' | 'sell' }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="buy">📈 Acquisto (Buy)</option>
-                  <option value="sell">📉 Vendita (Sell)</option>
-                </select>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setTransactionForm(prev => ({ ...prev, type: 'buy' }))}
+                    className={`flex-1 px-3 py-2 border rounded-md text-sm font-medium ${
+                      transactionForm.type === 'buy'
+                        ? 'bg-green-100 border-green-500 text-green-700'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    💰 Buy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTransactionForm(prev => ({ ...prev, type: 'sell' }))}
+                    className={`flex-1 px-3 py-2 border rounded-md text-sm font-medium ${
+                      transactionForm.type === 'sell'
+                        ? 'bg-red-100 border-red-500 text-red-700'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    💸 Sell
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ticker Crypto
+                  Asset (Ticker)
+                  {fetchingPrice && <span className="text-blue-500 ml-2">🔍 Cercando prezzo...</span>}
                 </label>
                 <input
                   type="text"
                   value={transactionForm.ticker}
                   onChange={(e) => {
-                    const ticker = e.target.value.toUpperCase()
-                    setTransactionForm(prev => ({ ...prev, ticker }))
+                    const value = e.target.value.toUpperCase()
+                    setTransactionForm(prev => ({ ...prev, ticker: value }))
                     
-                    // 🔧 FETCH PREZZO CON DEBOUNCE quando cambia ticker
-                    if (ticker.length >= 3) {
-                      debouncedFetchPrice(ticker)
+                    if (value.length >= 3) {
+                      debouncedFetchPrice(value)
                     } else {
                       setCurrentPrice(null)
-                      // Cancella timeout se ticker troppo corto
-                      if (priceTimeout) {
-                        clearTimeout(priceTimeout)
-                        setPriceTimeout(null)
-                      }
                     }
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="es. SOL, ETH, BTC"
+                  placeholder="es. BTC, ETH, SOL"
                   required
                 />
-                {/* 🔧 INDICATORE PREZZO CORRENTE */}
-                {fetchingPrice && (
-                  <div className="text-sm text-blue-600 mt-1">
-                    🔄 Recupero prezzo...
-                  </div>
-                )}
-                {currentPrice && !fetchingPrice && (
-                  <div className="text-sm text-green-600 mt-1">
-                    💰 Prezzo corrente: {formatCurrency(currentPrice)}
+                {currentPrice && (
+                  <div className="text-xs text-green-600 mt-1">
+                    💹 Prezzo corrente: {formatCurrency(currentPrice)}
                   </div>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Quantità
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantità</label>
                 <input
                   type="number"
                   step="any"
-                  min="0"
                   value={transactionForm.quantity}
                   onChange={(e) => {
                     setTransactionForm(prev => ({ ...prev, quantity: e.target.value }))
                     
-                    // 🔧 RICALCOLA VALORE EUR quando cambia quantità
                     if (currentPrice && e.target.value && !isNaN(parseFloat(e.target.value))) {
                       const quantity = parseFloat(e.target.value)
                       const calculatedValue = Math.round(quantity * currentPrice * 100) / 100
@@ -1050,26 +964,23 @@ export default function CryptoPortfolioDetailPage() {
                     }
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="0.00"
+                  placeholder="es. 1.5"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Valore EUR {currentPrice && '(calcolato automaticamente)'}
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Valore EUR</label>
                 <input
                   type="number"
                   step="0.01"
-                  min="0"
                   value={transactionForm.eurValue}
                   onChange={(e) => setTransactionForm(prev => ({ ...prev, eurValue: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="0.00"
+                  placeholder="es. 100.00"
                   required
                 />
-                {currentPrice && transactionForm.quantity && (
+                {currentPrice && transactionForm.quantity && !isNaN(parseFloat(transactionForm.quantity)) && (
                   <div className="text-xs text-gray-500 mt-1">
                     💡 {transactionForm.quantity} × {formatCurrency(currentPrice)} = {formatCurrency(parseFloat(transactionForm.quantity) * currentPrice)}
                   </div>
@@ -1156,7 +1067,7 @@ export default function CryptoPortfolioDetailPage() {
                   value={portfolioForm.description}
                   onChange={(e) => setPortfolioForm(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="es. Portfolio principale per crypto diversificate"
+                  placeholder="es. Portfolio principale per trading crypto"
                   rows={3}
                 />
               </div>
@@ -1183,4 +1094,144 @@ export default function CryptoPortfolioDetailPage() {
       )}
     </div>
   )
+
+  // 🔧 FORM HANDLERS
+  async function handleAddTransaction(e: React.FormEvent) {
+    e.preventDefault()
+
+    if (!transactionForm.ticker || !transactionForm.quantity || !transactionForm.eurValue) {
+      alert('Compila tutti i campi obbligatori')
+      return
+    }
+
+    setSubmitLoading(true)
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: transactionForm.type,
+          assetSymbol: transactionForm.ticker,
+          quantity: parseFloat(transactionForm.quantity),
+          eurValue: parseFloat(transactionForm.eurValue),
+          date: transactionForm.date,
+          notes: transactionForm.notes || null
+        })
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        setShowAddTransaction(false)
+        resetTransactionForm()
+        alert('Transazione aggiunta con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Aggiunta transazione fallita'}`)
+      }
+    } catch (error) {
+      console.error('Error adding transaction:', error)
+      alert('Errore durante l\'aggiunta della transazione')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  async function handleEditTransaction(e: React.FormEvent) {
+    e.preventDefault()
+
+    if (!editingTransaction || !transactionForm.ticker || !transactionForm.quantity || !transactionForm.eurValue) {
+      alert('Compila tutti i campi obbligatori')
+      return
+    }
+
+    setSubmitLoading(true)
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions/${editingTransaction.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: transactionForm.type,
+          assetSymbol: transactionForm.ticker,
+          quantity: parseFloat(transactionForm.quantity),
+          eurValue: parseFloat(transactionForm.eurValue),
+          date: transactionForm.date,
+          notes: transactionForm.notes || null
+        })
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        setShowEditTransaction(false)
+        setEditingTransaction(null)
+        resetTransactionForm()
+        alert('Transazione modificata con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Modifica transazione fallita'}`)
+      }
+    } catch (error) {
+      console.error('Error editing transaction:', error)
+      alert('Errore durante la modifica della transazione')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  async function handleEditPortfolio(e: React.FormEvent) {
+    e.preventDefault()
+
+    if (!portfolioForm.name.trim()) {
+      alert('Nome portfolio è obbligatorio')
+      return
+    }
+
+    setSubmitLoading(true)
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: portfolioForm.name.trim(),
+          description: portfolioForm.description.trim() || null
+        })
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        setShowEditPortfolio(false)
+        alert('Portfolio modificato con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Modifica portfolio fallita'}`)
+      }
+    } catch (error) {
+      console.error('Error editing portfolio:', error)
+      alert('Errore durante la modifica del portfolio')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  async function handleDeleteTransaction(transactionId: number) {
+    if (!confirm('Sei sicuro di voler eliminare questa transazione?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions/${transactionId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        alert('Transazione eliminata con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Eliminazione transazione fallita'}`)
+      }
+    } catch (error) {
+      console.error('Error deleting transaction:', error)
+      alert('Errore durante l\'eliminazione della transazione')
+    }
+  }
 }
