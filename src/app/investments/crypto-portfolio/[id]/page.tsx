@@ -79,6 +79,7 @@ export default function CryptoPortfolioDetailPage() {
   const [portfolio, setPortfolio] = useState<CryptoPortfolio | null>(null)
   const [loading, setLoading] = useState(true)
   const [priceLoading, setPriceLoading] = useState(false)
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({})
 
   // 🔧 STATI MODAL E FORM
   const [showAddTransaction, setShowAddTransaction] = useState(false)
@@ -87,7 +88,7 @@ export default function CryptoPortfolioDetailPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
 
-  // 🔧 FORM TRANSAZIONE (SEMPLIFICATO - no auto-fetch nel modal)
+  // 🔧 FORM TRANSAZIONE con auto-fetch prezzo
   const [transactionForm, setTransactionForm] = useState({
     type: 'buy' as 'buy' | 'sell',
     ticker: '',
@@ -97,11 +98,76 @@ export default function CryptoPortfolioDetailPage() {
     notes: ''
   })
 
+  // 🔧 STATO PER PREZZO CORRENTE
+  const [currentPrice, setCurrentPrice] = useState<number | null>(null)
+  const [fetchingPrice, setFetchingPrice] = useState(false)
+  const [priceTimeout, setPriceTimeout] = useState<NodeJS.Timeout | null>(null)
+
   // 🔧 FORM PORTFOLIO SETTINGS
   const [portfolioForm, setPortfolioForm] = useState({
     name: '',
     description: ''
   })
+
+  // 🔧 FETCH PREZZO DA CRYPTOPRICES.CC con debounce
+  const debouncedFetchPrice = (ticker: string) => {
+    // Cancella il timeout precedente
+    if (priceTimeout) {
+      clearTimeout(priceTimeout)
+    }
+    
+    // Imposta un nuovo timeout
+    const newTimeout = setTimeout(() => {
+      fetchCryptoPrice(ticker)
+    }, 500) // Attende 500ms dopo l'ultimo input
+    
+    setPriceTimeout(newTimeout)
+  }
+
+  // 🔧 FETCH PREZZO DA CRYPTOPRICES.CC
+  const fetchCryptoPrice = async (ticker: string) => {
+    const cleanTicker = ticker.trim().toUpperCase()
+    
+    if (!cleanTicker || cleanTicker.length < 2) {
+      setCurrentPrice(null)
+      return
+    }
+
+    console.log(`🔍 Fetching price for: ${cleanTicker}`)
+    setFetchingPrice(true)
+    
+    try {
+      const response = await fetch(`/api/crypto-prices?symbols=${cleanTicker}`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        const price = data.prices?.[cleanTicker]
+        
+        if (price && price > 0) {
+          console.log(`✅ Price found for ${cleanTicker}: €${price}`)
+          setCurrentPrice(price)
+          
+          // Se abbiamo quantità, calcola automaticamente il valore EUR
+          if (transactionForm.quantity && !isNaN(parseFloat(transactionForm.quantity))) {
+            const quantity = parseFloat(transactionForm.quantity)
+            const calculatedValue = Math.round(quantity * price * 100) / 100
+            setTransactionForm(prev => ({ ...prev, eurValue: calculatedValue.toString() }))
+          }
+        } else {
+          console.warn(`⚠️ Prezzo non disponibile per ${cleanTicker}`)
+          setCurrentPrice(null)
+        }
+      } else {
+        console.error(`❌ Errore API (${response.status}) per ${cleanTicker}`)
+        setCurrentPrice(null)
+      }
+    } catch (error) {
+      console.error(`💥 Errore fetch prezzo per ${cleanTicker}:`, error)
+      setCurrentPrice(null)
+    } finally {
+      setFetchingPrice(false)
+    }
+  }
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
@@ -140,18 +206,70 @@ export default function CryptoPortfolioDetailPage() {
     fetchPortfolio()
   }, [portfolioId])
 
-  // 🔧 AGGIORNA PREZZI (per la pagina principale, non per il modal)
-  const updatePrices = async () => {
-    setPriceLoading(true)
+  // 🔧 FETCH PREZZI LIVE per tutti gli holding
+  const fetchLivePrices = async () => {
+    if (!portfolio || portfolio.holdings.length === 0) return
+    
     try {
-      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/update-prices`, {
-        method: 'POST'
-      })
+      const symbols = portfolio.holdings.map(h => h.asset.symbol).join(',')
+      console.log('🔄 Fetching live prices for:', symbols)
+      
+      const response = await fetch(`/api/crypto-prices?symbols=${symbols}&force=true`)
+      
       if (response.ok) {
-        await fetchPortfolio()
+        const data = await response.json()
+        console.log('✅ Live prices received:', data.prices)
+        setLivePrices(data.prices || {})
+      } else {
+        console.error('❌ Errore fetch prezzi live:', response.status)
       }
     } catch (error) {
-      console.error('Error updating prices:', error)
+      console.error('💥 Errore fetch prezzi live:', error)
+    }
+  }
+
+  // 🔧 CARICA PREZZI LIVE quando il portfolio si carica
+  useEffect(() => {
+    if (portfolio && portfolio.holdings.length > 0) {
+      fetchLivePrices()
+    }
+  }, [portfolio])
+
+  // 🔧 CLEANUP DEL TIMEOUT AL DISMOUNT
+  useEffect(() => {
+    return () => {
+      if (priceTimeout) {
+        clearTimeout(priceTimeout)
+      }
+    }
+  }, [priceTimeout])
+
+  // 🔧 AGGIORNA PREZZI LIVE (non database)
+  const updatePrices = async () => {
+    if (!portfolio || portfolio.holdings.length === 0) return
+    
+    setPriceLoading(true)
+    try {
+      const symbols = portfolio.holdings.map(h => h.asset.symbol).join(',')
+      
+      console.log('🔄 Aggiornando prezzi live per:', symbols)
+      
+      const response = await fetch(`/api/crypto-prices?symbols=${symbols}&force=true`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('✅ Prezzi live aggiornati:', data.prices)
+        setLivePrices(data.prices || {})
+        
+        // Mostra messaggio di successo
+        alert('Prezzi aggiornati con successo!')
+      } else {
+        console.error('❌ Errore aggiornamento prezzi:', response.status)
+        alert('Errore nell\'aggiornamento dei prezzi')
+      }
+    } catch (error) {
+      console.error('💥 Errore aggiornamento prezzi:', error)
+      alert('Errore nell\'aggiornamento dei prezzi')
     } finally {
       setPriceLoading(false)
     }
@@ -176,8 +294,8 @@ export default function CryptoPortfolioDetailPage() {
       return
     }
 
-    // 🔧 CALCOLA PREZZO PER UNITÀ (come DCA BTC)
-    const pricePerUnit = eurValue / quantity
+    // 🔧 USA PREZZO DA CRYPTOPRICES.CC se disponibile, altrimenti calcola manualmente
+    const pricePerUnit = currentPrice || (eurValue / quantity)
 
     // Controllo saldo per acquisti
     if (transactionForm.type === 'buy' && portfolio?.account && portfolio.account.balance < eurValue) {
@@ -195,7 +313,7 @@ export default function CryptoPortfolioDetailPage() {
           assetSymbol: transactionForm.ticker.toUpperCase(), // 🔧 CORRETTO: assetSymbol invece di ticker
           quantity: quantity,
           eurValue: eurValue,
-          pricePerUnit: pricePerUnit, // 🔧 CALCOLATO dall'utente, non da API
+          pricePerUnit: pricePerUnit, // 🔧 USA PREZZO DA CRYPTOPRICES.CC se disponibile
           broker: 'Manual Entry', // 🔧 AGGIUNTO: campo richiesto dall'API
           date: transactionForm.date,
           notes: transactionForm.notes || null
@@ -232,8 +350,8 @@ export default function CryptoPortfolioDetailPage() {
       return
     }
 
-    // 🔧 CALCOLA PREZZO PER UNITÀ (come DCA BTC)
-    const pricePerUnit = eurValue / quantity
+    // 🔧 USA PREZZO DA CRYPTOPRICES.CC se disponibile, altrimenti calcola manualmente
+    const pricePerUnit = currentPrice || (eurValue / quantity)
 
     setSubmitLoading(true)
     try {
@@ -246,7 +364,7 @@ export default function CryptoPortfolioDetailPage() {
           assetSymbol: transactionForm.ticker.toUpperCase(), // 🔧 CORRETTO: assetSymbol invece di ticker
           quantity: quantity,
           eurValue: eurValue,
-          pricePerUnit: pricePerUnit, // 🔧 CALCOLATO dall'utente, non da API
+          pricePerUnit: pricePerUnit, // 🔧 USA PREZZO DA CRYPTOPRICES.CC se disponibile
           broker: 'Manual Entry', // 🔧 AGGIUNTO: campo richiesto dall'API
           date: transactionForm.date,
           notes: transactionForm.notes || null
@@ -362,6 +480,12 @@ export default function CryptoPortfolioDetailPage() {
       date: new Date().toISOString().split('T')[0],
       notes: ''
     })
+    // 🔧 PULISCI ANCHE PREZZO CORRENTE E TIMEOUT
+    setCurrentPrice(null)
+    if (priceTimeout) {
+      clearTimeout(priceTimeout)
+      setPriceTimeout(null)
+    }
   }
 
   const openEditTransaction = (transaction: Transaction) => {
@@ -374,6 +498,12 @@ export default function CryptoPortfolioDetailPage() {
       date: transaction.date.split('T')[0],
       notes: transaction.notes || ''
     })
+    
+    // 🔧 FETCH PREZZO CORRENTE per il ticker esistente (immediato, non debounced)
+    if (transaction.asset.symbol && transaction.asset.symbol.length >= 3) {
+      fetchCryptoPrice(transaction.asset.symbol)
+    }
+    
     setShowEditTransaction(true)
   }
 
@@ -503,7 +633,7 @@ export default function CryptoPortfolioDetailPage() {
               disabled={priceLoading}
               className="flex items-center gap-2 px-3 py-1 text-sm bg-adaptive-100 text-adaptive-700 rounded-md hover:bg-adaptive-200 disabled:opacity-50"
             >
-              {priceLoading ? '⏳' : '🔄 Aggiorna Prezzi'}
+              {priceLoading ? '⏳ Aggiornamento...' : '🔄 Aggiorna Prezzi'}
             </button>
           </div>
         </div>
@@ -530,8 +660,12 @@ export default function CryptoPortfolioDetailPage() {
                 </thead>
                 <tbody>
                   {portfolio.holdings.map(holding => {
-                    const currentPrice = holding.currentPrice || holding.avgPrice
-                    const currentValue = holding.valueEur || (holding.quantity * currentPrice)
+                    // 🔧 USA PREZZI LIVE invece di quelli nel database
+                    const livePrice = livePrices[holding.asset.symbol]
+                    const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                    const currentValue = livePrice 
+                      ? holding.quantity * livePrice 
+                      : (holding.valueEur || (holding.quantity * currentPrice))
                     const unrealizedPL = currentValue - holding.totalInvested
 
                     return (
@@ -548,11 +682,13 @@ export default function CryptoPortfolioDetailPage() {
                         </td>
                         <td className="text-right py-3 px-4">
                           <span className={
-                            holding.currentPrice ? 
+                            livePrice ? 'text-green-600 font-semibold' : 
+                            (holding.currentPrice ? 
                             (currentPrice > holding.avgPrice ? 'text-green-600' : 'text-red-600') : 
-                            'text-adaptive-600'
+                            'text-adaptive-600')
                           }>
                             {formatCurrency(currentPrice)}
+                            {livePrice && <span className="text-xs ml-1">🔴 LIVE</span>}
                           </span>
                         </td>
                         <td className="text-right py-3 px-4 font-semibold">
@@ -701,33 +837,64 @@ export default function CryptoPortfolioDetailPage() {
                   onChange={(e) => {
                     const ticker = e.target.value.toUpperCase()
                     setTransactionForm(prev => ({ ...prev, ticker }))
+                    
+                    // 🔧 FETCH PREZZO CON DEBOUNCE quando cambia ticker
+                    if (ticker.length >= 3) {
+                      debouncedFetchPrice(ticker)
+                    } else {
+                      setCurrentPrice(null)
+                      // Cancella timeout se ticker troppo corto
+                      if (priceTimeout) {
+                        clearTimeout(priceTimeout)
+                        setPriceTimeout(null)
+                      }
+                    }
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="es. BTC, ETH, SOL, ADA..."
-                  style={{ textTransform: 'uppercase' }}
+                  placeholder="es. SOL, ETH, BTC"
                   required
                 />
+                {/* 🔧 INDICATORE PREZZO CORRENTE */}
+                {fetchingPrice && (
+                  <div className="text-sm text-blue-600 mt-1">
+                    🔄 Recupero prezzo...
+                  </div>
+                )}
+                {currentPrice && !fetchingPrice && (
+                  <div className="text-sm text-green-600 mt-1">
+                    💰 Prezzo corrente: {formatCurrency(currentPrice)}
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Quantità Crypto
+                  Quantità
                 </label>
                 <input
                   type="number"
                   step="any"
                   min="0"
                   value={transactionForm.quantity}
-                  onChange={(e) => setTransactionForm(prev => ({ ...prev, quantity: e.target.value }))}
+                  onChange={(e) => {
+                    setTransactionForm(prev => ({ ...prev, quantity: e.target.value }))
+                    
+                    // 🔧 RICALCOLA VALORE EUR quando cambia quantità
+                    if (currentPrice && e.target.value && !isNaN(parseFloat(e.target.value))) {
+                      const quantity = parseFloat(e.target.value)
+                      const calculatedValue = Math.round(quantity * currentPrice * 100) / 100
+                      setTransactionForm(prev => ({ ...prev, eurValue: calculatedValue.toString() }))
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="0.00000000"
+                  placeholder="0.00"
                   required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Valore EUR
+                  Valore EUR {currentPrice && '(calcolato automaticamente)'}
                 </label>
                 <input
                   type="number"
@@ -739,13 +906,10 @@ export default function CryptoPortfolioDetailPage() {
                   placeholder="0.00"
                   required
                 />
-                {/* 🔧 MOSTRA PREZZO CALCOLATO */}
-                {transactionForm.quantity && transactionForm.eurValue && 
-                 !isNaN(parseFloat(transactionForm.quantity)) && 
-                 !isNaN(parseFloat(transactionForm.eurValue)) && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Prezzo per unità: {formatCurrency(parseFloat(transactionForm.eurValue) / parseFloat(transactionForm.quantity))}
-                  </p>
+                {currentPrice && transactionForm.quantity && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    💡 {transactionForm.quantity} × {formatCurrency(currentPrice)} = {formatCurrency(parseFloat(transactionForm.quantity) * currentPrice)}
+                  </div>
                 )}
               </div>
 
@@ -836,33 +1000,64 @@ export default function CryptoPortfolioDetailPage() {
                   onChange={(e) => {
                     const ticker = e.target.value.toUpperCase()
                     setTransactionForm(prev => ({ ...prev, ticker }))
+                    
+                    // 🔧 FETCH PREZZO CON DEBOUNCE quando cambia ticker
+                    if (ticker.length >= 3) {
+                      debouncedFetchPrice(ticker)
+                    } else {
+                      setCurrentPrice(null)
+                      // Cancella timeout se ticker troppo corto
+                      if (priceTimeout) {
+                        clearTimeout(priceTimeout)
+                        setPriceTimeout(null)
+                      }
+                    }
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="es. BTC, ETH, SOL, ADA..."
-                  style={{ textTransform: 'uppercase' }}
+                  placeholder="es. SOL, ETH, BTC"
                   required
                 />
+                {/* 🔧 INDICATORE PREZZO CORRENTE */}
+                {fetchingPrice && (
+                  <div className="text-sm text-blue-600 mt-1">
+                    🔄 Recupero prezzo...
+                  </div>
+                )}
+                {currentPrice && !fetchingPrice && (
+                  <div className="text-sm text-green-600 mt-1">
+                    💰 Prezzo corrente: {formatCurrency(currentPrice)}
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Quantità Crypto
+                  Quantità
                 </label>
                 <input
                   type="number"
                   step="any"
                   min="0"
                   value={transactionForm.quantity}
-                  onChange={(e) => setTransactionForm(prev => ({ ...prev, quantity: e.target.value }))}
+                  onChange={(e) => {
+                    setTransactionForm(prev => ({ ...prev, quantity: e.target.value }))
+                    
+                    // 🔧 RICALCOLA VALORE EUR quando cambia quantità
+                    if (currentPrice && e.target.value && !isNaN(parseFloat(e.target.value))) {
+                      const quantity = parseFloat(e.target.value)
+                      const calculatedValue = Math.round(quantity * currentPrice * 100) / 100
+                      setTransactionForm(prev => ({ ...prev, eurValue: calculatedValue.toString() }))
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="0.00000000"
+                  placeholder="0.00"
                   required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Valore EUR
+                  Valore EUR {currentPrice && '(calcolato automaticamente)'}
                 </label>
                 <input
                   type="number"
@@ -874,13 +1069,10 @@ export default function CryptoPortfolioDetailPage() {
                   placeholder="0.00"
                   required
                 />
-                {/* 🔧 MOSTRA PREZZO CALCOLATO */}
-                {transactionForm.quantity && transactionForm.eurValue && 
-                 !isNaN(parseFloat(transactionForm.quantity)) && 
-                 !isNaN(parseFloat(transactionForm.eurValue)) && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Prezzo per unità: {formatCurrency(parseFloat(transactionForm.eurValue) / parseFloat(transactionForm.quantity))}
-                  </p>
+                {currentPrice && transactionForm.quantity && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    💡 {transactionForm.quantity} × {formatCurrency(currentPrice)} = {formatCurrency(parseFloat(transactionForm.quantity) * currentPrice)}
+                  </div>
                 )}
               </div>
 
