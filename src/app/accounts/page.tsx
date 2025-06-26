@@ -1,4 +1,4 @@
-// src/app/accounts/page.tsx - ENHANCED CASH FLOW EDITION
+// src/app/accounts/page.tsx - FIXED VERSION with Transfer functionality
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
@@ -15,354 +15,349 @@ interface Account {
   isDefault: boolean
 }
 
-// 🎯 INTERFACCIA PORTFOLIO ENHANCED (uguale alla pagina investments)
 interface Portfolio {
   id: number
   name: string
   accountId: number
   type?: 'dca_bitcoin' | 'crypto_wallet'
   stats: {
-    // Enhanced Cash Flow Fields (source of truth)
     totalInvested: number
     capitalRecovered: number
     effectiveInvestment: number
     realizedProfit: number
     isFullyRecovered: boolean
-    
-    // Portfolio-specific fields
-    totalValueEur?: number // Per crypto portfolios
-    netBTC?: number // Per DCA portfolios (PRIORITÀ ASSOLUTA)
-    totalBTC?: number // Fallback per DCA portfolios
-    totalROI?: number // Calcolato dal backend quando disponibile
-    
-    // Counts
+    totalValueEur?: number
+    netBTC?: number
+    totalBTC?: number
+    totalROI?: number
     transactionCount: number
     buyCount: number
     sellCount?: number
-    
-    // Legacy fields (backwards compatibility)
     realizedGains?: number
     unrealizedGains?: number
     totalGains?: number
   }
 }
 
-interface BitcoinPrice {
-  btcUsd: number
-  btcEur: number
-  cached: boolean
-}
-
 interface Transfer {
   id: number
+  fromAccountId: number
+  toAccountId: number
   amount: number
   description: string
   date: string
-  fromAccount: { id: number; name: string }
-  toAccount: { id: number; name: string }
+  fromAccount: { name: string }
+  toAccount: { name: string }
 }
 
-// 🎯 ENHANCED ACCOUNT BREAKDOWN
-interface EnhancedAccountBreakdown {
-  // Enhanced Cash Flow Metrics
-  totalInvested: number
-  totalCapitalRecovered: number
-  totalEffectiveInvestment: number
-  totalRealizedProfit: number
-  
-  // Current Performance  
-  totalCurrentValue: number
-  totalUnrealizedGains: number
-  totalROI: number
-  
-  // Account specific
-  accountBalance: number
-  unknownFunds: number
-  linkedPortfolios: number
-}
-
-export default function EnhancedAccountsPage() {
+export default function AccountsPage() {
+  // Stati esistenti
   const [accounts, setAccounts] = useState<Account[]>([])
-  const [dcaPortfolios, setDcaPortfolios] = useState<Portfolio[]>([])
+  const [dcaPortfolios, setDCAPortfolios] = useState<Portfolio[]>([])
   const [cryptoPortfolios, setCryptoPortfolios] = useState<Portfolio[]>([])
-  const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null)
-  const [transfers, setTransfers] = useState<Transfer[]>([])
   const [loading, setLoading] = useState(true)
-  
-  // Modal states
   const [showAccountModal, setShowAccountModal] = useState(false)
-  const [showTransferModal, setShowTransferModal] = useState(false)
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
-  
-  // Form states
-  const [accountForm, setAccountForm] = useState({
-    name: '',
-    type: 'bank' as 'bank' | 'investment'
-  })
-  
+  const [accountForm, setAccountForm] = useState({ name: '', type: 'bank' as 'bank' | 'investment' })
+
+  // 🔧 NUOVI STATI per trasferimenti
+  const [transfers, setTransfers] = useState<Transfer[]>([])
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [editingTransfer, setEditingTransfer] = useState<Transfer | null>(null)
   const [transferForm, setTransferForm] = useState({
-    amount: '',
-    description: '',
     fromAccountId: '',
     toAccountId: '',
-    date: new Date().toISOString().split('T')[0]
+    amount: '',
+    description: '',
+    date: new Date().toISOString().split('T')[0] // 🔧 AGGIUNTO: campo data
   })
+  const [transferLoading, setTransferLoading] = useState(false)
 
-  // UI states
-  const [showBankAccounts, setShowBankAccounts] = useState(true)
-  const [showInvestmentAccounts, setShowInvestmentAccounts] = useState(true)
-  const [showTransfers, setShowTransfers] = useState(true)
+  const formatCurrency = (amount: number) => 
+    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
 
-  useEffect(() => {
-    fetchData()
-    fetchBitcoinPrice()
-  }, [])
+  const formatPercentage = (value: number) => 
+    new Intl.NumberFormat('it-IT', { style: 'percent', minimumFractionDigits: 2 }).format(value / 100)
 
+  // Caricamento dati
   const fetchData = async () => {
     setLoading(true)
     try {
-      const [accountsRes, dcaRes, cryptoRes] = await Promise.all([
+      const [accountsRes, dcaRes, cryptoRes, transfersRes] = await Promise.all([
         fetch('/api/accounts'),
         fetch('/api/dca-portfolios'),
-        fetch('/api/crypto-portfolios')
+        fetch('/api/crypto-portfolios'),
+        fetch('/api/transfers').catch(() => ({ ok: false })) // 🔧 SICUREZZA: Gestisci errore se API non esiste
       ])
 
-      if (accountsRes.ok) {
-        const accountsData = await accountsRes.json()
-        setAccounts(Array.isArray(accountsData) ? accountsData : [])
-      }
-
-      if (dcaRes.ok) {
-        const dcaData = await dcaRes.json()
-        setDcaPortfolios(Array.isArray(dcaData) ? dcaData : [])
-      }
-
-      if (cryptoRes.ok) {
-        const cryptoData = await cryptoRes.json()
-        setCryptoPortfolios(Array.isArray(cryptoData) ? cryptoData : [])
-      }
-
-      // Try to load transfers separately
-      try {
-        const transfersRes = await fetch('/api/transfers?limit=5')
-        if (transfersRes.ok) {
+      if (accountsRes.ok) setAccounts(await accountsRes.json())
+      if (dcaRes.ok) setDCAPortfolios(await dcaRes.json())
+      if (cryptoRes.ok) setCryptoPortfolios(await cryptoRes.json())
+      
+      // 🔧 SICUREZZA: Controlla che la risposta sia un array valido
+      if (transfersRes.ok) {
+        try {
           const transfersData = await transfersRes.json()
-          setTransfers(Array.isArray(transfersData) ? transfersData : [])
+          // 🔧 CORRETTO: L'API restituisce { transfers: [...], pagination: {...} }
+          if (transfersData && transfersData.transfers && Array.isArray(transfersData.transfers)) {
+            setTransfers(transfersData.transfers)
+          } else if (Array.isArray(transfersData)) {
+            // Fallback se l'API cambia e restituisce direttamente l'array
+            setTransfers(transfersData)
+          } else {
+            console.warn('Transfers API returned unexpected format:', transfersData)
+            setTransfers([])
+          }
+        } catch (error) {
+          console.warn('Transfers API error:', error)
+          setTransfers([]) // Fallback a array vuoto
         }
-      } catch (transferError) {
-        console.log('Transfers API not available')
-        setTransfers([])
+      } else {
+        console.warn('Transfers API not available or returned error')
+        setTransfers([]) // Fallback a array vuoto se API non esiste
       }
-        
     } catch (error) {
       console.error('Error fetching data:', error)
+      // 🔧 SICUREZZA: Assicurati che gli stati siano sempre array validi
+      setTransfers([])
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchBitcoinPrice = async () => {
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  // 🔧 NUOVA FUNZIONE: Modifica trasferimento
+  const handleEditTransfer = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (transferLoading || !editingTransfer) return
+
+    // Validazioni (stesse del create)
+    if (!transferForm.fromAccountId || !transferForm.toAccountId || !transferForm.amount) {
+      alert('Compila tutti i campi obbligatori')
+      return
+    }
+
+    if (transferForm.fromAccountId === transferForm.toAccountId) {
+      alert('Non puoi trasferire denaro sullo stesso conto')
+      return
+    }
+
+    const amount = parseFloat(transferForm.amount)
+    if (isNaN(amount) || amount <= 0) {
+      alert('Inserisci un importo valido')
+      return
+    }
+
+    setTransferLoading(true)
     try {
-      const response = await fetch('/api/bitcoin-price')
+      const response = await fetch(`/api/transfers/${editingTransfer.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromAccountId: parseInt(transferForm.fromAccountId),
+          toAccountId: parseInt(transferForm.toAccountId),
+          amount: amount,
+          description: transferForm.description || `Trasferimento di ${formatCurrency(amount)}`,
+          date: transferForm.date || editingTransfer.date
+        })
+      })
+
       if (response.ok) {
-        const data = await response.json()
-        setBtcPrice(data)
+        await fetchData()
+        setShowTransferModal(false)
+        setEditingTransfer(null)
+        resetTransferForm()
+        alert('Trasferimento modificato con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Modifica trasferimento fallita'}`)
       }
     } catch (error) {
-      console.error('Errore nel recupero prezzo Bitcoin:', error)
+      console.error('Error editing transfer:', error)
+      alert('Errore durante la modifica del trasferimento')
+    } finally {
+      setTransferLoading(false)
     }
   }
 
-  // Format functions (stesse della pagina investments)
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount)
-  }
+  // 🔧 NUOVA FUNZIONE: Cancella trasferimento
+  const handleDeleteTransfer = async (transferId: number) => {
+    if (!confirm('Sei sicuro di voler eliminare questo trasferimento?')) return
 
-  const formatPercentage = (value: number) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
-  }
+    try {
+      const response = await fetch(`/api/transfers/${transferId}`, {
+        method: 'DELETE'
+      })
 
-  // 🎯 ENHANCED CALCULATION FUNCTIONS (stesse della pagina investments con safety checks)
-  
-  // DCA Current Value con safety check
-  const getDCACurrentValue = (portfolio: Portfolio) => {
-    if (portfolio.type !== 'dca_bitcoin') {
-      console.warn(`getDCACurrentValue called for non-DCA portfolio ${portfolio.name}`)
-      return 0
-    }
-    
-    if (!btcPrice?.btcEur) return 0
-    
-    // Priorità assoluta: usa netBTC se disponibile
-    if (portfolio.stats.netBTC !== undefined && portfolio.stats.netBTC !== null) {
-      return portfolio.stats.netBTC * btcPrice.btcEur
-    }
-    
-    // Fallback: usa totalBTC
-    if (portfolio.stats.totalBTC !== undefined && portfolio.stats.totalBTC !== null && portfolio.stats.totalBTC > 0) {
-      return portfolio.stats.totalBTC * btcPrice.btcEur
-    }
-    
-    return 0
-  }
-
-  // Portfolio ROI calculation con safety check
-  const getPortfolioROI = (portfolio: Portfolio) => {
-    if (portfolio.stats.totalROI !== undefined && portfolio.stats.totalROI !== null) {
-      return portfolio.stats.totalROI
-    }
-    
-    const isCryptoWallet = cryptoPortfolios.includes(portfolio)
-    const currentValue = isCryptoWallet 
-      ? (portfolio.stats.totalValueEur || 0)
-      : getDCACurrentValue(portfolio)
-    
-    const effectiveInvestment = portfolio.stats.effectiveInvestment || 0
-    const realizedProfit = portfolio.stats.realizedProfit || 0
-    const totalInvested = portfolio.stats.totalInvested || 0
-    
-    if (totalInvested <= 0) return 0
-    
-    const unrealizedGains = currentValue - effectiveInvestment
-    const totalGains = realizedProfit + unrealizedGains
-    
-    return (totalGains / totalInvested) * 100
-  }
-
-  // Portfolio Total Gains calculation con safety check
-  const getPortfolioTotalGains = (portfolio: Portfolio) => {
-    const isCryptoWallet = cryptoPortfolios.includes(portfolio)
-    const currentValue = isCryptoWallet 
-      ? (portfolio.stats.totalValueEur || 0)
-      : getDCACurrentValue(portfolio)
-    
-    const effectiveInvestment = portfolio.stats.effectiveInvestment || 0
-    const realizedProfit = portfolio.stats.realizedProfit || 0
-    
-    const unrealizedGains = currentValue - effectiveInvestment
-    return realizedProfit + unrealizedGains
-  }
-
-  // 🎯 ENHANCED OVERALL STATS (stessi della pagina investments)
-  const overallStats = useMemo(() => {
-    const allPortfolios = [...dcaPortfolios, ...cryptoPortfolios]
-    
-    // Enhanced Cash Flow: Somma tutte le stats dai portfolio backend
-    const totalInvested = allPortfolios.reduce((sum, p) => sum + (p.stats.totalInvested || 0), 0)
-    const totalCapitalRecovered = allPortfolios.reduce((sum, p) => sum + (p.stats.capitalRecovered || 0), 0)
-    const totalEffectiveInvestment = allPortfolios.reduce((sum, p) => sum + (p.stats.effectiveInvestment || 0), 0)
-    const totalRealizedProfit = allPortfolios.reduce((sum, p) => sum + (p.stats.realizedProfit || 0), 0)
-    
-    // Calcola current value usando helper functions Enhanced
-    let totalCurrentValue = 0
-    allPortfolios.forEach(portfolio => {
-      const portfolioType = dcaPortfolios.includes(portfolio) ? 'dca_bitcoin' : 'crypto_wallet'
-      
-      if (portfolioType === 'crypto_wallet') {
-        totalCurrentValue += portfolio.stats.totalValueEur || 0
+      if (response.ok) {
+        await fetchData()
+        alert('Trasferimento eliminato con successo!')
       } else {
-        totalCurrentValue += getDCACurrentValue(portfolio)
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Eliminazione fallita'}`)
       }
-    })
-    
-    const totalUnrealizedGains = totalCurrentValue - totalEffectiveInvestment
-    const overallROI = totalInvested > 0 ? 
-      ((totalRealizedProfit + totalUnrealizedGains) / totalInvested) * 100 : 0
-
-    return {
-      totalInvested,
-      totalCapitalRecovered,
-      totalEffectiveInvestment,
-      totalRealizedProfit,
-      isFullyRecovered: totalCapitalRecovered >= totalInvested,
-      totalCurrentValue,
-      totalUnrealizedGains,
-      overallROI,
-      totalPortfolios: allPortfolios.length,
-      dcaCount: dcaPortfolios.length,
-      cryptoCount: cryptoPortfolios.length
+    } catch (error) {
+      console.error('Error deleting transfer:', error)
+      alert('Errore durante l\'eliminazione del trasferimento')
     }
-  }, [dcaPortfolios, cryptoPortfolios, btcPrice])
+  }
 
-  // 🎯 ENHANCED ACCOUNT BREAKDOWNS
-  const enhancedAccountBreakdowns = useMemo(() => {
-    const breakdowns: {[key: number]: EnhancedAccountBreakdown} = {}
-    
-    accounts.filter(acc => acc.type === 'investment').forEach(account => {
-      const accountPortfolios = [...dcaPortfolios, ...cryptoPortfolios].filter(p => p.accountId === account.id)
-      
-      if (accountPortfolios.length > 0) {
-        // Aggrega Enhanced metrics dai portfolio
-        const totalInvested = accountPortfolios.reduce((sum, p) => sum + (p.stats.totalInvested || 0), 0)
-        const totalCapitalRecovered = accountPortfolios.reduce((sum, p) => sum + (p.stats.capitalRecovered || 0), 0)
-        const totalEffectiveInvestment = accountPortfolios.reduce((sum, p) => sum + (p.stats.effectiveInvestment || 0), 0)
-        const totalRealizedProfit = accountPortfolios.reduce((sum, p) => sum + (p.stats.realizedProfit || 0), 0)
-        
-        // Calcola current value per questo account
-        let totalCurrentValue = 0
-        accountPortfolios.forEach(portfolio => {
-          const portfolioType = dcaPortfolios.includes(portfolio) ? 'dca_bitcoin' : 'crypto_wallet'
-          
-          if (portfolioType === 'crypto_wallet') {
-            totalCurrentValue += portfolio.stats.totalValueEur || 0
-          } else {
-            totalCurrentValue += getDCACurrentValue(portfolio)
-          }
-        })
-        
-        const totalUnrealizedGains = totalCurrentValue - totalEffectiveInvestment
-        const totalROI = totalInvested > 0 ? 
-          ((totalRealizedProfit + totalUnrealizedGains) / totalInvested) * 100 : 0
-        
-        // Unknown funds = balance - capital recovered - realized profit
-        const trackedFunds = totalCapitalRecovered + totalRealizedProfit
-        const unknownFunds = Math.max(0, account.balance - trackedFunds)
-        
-        breakdowns[account.id] = {
-          totalInvested,
-          totalCapitalRecovered,
-          totalEffectiveInvestment,
-          totalRealizedProfit,
-          totalCurrentValue,
-          totalUnrealizedGains,
-          totalROI,
-          accountBalance: account.balance,
-          unknownFunds,
-          linkedPortfolios: accountPortfolios.length
-        }
+  // 🔧 NUOVA FUNZIONE: Imposta conto predefinito
+  const handleSetDefaultAccount = async (accountId: number) => {
+    try {
+      const response = await fetch(`/api/accounts/${accountId}/set-default`, {
+        method: 'PUT'
+      })
+
+      if (response.ok) {
+        await fetchData()
+        alert('Conto predefinito aggiornato!')
       } else {
-        // Account without portfolios
-        breakdowns[account.id] = {
-          totalInvested: 0,
-          totalCapitalRecovered: 0,
-          totalEffectiveInvestment: 0,
-          totalRealizedProfit: 0,
-          totalCurrentValue: 0,
-          totalUnrealizedGains: 0,
-          totalROI: 0,
-          accountBalance: account.balance,
-          unknownFunds: account.balance,
-          linkedPortfolios: 0
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Aggiornamento fallito'}`)
+      }
+    } catch (error) {
+      console.error('Error setting default account:', error)
+      alert('Errore durante l\'aggiornamento del conto predefinito')
+    }
+  }
+
+  // 🔧 NUOVA FUNZIONE: Utility per reset e gestione form trasferimenti
+  const resetTransferForm = () => {
+    setTransferForm({ 
+      fromAccountId: '', 
+      toAccountId: '', 
+      amount: '', 
+      description: '', 
+      date: new Date().toISOString().split('T')[0] 
+    })
+  }
+
+  const openEditTransfer = (transfer: Transfer) => {
+    setEditingTransfer(transfer)
+    setTransferForm({
+      fromAccountId: transfer.fromAccountId.toString(),
+      toAccountId: transfer.toAccountId.toString(),
+      amount: transfer.amount.toString(),
+      description: transfer.description,
+      date: transfer.date.split('T')[0]
+    })
+    setShowTransferModal(true)
+  }
+  const handleTransferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (transferLoading) return
+
+    // Validazioni
+    if (!transferForm.fromAccountId || !transferForm.toAccountId || !transferForm.amount) {
+      alert('Compila tutti i campi obbligatori')
+      return
+    }
+
+    if (transferForm.fromAccountId === transferForm.toAccountId) {
+      alert('Non puoi trasferire denaro sullo stesso conto')
+      return
+    }
+
+    const amount = parseFloat(transferForm.amount)
+    if (isNaN(amount) || amount <= 0) {
+      alert('Inserisci un importo valido')
+      return
+    }
+
+    // Controlla saldo sufficiente
+    const fromAccount = accounts.find(a => a.id === parseInt(transferForm.fromAccountId))
+    if (fromAccount && fromAccount.balance < amount) {
+      alert('Saldo insufficiente nel conto di origine')
+      return
+    }
+
+    setTransferLoading(true)
+    try {
+      const response = await fetch('/api/transfers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromAccountId: parseInt(transferForm.fromAccountId),
+          toAccountId: parseInt(transferForm.toAccountId),
+          amount: amount,
+          description: transferForm.description || `Trasferimento di ${formatCurrency(amount)}`,
+          date: transferForm.date // 🔧 AGGIUNTO: includi la data nel submit
+        })
+      })
+
+      if (response.ok) {
+        await fetchData() // Ricarica tutto per aggiornare saldi e trasferimenti
+        setShowTransferModal(false)
+        setEditingTransfer(null) // 🔧 AGGIUNTO: Reset editing transfer
+        resetTransferForm() // 🔧 USATO: Funzione di reset corretta
+        alert('Trasferimento completato con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Trasferimento fallito'}`)
+      }
+    } catch (error) {
+      console.error('Error creating transfer:', error)
+      alert('Errore durante il trasferimento')
+    } finally {
+      setTransferLoading(false)
+    }
+  }
+
+  // Enhanced account breakdowns (logica esistente)
+  const enhancedAccountBreakdowns = useMemo(() => {
+    const breakdowns: Record<number, any> = {}
+    
+    accounts.forEach(account => {
+      const linkedDCAPortfolios = dcaPortfolios.filter(p => p.accountId === account.id)
+      const linkedCryptoPortfolios = cryptoPortfolios.filter(p => p.accountId === account.id)
+      const allLinkedPortfolios = [...linkedDCAPortfolios, ...linkedCryptoPortfolios]
+      
+      const totalInvested = allLinkedPortfolios.reduce((sum, p) => sum + (p.stats.totalInvested || 0), 0)
+      const totalCapitalRecovered = allLinkedPortfolios.reduce((sum, p) => sum + (p.stats.capitalRecovered || 0), 0)
+      const totalRealizedProfit = allLinkedPortfolios.reduce((sum, p) => sum + (p.stats.realizedProfit || 0), 0)
+      const totalEffectiveInvestment = allLinkedPortfolios.reduce((sum, p) => sum + (p.stats.effectiveInvestment || 0), 0)
+      
+      let totalCurrentValue = 0
+      allLinkedPortfolios.forEach(portfolio => {
+        const isCryptoWallet = cryptoPortfolios.includes(portfolio)
+        if (isCryptoWallet) {
+          totalCurrentValue += portfolio.stats.totalValueEur || 0
+        } else {
+          const netBTC = portfolio.stats.netBTC || portfolio.stats.totalBTC || 0
+          const btcPrice = 92534 // Prezzo di esempio, da sostituire con API reale
+          totalCurrentValue += netBTC * btcPrice
         }
+      })
+      
+      const totalUnrealizedProfit = Math.max(0, totalCurrentValue - totalEffectiveInvestment)
+      const totalROI = totalInvested > 0 ? ((totalRealizedProfit + totalUnrealizedProfit) / totalInvested) * 100 : 0
+      
+      breakdowns[account.id] = {
+        linkedPortfolios: allLinkedPortfolios.length,
+        totalInvested,
+        totalCapitalRecovered,
+        totalRealizedProfit,
+        totalEffectiveInvestment,
+        totalCurrentValue,
+        totalUnrealizedProfit,
+        totalROI,
+        unknownFunds: Math.max(0, account.balance - totalEffectiveInvestment)
       }
     })
     
     return breakdowns
-  }, [accounts, dcaPortfolios, cryptoPortfolios, btcPrice])
+  }, [accounts, dcaPortfolios, cryptoPortfolios])
 
-  // Filter arrays
-  const bankAccounts = accounts.filter(acc => acc.type === 'bank')
-  const investmentAccounts = accounts.filter(acc => acc.type === 'investment')
-
-  // Account management functions
+  // Funzioni esistenti per account
   const handleAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const url = editingAccount ? `/api/accounts/${editingAccount.id}` : '/api/accounts'
       const method = editingAccount ? 'PUT' : 'POST'
+      const url = editingAccount ? `/api/accounts/${editingAccount.id}` : '/api/accounts'
       
       const response = await fetch(url, {
         method,
@@ -402,6 +397,10 @@ export default function EnhancedAccountsPage() {
     setShowAccountModal(true)
   }
 
+  const bankAccounts = accounts.filter(account => account.type === 'bank')
+  const investmentAccounts = accounts.filter(account => account.type === 'investment')
+  const totalBalance = accounts.reduce((sum, account) => sum + account.balance, 0)
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -425,129 +424,176 @@ export default function EnhancedAccountsPage() {
           <h1 className="text-3xl font-bold text-adaptive-900">Conti</h1>
           <p className="text-adaptive-600 mt-2">Gestisci i tuoi conti bancari e di investimento con Enhanced Cash Flow</p>
         </div>
-        
         <div className="flex gap-3">
+          {/* 🔧 AGGIUNTO: Tasto Trasferimento */}
           <button
             onClick={() => setShowTransferModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2"
+            disabled={accounts.length < 2}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+            title={accounts.length < 2 ? "Serve almeno 2 conti per trasferire" : "Trasferisci denaro tra conti"}
           >
-            <ArrowsRightLeftIcon className="w-4 h-4" />
+            <ArrowsRightLeftIcon className="w-5 h-5" />
             Trasferimento
           </button>
+          
           <button
-            onClick={() => {
-              setAccountForm({ name: '', type: 'bank' })
-              setShowAccountModal(true)
-            }}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium flex items-center gap-2"
+            onClick={() => setShowAccountModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
           >
-            <PlusIcon className="w-4 h-4" />
+            <PlusIcon className="w-5 h-5" />
             Nuovo Conto
           </button>
         </div>
       </div>
 
-      {/* Enhanced Overview Stats */}
+      {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-        <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-          <h3 className="text-sm font-medium text-adaptive-500">🏦 Conti Bancari</h3>
-          <p className="text-2xl font-bold text-adaptive-900">
-            {formatCurrency(bankAccounts.reduce((sum, acc) => sum + acc.balance, 0))}
-          </p>
-          <p className="text-sm text-adaptive-600">{bankAccounts.length} conti</p>
+        <div className="bg-adaptive-50 border border-adaptive-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-adaptive-900 mb-2">💰 Saldo Totale</h3>
+          <p className="text-3xl font-bold text-adaptive-900">{formatCurrency(totalBalance)}</p>
         </div>
-
-        <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-          <h3 className="text-sm font-medium text-adaptive-500">📈 Liquidità Investimenti</h3>
-          <p className="text-2xl font-bold text-blue-600">
-            {formatCurrency(investmentAccounts.reduce((sum, acc) => sum + acc.balance, 0))}
-          </p>
-          <p className="text-sm text-adaptive-600">{investmentAccounts.length} conti</p>
+        
+        <div className="bg-adaptive-50 border border-adaptive-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-adaptive-900 mb-2">🏦 Conti Bancari</h3>
+          <p className="text-3xl font-bold text-adaptive-900">{bankAccounts.length}</p>
         </div>
-
-        <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-          <h3 className="text-sm font-medium text-adaptive-500">💰 Investito Totale</h3>
-          <p className="text-2xl font-bold text-orange-600">
-            {formatCurrency(overallStats.totalInvested)}
-          </p>
-          <p className="text-sm text-adaptive-600">Enhanced tracking</p>
+        
+        <div className="bg-adaptive-50 border border-adaptive-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-adaptive-900 mb-2">📈 Investimenti</h3>
+          <p className="text-3xl font-bold text-adaptive-900">{investmentAccounts.length}</p>
         </div>
-
-        <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-          <h3 className="text-sm font-medium text-adaptive-500">🔄 Capitale Recuperato</h3>
-          <p className="text-2xl font-bold text-blue-600">
-            {formatCurrency(overallStats.totalCapitalRecovered)}
-          </p>
-          <p className="text-sm text-adaptive-600">
-            {overallStats.totalInvested > 0 ? 
-              ((overallStats.totalCapitalRecovered / overallStats.totalInvested) * 100).toFixed(1) : 0}%
+        
+        <div className="bg-adaptive-50 border border-adaptive-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-adaptive-900 mb-2">🔄 Trasferimenti</h3>
+          <p className="text-3xl font-bold text-adaptive-900">
+            {Array.isArray(transfers) ? transfers.length : 0}
           </p>
         </div>
-
-        <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-          <h3 className="text-sm font-medium text-adaptive-500">💸 Profitti Realizzati</h3>
-          <p className={`text-2xl font-bold ${overallStats.totalRealizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {formatCurrency(overallStats.totalRealizedProfit)}
-          </p>
-          <p className="text-sm text-adaptive-600">
-            ROI: {overallStats.totalInvested > 0 ? 
-              formatPercentage((overallStats.totalRealizedProfit / overallStats.totalInvested) * 100) : '0.00%'}
-          </p>
+        
+        <div className="bg-adaptive-50 border border-adaptive-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-adaptive-900 mb-2">💼 Portfolio</h3>
+          <p className="text-3xl font-bold text-adaptive-900">{dcaPortfolios.length + cryptoPortfolios.length}</p>
         </div>
       </div>
 
-      {/* Bank Accounts Section */}
-      <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-8">
-        <div 
-          className="p-6 border-b border-adaptive cursor-pointer"
-          onClick={() => setShowBankAccounts(!showBankAccounts)}
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-adaptive-900 flex items-center gap-2">
-              🏦 Conti Bancari
-              <ChevronDownIcon className={`w-5 h-5 transition-transform ${showBankAccounts ? 'rotate-180' : ''}`} />
-            </h3>
+      {/* Bank Accounts */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-adaptive-900 mb-4">🏦 Conti Bancari</h2>
+        {bankAccounts.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-adaptive-600 mb-4">Nessun conto bancario trovato</p>
             <button
-              onClick={(e) => {
-                e.stopPropagation()
+              onClick={() => {
                 setAccountForm({ name: '', type: 'bank' })
                 setShowAccountModal(true)
               }}
-              className="btn-primary px-3 py-1 text-sm rounded-lg flex items-center gap-1"
+              className="btn-primary px-4 py-2 rounded-md"
             >
-              <PlusIcon className="w-4 h-4" />
-              Nuovo Conto Bancario
+              Crea il tuo primo conto bancario
             </button>
           </div>
-        </div>
-        {showBankAccounts && (
-          <div className="p-6">
-            {bankAccounts.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-adaptive-600 mb-4">Nessun conto bancario trovato</p>
-                <button
-                  onClick={() => {
-                    setAccountForm({ name: '', type: 'bank' })
-                    setShowAccountModal(true)
-                  }}
-                  className="btn-primary px-4 py-2 rounded-md"
-                >
-                  Crea il tuo primo conto bancario
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {bankAccounts.map((account) => (
-                  <div key={account.id} className="border border-adaptive rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">🏦</span>
-                        <h4 className="font-semibold text-adaptive-900">{account.name}</h4>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {bankAccounts.map((account) => (
+              <div key={account.id} className="border border-adaptive rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🏦</span>
+                    <div>
+                      <h4 className="font-semibold text-adaptive-900 flex items-center gap-2">
+                        {account.name}
                         {account.isDefault && (
-                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                          <span className="px-2 py-1 bg-green-100 text-green-600 text-xs rounded-full">
                             Predefinito
                           </span>
                         )}
+                      </h4>
+                      <p className="text-sm text-adaptive-600">Conto Bancario</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    {!account.isDefault && (
+                      <button
+                        onClick={() => handleSetDefaultAccount(account.id)}
+                        className="p-1 text-adaptive-600 hover:text-green-600"
+                        title="Imposta come predefinito"
+                      >
+                        <CheckIcon className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleEditAccount(account)}
+                      className="p-1 text-adaptive-600 hover:text-blue-600"
+                    >
+                      <PencilIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAccount(account.id)}
+                      className="p-1 text-adaptive-600 hover:text-red-600"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-adaptive-900">
+                    {formatCurrency(account.balance)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Investment Accounts with Enhanced Breakdown */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-adaptive-900 mb-4">📈 Conti Investimento</h2>
+        {investmentAccounts.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-adaptive-600 mb-4">Nessun conto di investimento trovato</p>
+            <button
+              onClick={() => {
+                setAccountForm({ name: '', type: 'investment' })
+                setShowAccountModal(true)
+              }}
+              className="btn-primary px-4 py-2 rounded-md"
+            >
+              Crea il tuo primo conto investimento
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {investmentAccounts.map((account) => {
+              const breakdown = enhancedAccountBreakdowns[account.id]
+              const linkedPortfolios = [...dcaPortfolios, ...cryptoPortfolios].filter(p => p.accountId === account.id)
+              
+              return (
+                <div key={account.id} className="border border-adaptive rounded-lg p-6">
+                  {/* Account Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      <span className="text-2xl">📈</span>
+                      <div>
+                        <h4 className="font-semibold text-adaptive-900 flex items-center gap-2">
+                          {account.name}
+                          {account.isDefault && (
+                            <span className="px-2 py-1 bg-green-100 text-green-600 text-xs rounded-full">
+                              Predefinito
+                            </span>
+                          )}
+                        </h4>
+                        <p className="text-sm text-adaptive-600">
+                          {breakdown?.linkedPortfolios || 0} portfolio collegati
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-sm text-adaptive-500">Saldo Conto</p>
+                        <p className="text-xl font-bold text-adaptive-900">
+                          {formatCurrency(account.balance)}
+                        </p>
                       </div>
                       <div className="flex gap-1">
                         <button
@@ -564,174 +610,151 @@ export default function EnhancedAccountsPage() {
                         </button>
                       </div>
                     </div>
-                    <p className="text-2xl font-bold text-adaptive-900">
-                      {formatCurrency(account.balance)}
-                    </p>
-                    <p className="text-sm text-adaptive-600">Conto Bancario</p>
                   </div>
-                ))}
-              </div>
-            )}
+
+                  {/* Enhanced Breakdown */}
+                  {breakdown && (
+                    <div className="bg-adaptive-50 rounded-lg p-4 mb-4">
+                      <h5 className="font-semibold text-adaptive-900 mb-3">Enhanced Cash Flow Breakdown</h5>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <p className="text-adaptive-500">Capitale Investito</p>
+                          <p className="font-bold text-adaptive-900">{formatCurrency(breakdown.totalInvested)}</p>
+                        </div>
+                        <div>
+                          <p className="text-adaptive-500">Capitale Recuperato</p>
+                          <p className="font-bold text-adaptive-900">{formatCurrency(breakdown.totalCapitalRecovered)}</p>
+                        </div>
+                        <div>
+                          <p className="text-adaptive-500">Investimento Effettivo</p>
+                          <p className="font-bold text-orange-600">{formatCurrency(breakdown.totalEffectiveInvestment)}</p>
+                        </div>
+                        <div>
+                          <p className="text-adaptive-500">Profitti Realizzati</p>
+                          <p className="font-bold text-green-600">{formatCurrency(breakdown.totalRealizedProfit)}</p>
+                        </div>
+                        <div>
+                          <p className="text-adaptive-500">Valore Corrente</p>
+                          <p className="font-bold text-adaptive-900">{formatCurrency(breakdown.totalCurrentValue)}</p>
+                        </div>
+                        <div>
+                          <p className="text-adaptive-500">Profitti Non Realizzati</p>
+                          <p className="font-bold text-blue-600">{formatCurrency(breakdown.totalUnrealizedProfit)}</p>
+                        </div>
+                        <div>
+                          <p className="text-adaptive-500">ROI Totale</p>
+                          <p className={`font-bold ${breakdown.totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatPercentage(breakdown.totalROI)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-adaptive-500">Fondi Non Tracciati</p>
+                          <p className="font-bold text-adaptive-600">{formatCurrency(breakdown.unknownFunds)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Linked Portfolios */}
+                  {linkedPortfolios.length > 0 && (
+                    <div>
+                      <h5 className="font-semibold text-adaptive-900 mb-2">Portfolio Collegati</h5>
+                      <div className="space-y-2">
+                        {linkedPortfolios.map(portfolio => (
+                          <div key={portfolio.id} className="flex justify-between items-center py-2 px-3 bg-adaptive-100 rounded">
+                            <span className="font-medium">{portfolio.name}</span>
+                            <span className="text-sm text-adaptive-600">
+                              {dcaPortfolios.includes(portfolio) ? '🟠 DCA Bitcoin' : '🚀 Crypto Wallet'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* Investment Accounts Section con Enhanced Cash Flow */}
-      <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-8">
-        <div 
-          className="p-6 border-b border-adaptive cursor-pointer"
-          onClick={() => setShowInvestmentAccounts(!showInvestmentAccounts)}
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-adaptive-900 flex items-center gap-2">
-              📈 Conti Investimento con Enhanced Cash Flow
-              <ChevronDownIcon className={`w-5 h-5 transition-transform ${showInvestmentAccounts ? 'rotate-180' : ''}`} />
-            </h3>
+      {/* Recent Transfers - SEMPRE VISIBILE */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-adaptive-900 mb-4">🔄 Trasferimenti</h2>
+        {/* 🔧 SICUREZZA: Controlla che transfers sia un array e che abbia lunghezza */}
+        {!Array.isArray(transfers) || transfers.length === 0 ? (
+          <div className="bg-adaptive-50 border border-adaptive rounded-lg p-8 text-center">
+            <div className="text-4xl mb-4">🔄</div>
+            <h3 className="text-lg font-medium text-adaptive-900 mb-2">Nessun Trasferimento</h3>
+            <p className="text-adaptive-600 mb-4">I tuoi trasferimenti tra conti appariranno qui</p>
             <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setAccountForm({ name: '', type: 'investment' })
-                setShowAccountModal(true)
-              }}
-              className="btn-primary px-3 py-1 text-sm rounded-lg flex items-center gap-1"
+              onClick={() => setShowTransferModal(true)}
+              disabled={accounts.length < 2}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
             >
-              <PlusIcon className="w-4 h-4" />
-              Nuovo Conto Investimento
+              Crea Primo Trasferimento
             </button>
           </div>
-        </div>
-        {showInvestmentAccounts && (
-          <div className="p-6">
-            {investmentAccounts.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-adaptive-600 mb-4">Nessun conto di investimento trovato</p>
-                <button
-                  onClick={() => {
-                    setAccountForm({ name: '', type: 'investment' })
-                    setShowAccountModal(true)
-                  }}
-                  className="btn-primary px-4 py-2 rounded-md"
-                >
-                  Crea il tuo primo conto investimento
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {investmentAccounts.map((account) => {
-                  const breakdown = enhancedAccountBreakdowns[account.id]
-                  const linkedPortfolios = [...dcaPortfolios, ...cryptoPortfolios].filter(p => p.accountId === account.id)
-                  
-                  return (
-                    <div key={account.id} className="border border-adaptive rounded-lg p-6">
-                      {/* Account Header */}
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-4">
-                          <span className="text-2xl">📈</span>
-                          <div>
-                            <h4 className="font-semibold text-adaptive-900">{account.name}</h4>
-                            <p className="text-sm text-adaptive-600">
-                              {breakdown?.linkedPortfolios || 0} portfolio collegati
-                            </p>
-                          </div>
+        ) : (
+          <div className="bg-adaptive-50 border border-adaptive rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-adaptive-100">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-semibold text-adaptive-900">Data</th>
+                    <th className="text-left py-3 px-4 font-semibold text-adaptive-900">Da</th>
+                    <th className="text-left py-3 px-4 font-semibold text-adaptive-900">A</th>
+                    <th className="text-right py-3 px-4 font-semibold text-adaptive-900">Importo</th>
+                    <th className="text-left py-3 px-4 font-semibold text-adaptive-900">Descrizione</th>
+                    <th className="text-center py-3 px-4 font-semibold text-adaptive-900">Azioni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* 🔧 SICUREZZA: Doppio controllo che transfers sia un array */}
+                  {Array.isArray(transfers) && transfers.map((transfer) => (
+                    <tr key={transfer.id} className="border-t border-adaptive hover:bg-adaptive-100">
+                      <td className="py-3 px-4 text-sm">
+                        {new Date(transfer.date).toLocaleDateString('it-IT')}
+                      </td>
+                      <td className="py-3 px-4">{transfer.fromAccount?.name || 'N/A'}</td>
+                      <td className="py-3 px-4">{transfer.toAccount?.name || 'N/A'}</td>
+                      <td className="text-right py-3 px-4 font-semibold">
+                        {formatCurrency(transfer.amount)}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-adaptive-600">
+                        {transfer.description}
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        {/* 🔧 TASTI AZIONI SINGOLO TRASFERIMENTO */}
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => openEditTransfer(transfer)}
+                            className="p-1 text-adaptive-600 hover:text-blue-600"
+                            title="Modifica trasferimento"
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTransfer(transfer.id)}
+                            className="p-1 text-adaptive-600 hover:text-red-600"
+                            title="Elimina trasferimento"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="text-sm text-adaptive-500">Saldo Conto</p>
-                            <p className="text-xl font-bold text-adaptive-900">
-                              {formatCurrency(account.balance)}
-                            </p>
-                          </div>
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => handleEditAccount(account)}
-                              className="p-1 text-adaptive-600 hover:text-blue-600"
-                            >
-                              <PencilIcon className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteAccount(account.id)}
-                              className="p-1 text-adaptive-600 hover:text-red-600"
-                            >
-                              <TrashIcon className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {breakdown && (
-                        <>
-                          {/* Enhanced Metrics Grid */}
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                            <div className="text-center">
-                              <p className="text-xs text-adaptive-500">Capitale Originale</p>
-                              <p className="font-semibold text-blue-600">
-                                {formatCurrency(breakdown.totalCapitalRecovered)}
-                              </p>
-                              <p className="text-xs text-adaptive-600">
-                                {breakdown.totalInvested > 0 ? 
-                                  ((breakdown.totalCapitalRecovered / breakdown.totalInvested) * 100).toFixed(1) : 0}%
-                              </p>
-                            </div>
-
-                            <div className="text-center">
-                              <p className="text-xs text-adaptive-500">Profitti Realizzati</p>
-                              <p className={`font-semibold ${breakdown.totalRealizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(breakdown.totalRealizedProfit)}
-                              </p>
-                              <p className="text-xs text-adaptive-600">Da vendite</p>
-                            </div>
-
-                            <div className="text-center">
-                              <p className="text-xs text-adaptive-500">Fondi Non Tracciati</p>
-                              <p className={`font-semibold ${breakdown.unknownFunds > 0 ? 'text-orange-600' : 'text-adaptive-900'}`}>
-                                {formatCurrency(breakdown.unknownFunds)}
-                              </p>
-                              <p className="text-xs text-adaptive-600">
-                                {account.balance > 0 ? 
-                                  ((breakdown.unknownFunds / account.balance) * 100).toFixed(1) : 0}%
-                              </p>
-                            </div>
-
-                            <div className="text-center">
-                              <p className="text-xs text-adaptive-500">P&L Netto</p>
-                              <p className={`font-semibold ${breakdown.totalRealizedProfit + breakdown.totalUnrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(breakdown.totalRealizedProfit + breakdown.totalUnrealizedGains)}
-                              </p>
-                              <p className="text-xs text-adaptive-600">
-                                ROI: {formatPercentage(breakdown.totalROI)}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Portfolio Collegati */}
-                          {linkedPortfolios.length > 0 && (
-                            <div className="border-t border-adaptive pt-4">
-                              <h5 className="text-sm font-medium text-adaptive-700 mb-2">Portfolio Collegati:</h5>
-                              <div className="flex flex-wrap gap-2">
-                                {linkedPortfolios.map(portfolio => {
-                                  const portfolioType = dcaPortfolios.includes(portfolio) ? 'dca_bitcoin' : 'crypto_wallet'
-                                  return (
-                                    <span 
-                                      key={portfolio.id}
-                                      className={`text-xs px-2 py-1 rounded ${
-                                        portfolioType === 'dca_bitcoin' 
-                                          ? 'bg-orange-100 text-orange-800' 
-                                          : 'bg-blue-100 text-blue-800'
-                                      }`}
-                                    >
-                                      {portfolioType === 'dca_bitcoin' ? '🟠' : '🚀'} {portfolio.name}
-                                      {' • Investito: '}{formatCurrency(portfolio.stats.totalInvested)}
-                                    </span>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )
-                })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Paginazione se ci sono molti trasferimenti */}
+            {Array.isArray(transfers) && transfers.length > 10 && (
+              <div className="p-4 bg-adaptive-100 text-center">
+                <p className="text-sm text-adaptive-600">
+                  Mostrati {Math.min(10, transfers.length)} di {transfers.length} trasferimenti
+                </p>
               </div>
             )}
           </div>
@@ -800,6 +823,137 @@ export default function EnhancedAccountsPage() {
                     setShowAccountModal(false)
                     setEditingAccount(null)
                     setAccountForm({ name: '', type: 'bank' })
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Annulla
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🔧 NUOVO: Transfer Modal */}
+      {showTransferModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">
+                {editingTransfer ? '✏️ Modifica Trasferimento' : '🔄 Nuovo Trasferimento'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowTransferModal(false)
+                  setEditingTransfer(null)
+                  resetTransferForm()
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={editingTransfer ? handleEditTransfer : handleTransferSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Da Conto
+                </label>
+                <select
+                  value={transferForm.fromAccountId}
+                  onChange={(e) => setTransferForm(prev => ({ ...prev, fromAccountId: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  required
+                >
+                  <option value="">Seleziona conto di origine...</option>
+                  {accounts.map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.type === 'bank' ? '🏦' : '📈'} {account.name} ({formatCurrency(account.balance)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  A Conto
+                </label>
+                <select
+                  value={transferForm.toAccountId}
+                  onChange={(e) => setTransferForm(prev => ({ ...prev, toAccountId: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  required
+                >
+                  <option value="">Seleziona conto di destinazione...</option>
+                  {accounts
+                    .filter(account => account.id.toString() !== transferForm.fromAccountId)
+                    .map(account => (
+                      <option key={account.id} value={account.id}>
+                        {account.type === 'bank' ? '🏦' : '📈'} {account.name} ({formatCurrency(account.balance)})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Importo
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={transferForm.amount}
+                  onChange={(e) => setTransferForm(prev => ({ ...prev, amount: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Data
+                </label>
+                <input
+                  type="date"
+                  value={transferForm.date}
+                  onChange={(e) => setTransferForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Descrizione (opzionale)
+                </label>
+                <input
+                  type="text"
+                  value={transferForm.description}
+                  onChange={(e) => setTransferForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="es. Trasferimento per investimenti"
+                />
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="submit"
+                  disabled={transferLoading}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 font-medium"
+                >
+                  {transferLoading ? 
+                    (editingTransfer ? 'Modifica...' : 'Trasferimento...') : 
+                    (editingTransfer ? 'Salva Modifiche' : 'Conferma Trasferimento')
+                  }
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTransferModal(false)
+                    setEditingTransfer(null)
+                    resetTransferForm()
                   }}
                   className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
                 >

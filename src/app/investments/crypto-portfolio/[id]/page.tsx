@@ -1,184 +1,392 @@
-// src/app/investments/crypto-portfolio/[id]/page.tsx - FASE 1 FIX
+// src/app/investments/crypto-portfolio/[id]/page.tsx - COMPLETE VERSION with all missing functionality
 'use client'
 
-import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
-  PlusIcon, 
-  ArrowsRightLeftIcon,
-  ArrowPathIcon,
-  PencilIcon,
-  TrashIcon,
-  Cog6ToothIcon,
-  ArrowLeftIcon
+  ArrowLeftIcon, PlusIcon, PencilIcon, TrashIcon, 
+  Cog6ToothIcon, XMarkIcon, ChevronDownIcon 
 } from '@heroicons/react/24/outline'
+
+interface Asset {
+  id: number
+  name: string
+  symbol: string
+  decimals: number
+}
+
+interface Transaction {
+  id: number
+  type: 'buy' | 'sell'
+  assetId: number
+  quantity: number
+  eurValue: number
+  pricePerUnit: number
+  date: string
+  notes?: string
+  asset: Asset
+}
+
+interface Holding {
+  id: number
+  assetId: number
+  quantity: number
+  avgPrice: number
+  totalInvested: number
+  realizedGains: number
+  currentPrice?: number
+  valueEur?: number
+  lastUpdated: string
+  asset: Asset
+}
 
 interface CryptoPortfolio {
   id: number
   name: string
   description?: string
-  isActive: boolean
+  accountId: number
+  userId: number
+  createdAt: string
+  updatedAt: string
   account: {
     id: number
     name: string
     balance: number
   }
   stats: {
-    // 🎯 ENHANCED CASH FLOW FIELDS (source of truth dal backend)
     totalInvested: number
     capitalRecovered: number
     effectiveInvestment: number
     realizedProfit: number
     isFullyRecovered: boolean
-    
-    // Derived calculations
     totalValueEur: number
-    unrealizedGains: number
     totalROI: number
-    
-    // Counts
-    holdingsCount: number
     transactionCount: number
     buyCount: number
     sellCount: number
   }
-  holdings: CryptoHolding[]
-  transactions: CryptoTransaction[]
+  holdings: Holding[]
+  transactions: Transaction[]
 }
 
-interface CryptoHolding {
-  id: number
-  quantity: number
-  avgPrice: number
-  totalInvested: number
-  realizedGains: number
-  asset: {
-    symbol: string
-    name: string
-    decimals: number
-  }
-  currentPrice?: number
-  valueEur?: number
-}
-
-interface CryptoTransaction {
-  id: number
-  date: string
-  type: string
-  quantity: number
-  eurValue: number
-  pricePerUnit: number
-  broker?: string
-  notes?: string
-  asset: {
-    symbol: string
-    name: string
-  }
-}
-
-export default function CryptoPortfolioPage() {
+export default function CryptoPortfolioDetailPage() {
   const params = useParams()
   const router = useRouter()
   const portfolioId = params.id as string
 
-  // State
+  // 🔧 STATI PRINCIPALI
   const [portfolio, setPortfolio] = useState<CryptoPortfolio | null>(null)
   const [loading, setLoading] = useState(true)
   const [priceLoading, setPriceLoading] = useState(false)
-  
-  // Modals
-  const [showAddTransaction, setShowAddTransaction] = useState(false)
-  const [showEditPortfolio, setShowEditPortfolio] = useState(false)
 
-  // Forms
-  const [portfolioForm, setPortfolioForm] = useState({
-    name: '',
-    description: '',
-    isActive: true
+  // 🔧 STATI MODAL E FORM
+  const [showAddTransaction, setShowAddTransaction] = useState(false)
+  const [showEditTransaction, setShowEditTransaction] = useState(false)
+  const [showEditPortfolio, setShowEditPortfolio] = useState(false)
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [submitLoading, setSubmitLoading] = useState(false)
+
+  // 🔧 FORM TRANSAZIONE (SEMPLIFICATO - no auto-fetch nel modal)
+  const [transactionForm, setTransactionForm] = useState({
+    type: 'buy' as 'buy' | 'sell',
+    ticker: '',
+    quantity: '',
+    eurValue: '',
+    date: new Date().toISOString().split('T')[0],
+    notes: ''
   })
 
-  // Format functions
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR'
+  // 🔧 FORM PORTFOLIO SETTINGS
+  const [portfolioForm, setPortfolioForm] = useState({
+    name: '',
+    description: ''
+  })
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
+
+  const formatPercentage = (value: number) =>
+    new Intl.NumberFormat('it-IT', { style: 'percent', minimumFractionDigits: 2 }).format(value / 100)
+
+  const formatCrypto = (amount: number, decimals = 8) =>
+    new Intl.NumberFormat('it-IT', { 
+      minimumFractionDigits: Math.min(decimals, 8),
+      maximumFractionDigits: Math.min(decimals, 8)
     }).format(amount)
-  }
 
-  const formatCrypto = (amount: number, decimals = 6) => {
-    return amount.toFixed(decimals)
-  }
+  // 🔧 CARICAMENTO DATI
+  const fetchPortfolio = async () => {
+    setLoading(true)
+    try {
+      const portfolioRes = await fetch(`/api/crypto-portfolios/${portfolioId}`)
 
-  const formatPercentage = (value: number) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+      if (portfolioRes.ok) {
+        const portfolioData = await portfolioRes.json()
+        setPortfolio(portfolioData)
+        setPortfolioForm({
+          name: portfolioData.name,
+          description: portfolioData.description || ''
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching portfolio:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
     fetchPortfolio()
   }, [portfolioId])
 
-  // Data fetching
-  const fetchPortfolio = async () => {
+  // 🔧 AGGIORNA PREZZI (per la pagina principale, non per il modal)
+  const updatePrices = async () => {
+    setPriceLoading(true)
     try {
-      setLoading(true)
-      const response = await fetch(`/api/crypto-portfolios/${portfolioId}`)
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/update-prices`, {
+        method: 'POST'
+      })
       if (response.ok) {
-        const data = await response.json()
-        setPortfolio(data)
-        setPortfolioForm({
-          name: data.name,
-          description: data.description || '',
-          isActive: data.isActive
-        })
-      } else {
-        console.error('Errore nel caricamento portfolio')
+        await fetchPortfolio()
       }
     } catch (error) {
-      console.error('Errore nel caricamento portfolio:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchPrices = async () => {
-    if (!portfolio || portfolio.holdings.length === 0) return
-
-    try {
-      setPriceLoading(true)
-      const symbols = portfolio.holdings.map(h => h.asset.symbol).join(',')
-      const response = await fetch(`/api/crypto-prices?symbols=${symbols}`)
-      
-      if (response.ok) {
-        const priceData = await response.json()
-        
-        // Aggiorna holdings con prezzi correnti
-        const updatedHoldings = portfolio.holdings.map(holding => {
-          const currentPrice = priceData.prices[holding.asset.symbol] || holding.avgPrice
-          const valueEur = holding.quantity * currentPrice
-          
-          return {
-            ...holding,
-            currentPrice,
-            valueEur
-          }
-        })
-
-        setPortfolio(prev => prev ? { ...prev, holdings: updatedHoldings } : null)
-      }
-    } catch (error) {
-      console.error('Errore nel recupero prezzi:', error)
+      console.error('Error updating prices:', error)
     } finally {
       setPriceLoading(false)
     }
   }
 
+  // 🔧 GESTIONE TRANSAZIONI - AGGIUNTA (LOGICA COME DCA BTC)
+  const handleAddTransaction = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (submitLoading) return
+
+    // Validazioni
+    if (!transactionForm.ticker || !transactionForm.quantity || !transactionForm.eurValue) {
+      alert('Compila tutti i campi obbligatori')
+      return
+    }
+
+    const quantity = parseFloat(transactionForm.quantity)
+    const eurValue = parseFloat(transactionForm.eurValue)
+
+    if (isNaN(quantity) || quantity <= 0 || isNaN(eurValue) || eurValue <= 0) {
+      alert('Quantità e valore EUR devono essere positivi')
+      return
+    }
+
+    // 🔧 CALCOLA PREZZO PER UNITÀ (come DCA BTC)
+    const pricePerUnit = eurValue / quantity
+
+    // Controllo saldo per acquisti
+    if (transactionForm.type === 'buy' && portfolio?.account && portfolio.account.balance < eurValue) {
+      alert('Saldo insufficiente nel conto collegato')
+      return
+    }
+
+    setSubmitLoading(true)
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: transactionForm.type,
+          assetSymbol: transactionForm.ticker.toUpperCase(), // 🔧 CORRETTO: assetSymbol invece di ticker
+          quantity: quantity,
+          eurValue: eurValue,
+          pricePerUnit: pricePerUnit, // 🔧 CALCOLATO dall'utente, non da API
+          broker: 'Manual Entry', // 🔧 AGGIUNTO: campo richiesto dall'API
+          date: transactionForm.date,
+          notes: transactionForm.notes || null
+        })
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        setShowAddTransaction(false)
+        resetTransactionForm()
+        alert('Transazione aggiunta con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Aggiunta transazione fallita'}`)
+      }
+    } catch (error) {
+      console.error('Error adding transaction:', error)
+      alert('Errore durante l\'aggiunta della transazione')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  // 🔧 GESTIONE TRANSAZIONI - MODIFICA (LOGICA COME DCA BTC)
+  const handleEditTransaction = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (submitLoading || !editingTransaction) return
+
+    const quantity = parseFloat(transactionForm.quantity)
+    const eurValue = parseFloat(transactionForm.eurValue)
+
+    if (isNaN(quantity) || quantity <= 0 || isNaN(eurValue) || eurValue <= 0) {
+      alert('Quantità e valore EUR devono essere positivi')
+      return
+    }
+
+    // 🔧 CALCOLA PREZZO PER UNITÀ (come DCA BTC)
+    const pricePerUnit = eurValue / quantity
+
+    setSubmitLoading(true)
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionId: editingTransaction.id,
+          type: transactionForm.type,
+          assetSymbol: transactionForm.ticker.toUpperCase(), // 🔧 CORRETTO: assetSymbol invece di ticker
+          quantity: quantity,
+          eurValue: eurValue,
+          pricePerUnit: pricePerUnit, // 🔧 CALCOLATO dall'utente, non da API
+          broker: 'Manual Entry', // 🔧 AGGIUNTO: campo richiesto dall'API
+          date: transactionForm.date,
+          notes: transactionForm.notes || null
+        })
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        setShowEditTransaction(false)
+        setEditingTransaction(null)
+        resetTransactionForm()
+        alert('Transazione modificata con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Modifica transazione fallita'}`)
+      }
+    } catch (error) {
+      console.error('Error editing transaction:', error)
+      alert('Errore durante la modifica della transazione')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  // 🔧 GESTIONE TRANSAZIONI - CANCELLAZIONE
+  const handleDeleteTransaction = async (transactionId: number) => {
+    if (!confirm('Sei sicuro di voler eliminare questa transazione?')) return
+
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions?transactionId=${transactionId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        alert('Transazione eliminata con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Eliminazione fallita'}`)
+      }
+    } catch (error) {
+      console.error('Error deleting transaction:', error)
+      alert('Errore durante l\'eliminazione della transazione')
+    }
+  }
+
+  // 🔧 GESTIONE PORTFOLIO - MODIFICA IMPOSTAZIONI
+  const handleEditPortfolio = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (submitLoading) return
+
+    if (!portfolioForm.name.trim()) {
+      alert('Il nome del portfolio è obbligatorio')
+      return
+    }
+
+    setSubmitLoading(true)
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: portfolioForm.name.trim(),
+          description: portfolioForm.description.trim() || null
+        })
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        setShowEditPortfolio(false)
+        alert('Portfolio modificato con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Modifica portfolio fallita'}`)
+      }
+    } catch (error) {
+      console.error('Error editing portfolio:', error)
+      alert('Errore durante la modifica del portfolio')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  // 🔧 GESTIONE PORTFOLIO - CANCELLAZIONE
+  const handleDeletePortfolio = async () => {
+    if (!confirm(`Sei sicuro di voler eliminare il portfolio "${portfolio?.name}"?\n\nTutte le transazioni collegate verranno eliminate e i saldi dei conti ripristinati.`)) return
+
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        alert('Portfolio eliminato con successo!')
+        router.push('/investments')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Eliminazione portfolio fallita'}`)
+      }
+    } catch (error) {
+      console.error('Error deleting portfolio:', error)
+      alert('Errore durante l\'eliminazione del portfolio')
+    }
+  }
+
+  // 🔧 UTILITY FUNCTIONS
+  const resetTransactionForm = () => {
+    setTransactionForm({
+      type: 'buy',
+      ticker: '',
+      quantity: '',
+      eurValue: '',
+      date: new Date().toISOString().split('T')[0],
+      notes: ''
+    })
+  }
+
+  const openEditTransaction = (transaction: Transaction) => {
+    setEditingTransaction(transaction)
+    setTransactionForm({
+      type: transaction.type,
+      ticker: transaction.asset.symbol, // Usa il symbol dell'asset
+      quantity: transaction.quantity.toString(),
+      eurValue: transaction.eurValue.toString(),
+      date: transaction.date.split('T')[0],
+      notes: transaction.notes || ''
+    })
+    setShowEditTransaction(true)
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-adaptive flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-adaptive-600">Caricamento portfolio...</p>
+      <div className="container mx-auto px-4 py-8">
+        <div className="animate-pulse">
+          <div className="h-8 bg-adaptive-200 rounded w-1/3 mb-6"></div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-32 bg-adaptive-200 rounded-lg"></div>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -186,10 +394,10 @@ export default function CryptoPortfolioPage() {
 
   if (!portfolio) {
     return (
-      <div className="min-h-screen bg-adaptive flex items-center justify-center">
-        <div className="text-center">
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center py-12">
           <h1 className="text-2xl font-bold text-adaptive-900 mb-4">Portfolio non trovato</h1>
-          <Link href="/investments" className="text-blue-600 hover:underline">
+          <Link href="/investments" className="text-blue-600 hover:text-blue-800">
             ← Torna agli investimenti
           </Link>
         </div>
@@ -198,141 +406,109 @@ export default function CryptoPortfolioPage() {
   }
 
   return (
-    <div className="min-h-screen bg-adaptive">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Link 
-              href="/investments"
-              className="p-2 hover:bg-adaptive-100 rounded-lg transition-colors"
-            >
-              <ArrowLeftIcon className="w-5 h-5 text-adaptive-600" />
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold text-adaptive-900">
-                🚀 {portfolio.name}
-              </h1>
-              <p className="text-adaptive-600">Crypto Wallet Multi-Asset</p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowAddTransaction(true)}
-              className="btn-primary flex items-center gap-2"
-            >
-              <PlusIcon className="w-4 h-4" />
-              Nuova Transazione
-            </button>
-            <button
-              onClick={fetchPrices}
-              disabled={priceLoading}
-              className="p-2 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50"
-            >
-              <ArrowPathIcon className={`w-5 h-5 ${priceLoading ? 'animate-spin' : ''}`} />
-            </button>
-            <button
-              onClick={() => setShowEditPortfolio(true)}
-              className="p-2 text-adaptive-600 hover:bg-adaptive-100 rounded"
-            >
-              <Cog6ToothIcon className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* 🎯 FASE 1 FIX: Enhanced Cash Flow Statistics - USA SOLO BACKEND STATS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Total Invested */}
-          <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4">
-            <h3 className="text-sm font-medium text-adaptive-500">💰 Totale Investito</h3>
-            <p className="text-2xl font-bold text-adaptive-900">
-              {formatCurrency(portfolio.stats.totalInvested)}
-            </p>
-            <p className="text-sm text-adaptive-600">{portfolio.stats.buyCount} acquisti</p>
-          </div>
-
-          {/* Capital Recovered */}
-          <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4">
-            <h3 className="text-sm font-medium text-adaptive-500">🔄 Capitale Recuperato</h3>
-            <p className="text-2xl font-bold text-blue-600">
-              {formatCurrency(portfolio.stats.capitalRecovered)}
-            </p>
-            <div className="flex items-center gap-2 text-sm text-adaptive-600">
-              <span>
-                {portfolio.stats.totalInvested > 0 ? 
-                  ((portfolio.stats.capitalRecovered / portfolio.stats.totalInvested) * 100).toFixed(1) : 0}%
-              </span>
-              {portfolio.stats.isFullyRecovered && <span className="text-green-600">✅</span>}
-            </div>
-          </div>
-
-          {/* Effective Investment */}
-          <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4">
-            <h3 className="text-sm font-medium text-adaptive-500">⚠️ Soldi a Rischio</h3>
-            <p className="text-2xl font-bold text-orange-600">
-              {formatCurrency(portfolio.stats.effectiveInvestment)}
-            </p>
-            <p className="text-sm text-adaptive-600">
-              {portfolio.stats.isFullyRecovered ? '🎉 Investimento gratis!' : 'Non ancora recuperato'}
-            </p>
-          </div>
-
-          {/* Total ROI - USA DIRETTAMENTE DAL BACKEND */}
-          <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4">
-            <h3 className="text-sm font-medium text-adaptive-500">🎯 ROI Totale</h3>
-            <p className={`text-2xl font-bold ${portfolio.stats.totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatPercentage(portfolio.stats.totalROI)}
-            </p>
-            <p className="text-sm text-adaptive-600">
-              {portfolio.stats.totalROI >= 0 ? '📈 Profitto' : '📉 Perdita'}
+    <div className="container mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/investments"
+            className="p-2 text-adaptive-600 hover:text-adaptive-900 hover:bg-adaptive-100 rounded-lg"
+          >
+            <ArrowLeftIcon className="w-5 h-5" />
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold text-adaptive-900 flex items-center gap-3">
+              🚀 {portfolio.name}
+            </h1>
+            {portfolio.description && (
+              <p className="text-adaptive-600 mt-1">{portfolio.description}</p>
+            )}
+            <p className="text-sm text-adaptive-500 mt-1">
+              Collegato a: {portfolio.account.name} ({formatCurrency(portfolio.account.balance)})
             </p>
           </div>
         </div>
-
-        {/* P&L Summary - USA DIRETTAMENTE LE STATS DAL BACKEND */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4">
-            <h3 className="text-sm font-medium text-adaptive-500">🏦 Valore Attuale</h3>
-            <p className="text-2xl font-bold text-blue-600">
-              {formatCurrency(portfolio.stats.totalValueEur)}
-            </p>
-            <p className="text-sm text-adaptive-600">{portfolio.stats.holdingsCount} asset</p>
-          </div>
-
-          <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4">
-            <h3 className="text-sm font-medium text-adaptive-500">💸 Profitti Realizzati</h3>
-            <p className={`text-2xl font-bold ${portfolio.stats.realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(portfolio.stats.realizedProfit)}
-            </p>
-            <p className="text-sm text-adaptive-600">
-              {portfolio.stats.sellCount} vendite
-            </p>
-          </div>
-
-          <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4">
-            <h3 className="text-sm font-medium text-adaptive-500">📊 Plus/Minus Non Real.</h3>
-            <p className={`text-2xl font-bold ${portfolio.stats.unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(portfolio.stats.unrealizedGains)}
-            </p>
-            <p className="text-sm text-adaptive-600">Su holdings correnti</p>
-          </div>
-        </div>
-
-        {/* Holdings */}
-        <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-8">
-          <div className="p-4 border-b border-adaptive">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-adaptive-900">🪙 Holdings</h2>
-              <button
-                onClick={fetchPrices}
-                disabled={priceLoading}
-                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-              >
-                {priceLoading ? '⏳' : '🔄 Aggiorna Prezzi'}
-              </button>
-            </div>
-          </div>
+        <div className="flex gap-3">
+          {/* 🔧 TASTO IMPOSTAZIONI */}
+          <button
+            onClick={() => setShowEditPortfolio(true)}
+            className="flex items-center gap-2 px-4 py-2 text-adaptive-600 border border-adaptive-300 rounded-md hover:bg-adaptive-50"
+            title="Impostazioni Portfolio"
+          >
+            <Cog6ToothIcon className="w-5 h-5" />
+            Impostazioni
+          </button>
           
+          {/* 🔧 TASTO CANCELLA PORTFOLIO */}
+          <button
+            onClick={handleDeletePortfolio}
+            className="flex items-center gap-2 px-4 py-2 text-red-600 border border-red-300 rounded-md hover:bg-red-50"
+            title="Elimina Portfolio"
+          >
+            <TrashIcon className="w-5 h-5" />
+            Elimina
+          </button>
+          
+          {/* 🔧 TASTO AGGIUNGI TRANSAZIONE */}
+          <button
+            onClick={() => setShowAddTransaction(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+          >
+            <PlusIcon className="w-5 h-5" />
+            Nuova Transazione
+          </button>
+        </div>
+      </div>
+
+      {/* Enhanced Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="bg-adaptive-50 border border-adaptive rounded-lg p-6">
+          <h3 className="text-sm font-medium text-adaptive-500 mb-2">💰 Investimento Totale</h3>
+          <p className="text-2xl font-bold text-adaptive-900">{formatCurrency(portfolio.stats.totalInvested)}</p>
+          <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.buyCount} acquisti</p>
+        </div>
+        
+        <div className="bg-adaptive-50 border border-adaptive rounded-lg p-6">
+          <h3 className="text-sm font-medium text-adaptive-500 mb-2">💸 Capitale Recuperato</h3>
+          <p className="text-2xl font-bold text-adaptive-900">{formatCurrency(portfolio.stats.capitalRecovered)}</p>
+          <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.sellCount} vendite</p>
+        </div>
+        
+        <div className="bg-adaptive-50 border border-adaptive rounded-lg p-6">
+          <h3 className="text-sm font-medium text-adaptive-500 mb-2">⚠️ Investimento Effettivo</h3>
+          <p className="text-2xl font-bold text-orange-600">{formatCurrency(portfolio.stats.effectiveInvestment)}</p>
+          <p className="text-xs text-adaptive-600 mt-1">
+            {portfolio.stats.isFullyRecovered ? 'Tutto recuperato' : 'Ancora a rischio'}
+          </p>
+        </div>
+        
+        <div className="bg-adaptive-50 border border-adaptive rounded-lg p-6">
+          <h3 className="text-sm font-medium text-adaptive-500 mb-2">💹 Profitti Realizzati</h3>
+          <p className={`text-2xl font-bold ${portfolio.stats.realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatCurrency(portfolio.stats.realizedProfit)}
+          </p>
+          <p className="text-xs text-adaptive-600 mt-1">
+            ROI: {formatPercentage(portfolio.stats.totalROI)}
+          </p>
+        </div>
+      </div>
+
+      {/* Holdings Table */}
+      <div className="bg-adaptive-50 border border-adaptive rounded-lg mb-8">
+        <div className="flex items-center justify-between p-6 border-b border-adaptive">
+          <h2 className="text-xl font-bold text-adaptive-900">🪙 Holdings</h2>
+          <div className="flex gap-3">
+            <button
+              onClick={updatePrices}
+              disabled={priceLoading}
+              className="flex items-center gap-2 px-3 py-1 text-sm bg-adaptive-100 text-adaptive-700 rounded-md hover:bg-adaptive-200 disabled:opacity-50"
+            >
+              {priceLoading ? '⏳' : '🔄 Aggiorna Prezzi'}
+            </button>
+          </div>
+        </div>
+        
+        <div className="p-6">
           {portfolio.holdings.length === 0 ? (
             <div className="text-center py-8">
               <div className="text-4xl mb-4">🪙</div>
@@ -383,12 +559,9 @@ export default function CryptoPortfolioPage() {
                           {formatCurrency(currentValue)}
                         </td>
                         <td className="text-right py-3 px-4">
-                          <div className={`font-semibold ${unrealizedPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <span className={`font-semibold ${unrealizedPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {formatCurrency(unrealizedPL)}
-                          </div>
-                          <div className="text-xs text-adaptive-500">
-                            {formatPercentage(holding.totalInvested > 0 ? (unrealizedPL / holding.totalInvested) * 100 : 0)}
-                          </div>
+                          </span>
                         </td>
                       </tr>
                     )
@@ -398,15 +571,16 @@ export default function CryptoPortfolioPage() {
             </div>
           )}
         </div>
+      </div>
 
-        {/* Transactions */}
-        <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
-          <div className="p-4 border-b border-adaptive">
-            <h2 className="text-lg font-semibold text-adaptive-900">
-              💳 Transazioni ({portfolio.stats.transactionCount})
-            </h2>
-          </div>
-          
+      {/* Transactions Table */}
+      <div className="bg-adaptive-50 border border-adaptive rounded-lg">
+        <div className="flex items-center justify-between p-6 border-b border-adaptive">
+          <h2 className="text-xl font-bold text-adaptive-900">📊 Transazioni</h2>
+          <span className="text-sm text-adaptive-600">{portfolio.transactions.length} transazioni</span>
+        </div>
+        
+        <div className="p-6">
           {portfolio.transactions.length === 0 ? (
             <div className="text-center py-8">
               <div className="text-4xl mb-4">💳</div>
@@ -414,7 +588,7 @@ export default function CryptoPortfolioPage() {
               <p className="text-adaptive-600 mb-4">Le tue transazioni appariranno qui</p>
               <button
                 onClick={() => setShowAddTransaction(true)}
-                className="btn-primary"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
                 Aggiungi Prima Transazione
               </button>
@@ -430,6 +604,7 @@ export default function CryptoPortfolioPage() {
                     <th className="text-right py-3 px-4 font-medium text-adaptive-700">Quantità</th>
                     <th className="text-right py-3 px-4 font-medium text-adaptive-700">Valore EUR</th>
                     <th className="text-right py-3 px-4 font-medium text-adaptive-700">Prezzo/Unità</th>
+                    <th className="text-center py-3 px-4 font-medium text-adaptive-700">Azioni</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -450,13 +625,32 @@ export default function CryptoPortfolioPage() {
                         </span>
                       </td>
                       <td className="text-right py-3 px-4 font-mono">
-                        {formatCrypto(transaction.quantity)}
+                        {formatCrypto(transaction.quantity, transaction.asset.decimals)}
                       </td>
                       <td className="text-right py-3 px-4 font-semibold">
                         {formatCurrency(transaction.eurValue)}
                       </td>
                       <td className="text-right py-3 px-4">
                         {formatCurrency(transaction.pricePerUnit)}
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        {/* 🔧 TASTI AZIONI SINGOLA TRANSAZIONE */}
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => openEditTransaction(transaction)}
+                            className="p-1 text-adaptive-600 hover:text-blue-600"
+                            title="Modifica transazione"
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTransaction(transaction.id)}
+                            className="p-1 text-adaptive-600 hover:text-red-600"
+                            title="Elimina transazione"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -467,8 +661,334 @@ export default function CryptoPortfolioPage() {
         </div>
       </div>
 
-      {/* Modals vanno qui - Add Transaction, Edit Portfolio */}
-      {/* Per brevità non li includo, ma dovrebbero rimanere gli stessi */}
+      {/* 🔧 MODAL AGGIUNGI TRANSAZIONE */}
+      {showAddTransaction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">💳 Nuova Transazione</h3>
+              <button
+                onClick={() => {
+                  setShowAddTransaction(false)
+                  resetTransactionForm()
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddTransaction} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                <select
+                  value={transactionForm.type}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, type: e.target.value as 'buy' | 'sell' }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="buy">📈 Acquisto (Buy)</option>
+                  <option value="sell">📉 Vendita (Sell)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ticker Crypto
+                </label>
+                <input
+                  type="text"
+                  value={transactionForm.ticker}
+                  onChange={(e) => {
+                    const ticker = e.target.value.toUpperCase()
+                    setTransactionForm(prev => ({ ...prev, ticker }))
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="es. BTC, ETH, SOL, ADA..."
+                  style={{ textTransform: 'uppercase' }}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Quantità Crypto
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={transactionForm.quantity}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, quantity: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0.00000000"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Valore EUR
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={transactionForm.eurValue}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, eurValue: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0.00"
+                  required
+                />
+                {/* 🔧 MOSTRA PREZZO CALCOLATO */}
+                {transactionForm.quantity && transactionForm.eurValue && 
+                 !isNaN(parseFloat(transactionForm.quantity)) && 
+                 !isNaN(parseFloat(transactionForm.eurValue)) && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Prezzo per unità: {formatCurrency(parseFloat(transactionForm.eurValue) / parseFloat(transactionForm.quantity))}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                <input
+                  type="date"
+                  value={transactionForm.date}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note (opzionale)</label>
+                <input
+                  type="text"
+                  value={transactionForm.notes}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="es. Acquisto su Binance"
+                />
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="submit"
+                  disabled={submitLoading}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 font-medium"
+                >
+                  {submitLoading ? 'Aggiunta...' : 'Aggiungi Transazione'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddTransaction(false)
+                    resetTransactionForm()
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Annulla
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🔧 MODAL MODIFICA TRANSAZIONE */}
+      {showEditTransaction && editingTransaction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">✏️ Modifica Transazione</h3>
+              <button
+                onClick={() => {
+                  setShowEditTransaction(false)
+                  setEditingTransaction(null)
+                  resetTransactionForm()
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditTransaction} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                <select
+                  value={transactionForm.type}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, type: e.target.value as 'buy' | 'sell' }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="buy">📈 Acquisto (Buy)</option>
+                  <option value="sell">📉 Vendita (Sell)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ticker Crypto
+                </label>
+                <input
+                  type="text"
+                  value={transactionForm.ticker}
+                  onChange={(e) => {
+                    const ticker = e.target.value.toUpperCase()
+                    setTransactionForm(prev => ({ ...prev, ticker }))
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="es. BTC, ETH, SOL, ADA..."
+                  style={{ textTransform: 'uppercase' }}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Quantità Crypto
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={transactionForm.quantity}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, quantity: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0.00000000"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Valore EUR
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={transactionForm.eurValue}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, eurValue: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0.00"
+                  required
+                />
+                {/* 🔧 MOSTRA PREZZO CALCOLATO */}
+                {transactionForm.quantity && transactionForm.eurValue && 
+                 !isNaN(parseFloat(transactionForm.quantity)) && 
+                 !isNaN(parseFloat(transactionForm.eurValue)) && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Prezzo per unità: {formatCurrency(parseFloat(transactionForm.eurValue) / parseFloat(transactionForm.quantity))}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                <input
+                  type="date"
+                  value={transactionForm.date}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note (opzionale)</label>
+                <input
+                  type="text"
+                  value={transactionForm.notes}
+                  onChange={(e) => setTransactionForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="es. Acquisto su Binance"
+                />
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="submit"
+                  disabled={submitLoading}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 font-medium"
+                >
+                  {submitLoading ? 'Modifica...' : 'Salva Modifiche'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditTransaction(false)
+                    setEditingTransaction(null)
+                    resetTransactionForm()
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Annulla
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🔧 MODAL IMPOSTAZIONI PORTFOLIO */}
+      {showEditPortfolio && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">⚙️ Impostazioni Portfolio</h3>
+              <button
+                onClick={() => setShowEditPortfolio(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditPortfolio} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome Portfolio</label>
+                <input
+                  type="text"
+                  value={portfolioForm.name}
+                  onChange={(e) => setPortfolioForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="es. Main Crypto Wallet"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descrizione (opzionale)</label>
+                <textarea
+                  value={portfolioForm.description}
+                  onChange={(e) => setPortfolioForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="es. Portfolio principale per crypto diversificate"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="submit"
+                  disabled={submitLoading}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 font-medium"
+                >
+                  {submitLoading ? 'Salvataggio...' : 'Salva Modifiche'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEditPortfolio(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Annulla
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
