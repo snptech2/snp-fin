@@ -128,12 +128,12 @@ const Dashboard = () => {
     }
   ];
 
-  // Calculate budget summary
-  const budgetSummary = dashboardData.budgets.reduce((acc, budget) => {
-    acc.total += budget.amount || 0;
-    acc.allocated += budget.currentAmount || 0;
-    return acc;
-  }, { total: 0, allocated: 0 });
+// Calculate budget summary
+const budgetSummary = (Array.isArray(dashboardData.budgets) ? dashboardData.budgets : []).reduce((acc, budget) => {
+  acc.total += budget.amount || 0;
+  acc.allocated += budget.currentAmount || 0;
+  return acc;
+}, { total: 0, allocated: 0 });
 
   const budgetRemaining = budgetSummary.total - budgetSummary.allocated;
 
@@ -291,8 +291,7 @@ const Dashboard = () => {
                 </Link>
               </div>
               <div className="space-y-4">
-                {dashboardData.budgets.slice(0, 3).map((budget, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 rounded-lg border border-adaptive bg-adaptive-50">
+                {(Array.isArray(dashboardData.budgets) ? dashboardData.budgets : []).slice(0, 3).map((budget, index) => (                  <div key={index} className="flex items-center justify-between p-3 rounded-lg border border-adaptive bg-adaptive-50">
                     <div className="flex items-center">
                       <span className="text-sm font-medium text-adaptive-700">{budget.name}</span>
                     </div>
@@ -302,7 +301,7 @@ const Dashboard = () => {
                     </div>
                   </div>
                 ))}
-                {dashboardData.budgets.length === 0 && (
+                {(!Array.isArray(dashboardData.budgets) || dashboardData.budgets.length === 0) && (
                   <div className="text-center py-4">
                     <p className="text-adaptive-500">Nessun budget configurato</p>
                     <Link href="/budget" className="text-sm text-blue-600 hover:text-blue-700">
