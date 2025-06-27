@@ -7,12 +7,14 @@ import Link from 'next/link';
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
+  const [btcPrice, setBtcPrice] = useState(null); // ✅ NUOVO: Bitcoin price
   const [dashboardData, setDashboardData] = useState({
     accounts: [],
     investments: [],
     budgets: [],
-    budgetTotals: { totalLiquidity: 0, totalAllocated: 0 }, // ✅ NUOVO
+    budgetTotals: { totalLiquidity: 0, totalAllocated: 0 },
     transactions: [],
+    enhancedCashFlow: null, // ✅ NUOVO: Enhanced Cash Flow stats
     totals: {
       bankLiquidity: 0,
       investmentLiquidity: 0,
@@ -33,7 +35,50 @@ const Dashboard = () => {
     return `${value.toFixed(1)}%`;
   };
 
-  // Fetch real data from APIs
+  // ✅ NUOVO: Fetch Bitcoin price
+  const fetchBitcoinPrice = async () => {
+    try {
+      const response = await fetch('/api/bitcoin-price');
+      if (response.ok) {
+        const data = await response.json();
+        setBtcPrice(data);
+        console.log('🟠 Bitcoin Price loaded:', data.btcEur, 'EUR');
+      }
+    } catch (error) {
+      console.error('Error fetching Bitcoin price:', error);
+    }
+  };
+
+  // ✅ NUOVO: DCA Current Value Calculator (same as investments page)
+  const getDCACurrentValue = (portfolio, btcPrice) => {
+    if (portfolio.type !== 'dca_bitcoin' && !portfolio.stats?.totalBTC && !portfolio.stats?.netBTC) {
+      return 0;
+    }
+    
+    if (!btcPrice?.btcEur) {
+      console.warn('Bitcoin price not available for DCA calculation');
+      return 0;
+    }
+    
+    // Priority: netBTC (includes network fees)
+    if (portfolio.stats?.netBTC !== undefined && portfolio.stats?.netBTC !== null) {
+      const value = portfolio.stats.netBTC * btcPrice.btcEur;
+      console.log(`🟠 DCA ${portfolio.name}: ${portfolio.stats.netBTC} BTC × €${btcPrice.btcEur} = €${value}`);
+      return value;
+    }
+    
+    // Fallback: totalBTC
+    if (portfolio.stats?.totalBTC !== undefined && portfolio.stats?.totalBTC !== null && portfolio.stats.totalBTC > 0) {
+      const value = portfolio.stats.totalBTC * btcPrice.btcEur;
+      console.log(`🟠 DCA ${portfolio.name}: ${portfolio.stats.totalBTC} BTC × €${btcPrice.btcEur} = €${value} (using totalBTC)`);
+      return value;
+    }
+    
+    console.warn(`DCA ${portfolio.name}: No BTC data available`);
+    return 0;
+  };
+
+  // 🔧 FIX: Fetch data with corrected budget fields and Enhanced Cash Flow
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
@@ -63,65 +108,56 @@ const Dashboard = () => {
       console.log('🏦 DEBUG Budgets API Response:', budgetsResponse);
       console.log('🏦 Budget Totals from API:', budgetTotals);
       console.log('🏦 Budgets Array Length:', Array.isArray(budgets) ? budgets.length : 'Not an array');
-      if (Array.isArray(budgets) && budgets.length > 0) {
-        console.log('🏦 First Budget Object:', budgets[0]);
-      }
 
       // Calculate totals
-      const bankAccounts = accounts.filter(acc => acc.type === 'bank');
-      const investmentAccounts = accounts.filter(acc => acc.type === 'investment');
-      
-      const bankLiquidity = bankAccounts.reduce((sum, acc) => sum + acc.balance, 0);
-      const investmentLiquidity = investmentAccounts.reduce((sum, acc) => sum + acc.balance, 0);
-      
-      // ✅ CORREZIONE: Calculate holdings value from ALL portfolios (crypto + DCA)
-      const allPortfolios = [...cryptoPortfolios, ...dcaPortfolios];
+      const bankLiquidity = accounts
+        .filter(account => account.type === 'bank')
+        .reduce((sum, account) => sum + account.balance, 0);
+
+      const investmentLiquidity = accounts
+        .filter(account => account.type === 'investment')  
+        .reduce((sum, account) => sum + account.balance, 0);
+
+      // ✅ FIX: Calculate holdings value using same logic as investments page
       let holdingsValue = 0;
       
-      // Debug logging migliorato
-      console.log('🔍 DEBUG Portfolio Analysis:');
-      console.log('Crypto Portfolios:', cryptoPortfolios.length);
-      console.log('DCA Portfolios:', dcaPortfolios.length);
+      // Calculate crypto portfolios value
+      const cryptoValue = cryptoPortfolios.reduce((sum, portfolio) => {
+        const value = portfolio.stats?.totalValueEur || 0;
+        console.log(`🚀 Crypto ${portfolio.name}: €${value} (from backend)`);
+        return sum + value;
+      }, 0);
       
-      allPortfolios.forEach(portfolio => {
-        let portfolioValue = 0;
-        
-        if (portfolio.stats) {
-          // Per Crypto Wallet portfolios
-          if (portfolio.type === 'crypto_wallet') {
-            portfolioValue = portfolio.stats.totalValueEur || 0;
-          }
-          // Per DCA portfolios - calcola valore usando Bitcoin
-          else if (portfolio.type === 'dca_bitcoin' || portfolio.stats.totalBuyBTC) {
-            // Usa il prezzo Bitcoin per calcolare il valore (circa 58.000€ da screenshot)
-            const btcPriceEur = 58700; // Approssimativo, dovresti fare API call
-            const totalBTC = portfolio.stats.totalBuyBTC || 0;
-            portfolioValue = totalBTC * btcPriceEur;
-            console.log(`🟠 DCA Calculation: ${totalBTC} BTC × €${btcPriceEur} = €${portfolioValue}`);
-          }
-          // Fallback per altri tipi
-          else {
-            portfolioValue = portfolio.stats.totalValueEur || 
-                            portfolio.stats.currentValue || 
-                            portfolio.stats.valueEur || 0;
-          }
-        }
-        
-        holdingsValue += portfolioValue;
-        console.log(`📊 Portfolio "${portfolio.name}" (${portfolio.type || 'unknown'}): €${portfolioValue}`);
-        console.log(`   - stats object:`, portfolio.stats);
-      });
+      // Calculate DCA portfolios value
+      const dcaValue = dcaPortfolios.reduce((sum, portfolio) => {
+        const value = getDCACurrentValue(portfolio, btcPrice);
+        console.log(`🟠 DCA ${portfolio.name}: €${value} (calculated with BTC price)`);
+        return sum + value;
+      }, 0);
+      
+      holdingsValue = cryptoValue + dcaValue;
 
       console.log(`🎯 Total Holdings Value: €${holdingsValue}`);
+
+      // ✅ NUOVO: Calculate Enhanced Cash Flow totals - UNIFICATO
+      const allPortfolios = [...cryptoPortfolios, ...dcaPortfolios];
+      const enhancedCashFlow = allPortfolios.length > 0 ? {
+        totalInvested: allPortfolios.reduce((sum, p) => sum + (p.stats?.totalInvested || 0), 0),
+        capitalRecovered: allPortfolios.reduce((sum, p) => sum + (p.stats?.capitalRecovered || 0), 0),
+        effectiveInvestment: allPortfolios.reduce((sum, p) => sum + (p.stats?.effectiveInvestment || 0), 0),
+        realizedProfit: allPortfolios.reduce((sum, p) => sum + (p.stats?.realizedProfit || 0), 0),
+        isFullyRecovered: allPortfolios.every(p => p.stats?.isFullyRecovered || false)
+      } : null;
 
       const totalPatrimony = bankLiquidity + investmentLiquidity + holdingsValue;
 
       setDashboardData({
         accounts,
-        investments: allPortfolios,
+        investments: [...cryptoPortfolios, ...dcaPortfolios],
         budgets,
-        budgetTotals, // ✅ NUOVO: Aggiungo i totali dal backend
+        budgetTotals,
         transactions: Array.isArray(transactions) ? transactions.slice(0, 5) : [],
+        enhancedCashFlow, // ✅ NUOVO
         totals: {
           bankLiquidity,
           investmentLiquidity, 
@@ -138,8 +174,46 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    fetchBitcoinPrice(); // ✅ NUOVO: Fetch Bitcoin price first
     fetchDashboardData();
   }, []);
+
+  // ✅ NUOVO: Ricalcola holdings value quando btcPrice cambia
+  useEffect(() => {
+    if (btcPrice && dashboardData.investments.length > 0) {
+      console.log('🔄 Recalculating holdings value with Bitcoin price...');
+      
+      const cryptoPortfolios = dashboardData.investments.filter(p => p.type === 'crypto_wallet');
+      const dcaPortfolios = dashboardData.investments.filter(p => p.type === 'dca_bitcoin');
+      
+      // Calculate crypto portfolios value
+      const cryptoValue = cryptoPortfolios.reduce((sum, portfolio) => {
+        const value = portfolio.stats?.totalValueEur || 0;
+        console.log(`🚀 Crypto ${portfolio.name}: €${value} (from backend)`);
+        return sum + value;
+      }, 0);
+      
+      // Calculate DCA portfolios value with current Bitcoin price
+      const dcaValue = dcaPortfolios.reduce((sum, portfolio) => {
+        const value = getDCACurrentValue(portfolio, btcPrice);
+        console.log(`🟠 DCA ${portfolio.name}: €${value} (calculated with BTC price)`);
+        return sum + value;
+      }, 0);
+      
+      const newHoldingsValue = cryptoValue + dcaValue;
+      console.log(`🎯 Updated Total Holdings Value: €${newHoldingsValue} (Crypto: €${cryptoValue} + DCA: €${dcaValue})`);
+      
+      // Update totals with new holdings value
+      setDashboardData(prev => ({
+        ...prev,
+        totals: {
+          ...prev.totals,
+          holdingsValue: newHoldingsValue,
+          totalPatrimony: prev.totals.bankLiquidity + prev.totals.investmentLiquidity + newHoldingsValue
+        }
+      }));
+    }
+  }, [btcPrice, dashboardData.investments]);
 
   // ✅ MIGLIORAMENTO: Calculate allocation data for pie chart con nuove etichette
   const allocationData = [
@@ -169,22 +243,20 @@ const Dashboard = () => {
     }
   ];
 
-  // ✅ CORREZIONE: Calculate budget summary usando i dati dell'API
+  // ✅ CORREZIONE: Calculate budget summary usando i campi corretti
   const budgetSummary = dashboardData.budgetTotals?.totalAllocated > 0 ? {
     total: dashboardData.budgetTotals.totalLiquidity,
     allocated: dashboardData.budgetTotals.totalAllocated
   } : (Array.isArray(dashboardData.budgets) ? dashboardData.budgets : []).reduce((acc, budget) => {
-    // Debug per ogni budget solo se non abbiamo i totali dall'API
-    console.log(`🏦 Budget "${budget.name}":`, {
-      amount: budget.amount,
-      currentAmount: budget.currentAmount,
-      target: budget.target,
-      allocated: budget.allocated
-    });
+    // 🔧 FIX: Usa targetAmount e allocatedAmount invece di amount/currentAmount
+    const budgetTarget = budget.targetAmount || 0;
+    const budgetAllocated = budget.allocatedAmount || 0;
     
-    // Prova diversi campi possibili per amount e currentAmount
-    const budgetTarget = budget.amount || budget.target || 0;
-    const budgetAllocated = budget.currentAmount || budget.allocated || budgetTarget || 0;
+    console.log(`🏦 Budget "${budget.name}":`, {
+      targetAmount: budget.targetAmount,
+      allocatedAmount: budget.allocatedAmount,
+      budget
+    });
     
     acc.total += budgetTarget;
     acc.allocated += budgetAllocated;
@@ -195,9 +267,9 @@ const Dashboard = () => {
 
   // ✅ CORREZIONE: Calculate budget breakdown con campi corretti
   const budgetBreakdown = Array.isArray(dashboardData.budgets) ? dashboardData.budgets.map(budget => {
-    // Usa i campi corretti dall'API budgets
-    const target = budget.amount || budget.target || 0;
-    const allocated = budget.currentAmount || budget.allocated || budget.amount || 0;
+    // 🔧 FIX: Usa targetAmount e allocatedAmount invece di amount/currentAmount
+    const target = budget.targetAmount || 0;
+    const allocated = budget.allocatedAmount || 0;
     
     console.log(`📊 Budget Breakdown for "${budget.name}":`, { target, allocated, budget });
     
@@ -243,6 +315,52 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* ✅ NUOVO: Enhanced Cash Flow Breakdown - Consistente con investments page */}
+        {dashboardData.enhancedCashFlow && (
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-adaptive-900 mb-4">🔄 Enhanced Cash Flow</h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
+                <h3 className="text-sm font-medium text-adaptive-500">💰 Totale Investito</h3>
+                <p className="text-2xl font-bold text-adaptive-900">
+                  {formatCurrency(dashboardData.enhancedCashFlow.totalInvested)}
+                </p>
+                <p className="text-sm text-adaptive-600">Storico investimenti</p>
+              </div>
+
+              <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
+                <h3 className="text-sm font-medium text-adaptive-500">🔄 Capitale Recuperato</h3>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(dashboardData.enhancedCashFlow.capitalRecovered)}
+                </p>
+                <p className="text-sm text-adaptive-600">
+                  {dashboardData.enhancedCashFlow.totalInvested > 0 ? 
+                    ((dashboardData.enhancedCashFlow.capitalRecovered / dashboardData.enhancedCashFlow.totalInvested) * 100).toFixed(1) : 0}%
+                  {dashboardData.enhancedCashFlow.isFullyRecovered && <span className="text-green-600 ml-1">✅</span>}
+                </p>
+              </div>
+
+              <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
+                <h3 className="text-sm font-medium text-adaptive-500">⚠️ Soldi a Rischio</h3>
+                <p className="text-2xl font-bold text-orange-600">
+                  {formatCurrency(dashboardData.enhancedCashFlow.effectiveInvestment)}
+                </p>
+                <p className="text-sm text-adaptive-600">
+                  {dashboardData.enhancedCashFlow.isFullyRecovered ? '🎉 Investimento gratis!' : 'Non ancora recuperato'}
+                </p>
+              </div>
+
+              <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
+                <h3 className="text-sm font-medium text-adaptive-500">💹 Profitti Realizzati</h3>
+                <p className={`text-2xl font-bold ${dashboardData.enhancedCashFlow.realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(dashboardData.enhancedCashFlow.realizedProfit)}
+                </p>
+                <p className="text-sm text-adaptive-600">Da vendite</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ✅ MIGLIORAMENTO: Quick Stats con etichette corrette */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Link href="/accounts">
@@ -250,12 +368,12 @@ const Dashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-adaptive-500">🏦 Totale Conti Bancari</p>
-                  <p className="text-2xl font-bold text-adaptive-900">{formatCurrency(dashboardData.totals.bankLiquidity)}</p>
-                  <p className="text-sm text-adaptive-600">Liquidità disponibile</p>
+                  <p className="text-2xl font-bold text-adaptive-900">
+                    {formatCurrency(dashboardData.totals.bankLiquidity)}
+                  </p>
+                  <p className="text-xs text-adaptive-600">Liquidità disponibile</p>
                 </div>
-                <div className="bg-blue-100 p-3 rounded-full">
-                  <BanknotesIcon className="w-6 h-6 text-blue-600" />
-                </div>
+                <BanknotesIcon className="w-10 h-10 text-blue-600" />
               </div>
             </div>
           </Link>
@@ -264,13 +382,13 @@ const Dashboard = () => {
             <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive hover:bg-adaptive-100 transition-colors cursor-pointer">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-adaptive-500">💰 Totale Conti Investimento</p>
-                  <p className="text-2xl font-bold text-adaptive-900">{formatCurrency(dashboardData.totals.investmentLiquidity)}</p>
-                  <p className="text-sm text-adaptive-600">Pronta per investire</p>
+                  <p className="text-sm font-medium text-adaptive-500">📊 Totale Conti Investimento</p>
+                  <p className="text-2xl font-bold text-adaptive-900">
+                    {formatCurrency(dashboardData.totals.investmentLiquidity)}
+                  </p>
+                  <p className="text-xs text-adaptive-600">Pronta per investire</p>
                 </div>
-                <div className="bg-purple-100 p-3 rounded-full">
-                  <CurrencyEuroIcon className="w-6 h-6 text-purple-600" />
-                </div>
+                <CurrencyEuroIcon className="w-10 h-10 text-purple-600" />
               </div>
             </div>
           </Link>
@@ -279,13 +397,13 @@ const Dashboard = () => {
             <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive hover:bg-adaptive-100 transition-colors cursor-pointer">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-adaptive-500">📈 Totale Valore Holdings</p>
-                  <p className="text-2xl font-bold text-green-600">{formatCurrency(dashboardData.totals.holdingsValue)}</p>
-                  <p className="text-sm text-adaptive-600">Investimenti attuali</p>
+                  <p className="text-sm font-medium text-adaptive-500">💎 Totale Valore Holdings</p>
+                  <p className="text-2xl font-bold text-adaptive-900">
+                    {formatCurrency(dashboardData.totals.holdingsValue)}
+                  </p>
+                  <p className="text-xs text-adaptive-600">Investimenti attuali</p>
                 </div>
-                <div className="bg-green-100 p-3 rounded-full">
-                  <ArrowTrendingUpIcon className="w-6 h-6 text-green-600" />
-                </div>
+                <ChartPieIcon className="w-10 h-10 text-green-600" />
               </div>
             </div>
           </Link>
@@ -294,98 +412,109 @@ const Dashboard = () => {
             <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive hover:bg-adaptive-100 transition-colors cursor-pointer">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-adaptive-500">💸 Budget Allocato</p>
-                  <p className="text-2xl font-bold text-orange-600">{formatCurrency(budgetSummary.allocated)}</p>
-                  <p className="text-sm text-adaptive-600">di {formatCurrency(budgetSummary.total)}</p>
+                  <p className="text-sm font-medium text-adaptive-500">💰 Budget Allocato</p>
+                  <p className="text-2xl font-bold text-adaptive-900">
+                    {formatCurrency(budgetSummary.allocated)}
+                  </p>
+                  <p className="text-xs text-adaptive-600">di {formatCurrency(budgetSummary.total)}</p>
                 </div>
-                <div className="bg-orange-100 p-3 rounded-full">
-                  <ChartPieIcon className="w-6 h-6 text-orange-600" />
-                </div>
+                <div className="text-orange-600 text-2xl">🎯</div>
               </div>
             </div>
           </Link>
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Allocazione Patrimonio */}
-          <div className="lg:col-span-2">
-            <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
-              <h3 className="text-lg font-semibold text-adaptive-900 mb-6">📊 Allocazione Patrimonio</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={allocationData.filter(item => item.value > 0)}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        dataKey="value"
-                      >
-                        {allocationData.filter(item => item.value > 0).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="space-y-3">
-                  {allocationData.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div 
-                          className="w-3 h-3 rounded-full mr-3" 
-                          style={{ backgroundColor: item.color }}
-                        ></div>
-                        <span className="text-sm font-medium text-adaptive-700">{item.name}</span>
+          <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-adaptive-900">📊 Allocazione Patrimonio</h3>
+            </div>
+            
+            <div className="flex items-center gap-6">
+              {/* Pie Chart */}
+              <div className="w-40 h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={allocationData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={35}
+                      outerRadius={70}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {allocationData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              
+              {/* Legend */}
+              <div className="flex-1 space-y-3">
+                {allocationData.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: item.color }}
+                      ></div>
+                      <span className="text-sm text-adaptive-700">{item.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-adaptive-900">
+                        {formatCurrency(item.value)}
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-semibold text-adaptive-900">{formatCurrency(item.value)}</div>
-                        <div className="text-xs text-adaptive-500">{formatPercentage(item.percentage)}</div>
+                      <div className="text-xs text-adaptive-500">
+                        {formatPercentage(item.percentage)}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
-          {/* ✅ NUOVO: Budget Breakdown Dettagliato */}
+          {/* Ripartizione Budget */}
           <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-adaptive-900">💰 Ripartizione Budget</h3>
+              <h3 className="text-lg font-semibold text-adaptive-900">🔥 Ripartizione Budget</h3>
               <Link href="/budget" className="text-sm text-blue-600 hover:text-blue-700">
                 Dettagli →
               </Link>
             </div>
+            
             <div className="space-y-4">
-              {budgetBreakdown.length > 0 ? budgetBreakdown.map((budget, index) => (
-                <div key={index} className="p-3 rounded-lg border border-adaptive bg-adaptive-50">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-adaptive-700">{budget.name}</span>
-                    <span className="text-xs text-adaptive-500">{formatPercentage(budget.percentage)}</span>
+              {budgetBreakdown.length > 0 ? 
+                budgetBreakdown.map((budget, index) => (
+                  <div key={index} className="p-3 rounded-lg border border-adaptive bg-adaptive-50">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-adaptive-700">{budget.name}</span>
+                      <span className="text-xs text-adaptive-500">{formatPercentage(budget.percentage)}</span>
+                    </div>
+                    <div className="w-full bg-adaptive-200 rounded-full h-2 mb-2">
+                      <div 
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(budget.percentage, 100)}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between text-xs text-adaptive-600">
+                      <span>{formatCurrency(budget.allocated)}</span>
+                      <span>Target: {formatCurrency(budget.target)}</span>
+                    </div>
                   </div>
-                  <div className="w-full bg-adaptive-200 rounded-full h-2 mb-2">
-                    <div 
-                      className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(budget.percentage, 100)}%` }}
-                    ></div>
+                )) : (
+                  <div className="text-center py-4">
+                    <p className="text-adaptive-500">Nessun budget configurato</p>
+                    <Link href="/budget" className="text-sm text-blue-600 hover:text-blue-700">
+                      Crea il primo budget →
+                    </Link>
                   </div>
-                  <div className="flex justify-between text-xs text-adaptive-600">
-                    <span>{formatCurrency(budget.allocated)}</span>
-                    <span>Target: {formatCurrency(budget.target)}</span>
-                  </div>
-                </div>
-              )) : (
-                <div className="text-center py-4">
-                  <p className="text-adaptive-500">Nessun budget configurato</p>
-                  <Link href="/budget" className="text-sm text-blue-600 hover:text-blue-700">
-                    Crea il primo budget →
-                  </Link>
-                </div>
-              )}
+                )}
             </div>
             
             {/* Summary Budget */}
@@ -406,17 +535,17 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Bottom Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
-          {/* Investment Summary */}
+        {/* Bottom Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Investments Overview */}
           <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-adaptive-900">📈 Investimenti</h3>
+              <h3 className="text-lg font-semibold text-adaptive-900">🚀 Investimenti</h3>
               <Link href="/investments" className="text-sm text-blue-600 hover:text-blue-700">
                 Dettagli →
               </Link>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {dashboardData.investments.slice(0, 3).map((portfolio, index) => (
                 <div key={index} className="flex items-center justify-between p-3 rounded-lg border border-adaptive bg-adaptive-50">
                   <div>
@@ -427,7 +556,7 @@ const Dashboard = () => {
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-semibold text-green-600">
-                      {formatCurrency(portfolio.stats?.totalValueEur || 0)}
+                      {formatCurrency(portfolio.stats?.totalValueEur || getDCACurrentValue(portfolio, btcPrice))}
                     </div>
                     <div className={`text-xs ${(portfolio.stats?.totalROI || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {(portfolio.stats?.totalROI || 0) >= 0 ? '+' : ''}{(portfolio.stats?.totalROI || 0).toFixed(2)}%
