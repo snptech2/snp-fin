@@ -309,7 +309,7 @@ const Dashboard = () => {
                 <span>Aggiornato in tempo reale</span>
               </div>
             </div>
-            <div className="text-6xl opacity-20">
+            <div className="text-6xl opacity-120">
               💎
             </div>
           </div>
