@@ -464,29 +464,29 @@ export default function AccountsPage() {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-        <div className="bg-adaptive-50 border border-adaptive-200 rounded-lg p-6">
+        <div className="card-adaptive rounded-lg p-6">
           <h3 className="text-lg font-semibold text-adaptive-900 mb-2">💰 Saldo Totale</h3>
           <p className="text-3xl font-bold text-adaptive-900">{formatCurrency(totalBalance)}</p>
         </div>
         
-        <div className="bg-adaptive-50 border border-adaptive-200 rounded-lg p-6">
+        <div className="card-adaptive rounded-lg p-6">
           <h3 className="text-lg font-semibold text-adaptive-900 mb-2">🏦 Conti Bancari</h3>
           <p className="text-3xl font-bold text-adaptive-900">{bankAccounts.length}</p>
         </div>
         
-        <div className="bg-adaptive-50 border border-adaptive-200 rounded-lg p-6">
+        <div className="card-adaptive rounded-lg p-6">
           <h3 className="text-lg font-semibold text-adaptive-900 mb-2">📈 Investimenti</h3>
           <p className="text-3xl font-bold text-adaptive-900">{investmentAccounts.length}</p>
         </div>
         
-        <div className="bg-adaptive-50 border border-adaptive-200 rounded-lg p-6">
+        <div className="card-adaptive rounded-lg p-6">
           <h3 className="text-lg font-semibold text-adaptive-900 mb-2">🔄 Trasferimenti</h3>
           <p className="text-3xl font-bold text-adaptive-900">
             {Array.isArray(transfers) ? transfers.length : 0}
           </p>
         </div>
         
-        <div className="bg-adaptive-50 border border-adaptive-200 rounded-lg p-6">
+        <div className="card-adaptive rounded-lg p-6">
           <h3 className="text-lg font-semibold text-adaptive-900 mb-2">💼 Portfolio</h3>
           <p className="text-3xl font-bold text-adaptive-900">{dcaPortfolios.length + cryptoPortfolios.length}</p>
         </div>
@@ -511,7 +511,7 @@ export default function AccountsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {bankAccounts.map((account) => (
-              <div key={account.id} className="border border-adaptive rounded-lg p-6">
+              <div key={account.id} className="card-adaptive rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">🏦</span>
@@ -585,7 +585,7 @@ export default function AccountsPage() {
               const linkedPortfolios = [...dcaPortfolios, ...cryptoPortfolios].filter(p => p.accountId === account.id)
               
               return (
-                <div key={account.id} className="border border-adaptive rounded-lg p-6">
+                <div key={account.id} className="card-adaptive rounded-lg p-6">
                   {/* Account Header */}
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-4">
@@ -698,7 +698,7 @@ export default function AccountsPage() {
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-adaptive-900 mb-4">🔄 Trasferimenti</h2>
         {!Array.isArray(transfers) || transfers.length === 0 ? (
-          <div className="bg-adaptive-50 border border-adaptive rounded-lg p-8 text-center">
+          <div className="card-adaptive rounded-lg p-8 text-center">
             <div className="text-4xl mb-4">🔄</div>
             <h3 className="text-lg font-medium text-adaptive-900 mb-2">Nessun Trasferimento</h3>
             <p className="text-adaptive-600 mb-4">I tuoi trasferimenti tra conti appariranno qui</p>
@@ -711,7 +711,7 @@ export default function AccountsPage() {
             </button>
           </div>
         ) : (
-          <div className="bg-adaptive-50 border border-adaptive rounded-lg overflow-hidden">
+          <div className="card-adaptive rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-adaptive-100">
@@ -776,7 +776,7 @@ export default function AccountsPage() {
       {/* Account Modal */}
       {showAccountModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+          <div className="card-adaptive rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">
                 {editingAccount ? 'Modifica Conto' : 'Nuovo Conto'}
@@ -787,7 +787,7 @@ export default function AccountsPage() {
                   setEditingAccount(null)
                   setAccountForm({ name: '', type: 'bank' })
                 }}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-adaptive-500 hover:text-adaptive-700"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
@@ -795,27 +795,27 @@ export default function AccountsPage() {
 
             <form onSubmit={handleAccountSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Nome Conto
                 </label>
                 <input
                   type="text"
                   value={accountForm.name}
                   onChange={(e) => setAccountForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="es. Conto Corrente Principale"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Tipo Conto
                 </label>
                 <select
                   value={accountForm.type}
                   onChange={(e) => setAccountForm(prev => ({ ...prev, type: e.target.value as 'bank' | 'investment' }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="bank">🏦 Conto Bancario</option>
                   <option value="investment">📈 Conto Investimento</option>
@@ -836,7 +836,7 @@ export default function AccountsPage() {
                     setEditingAccount(null)
                     setAccountForm({ name: '', type: 'bank' })
                   }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                  className="px-4 py-2 border border-adaptive text-adaptive-700 rounded-md hover:bg-adaptive-50"
                 >
                   Annulla
                 </button>
@@ -849,7 +849,7 @@ export default function AccountsPage() {
       {/* Transfer Modal */}
       {showTransferModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+          <div className="card-adaptive rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">
                 {editingTransfer ? '✏️ Modifica Trasferimento' : '🔄 Nuovo Trasferimento'}
@@ -860,7 +860,7 @@ export default function AccountsPage() {
                   setEditingTransfer(null)
                   resetTransferForm()
                 }}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-adaptive-500 hover:text-adaptive-700"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
@@ -868,13 +868,13 @@ export default function AccountsPage() {
 
             <form onSubmit={editingTransfer ? handleEditTransfer : handleTransferSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Da Conto
                 </label>
                 <select
                   value={transferForm.fromAccountId}
                   onChange={(e) => setTransferForm(prev => ({ ...prev, fromAccountId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   required
                 >
                   <option value="">Seleziona conto di origine...</option>
@@ -887,13 +887,13 @@ export default function AccountsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   A Conto
                 </label>
                 <select
                   value={transferForm.toAccountId}
                   onChange={(e) => setTransferForm(prev => ({ ...prev, toAccountId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   required
                 >
                   <option value="">Seleziona conto di destinazione...</option>
@@ -908,7 +908,7 @@ export default function AccountsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Importo
                 </label>
                 <input
@@ -917,34 +917,34 @@ export default function AccountsPage() {
                   min="0.01"
                   value={transferForm.amount}
                   onChange={(e) => setTransferForm(prev => ({ ...prev, amount: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="0.00"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Data
                 </label>
                 <input
                   type="date"
                   value={transferForm.date}
                   onChange={(e) => setTransferForm(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-adaptive-700 mb-1">
                   Descrizione (opzionale)
                 </label>
                 <input
                   type="text"
                   value={transferForm.description}
                   onChange={(e) => setTransferForm(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="es. Trasferimento per investimenti"
                 />
               </div>
@@ -967,7 +967,7 @@ export default function AccountsPage() {
                     setEditingTransfer(null)
                     resetTransferForm()
                   }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                  className="px-4 py-2 border border-adaptive text-adaptive-700 rounded-md hover:bg-adaptive-50"
                 >
                   Annulla
                 </button>
