@@ -414,25 +414,25 @@ export default function CryptoPortfolioDetailPage() {
 
       {/* 🚀 Enhanced Statistics Overview - Sostituisce le 4 card esistenti */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-adaptive-50 border border-adaptive rounded-lg p-6">
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">💰 Investimento Totale</h3>
           <p className="text-2xl font-bold text-adaptive-900">{formatCurrency(portfolio.stats.totalInvested)}</p>
           <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.buyCount} acquisti</p>
         </div>
         
-        <div className="bg-adaptive-50 border border-adaptive rounded-lg p-6">
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">💸 Capitale Recuperato</h3>
           <p className="text-2xl font-bold text-adaptive-900">{formatCurrency(portfolio.stats.capitalRecovered)}</p>
           <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.sellCount} vendite</p>
         </div>
         
-        <div className="bg-adaptive-50 border border-adaptive rounded-lg p-6">
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">📈 Valore Attuale</h3>
           <p className="text-2xl font-bold text-green-600">{formatCurrency(portfolio.stats.totalValueEur)}</p>
           <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.holdingsCount} asset</p>
         </div>
         
-        <div className="bg-adaptive-50 border border-adaptive rounded-lg p-6">
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">🎯 ROI Totale</h3>
           <p className={`text-2xl font-bold ${portfolio.stats.totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatPercentage(portfolio.stats.totalROI)}
@@ -534,7 +534,7 @@ export default function CryptoPortfolioDetailPage() {
       </div>
 
       {/* Holdings Table */}
-      <div className="bg-adaptive-50 border border-adaptive rounded-lg mb-8">
+      <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-8">
         <div className="flex items-center justify-between p-6 border-b border-adaptive">
           <h2 className="text-xl font-bold text-adaptive-900">🪙 Holdings</h2>
           <div className="flex gap-3">
@@ -624,7 +624,7 @@ export default function CryptoPortfolioDetailPage() {
       </div>
 
       {/* Transactions Table */}
-      <div className="bg-adaptive-50 border border-adaptive rounded-lg">
+      <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
         <div className="flex items-center justify-between p-6 border-b border-adaptive">
           <h2 className="text-xl font-bold text-adaptive-900">📊 Transazioni ({portfolio.transactions.length})</h2>
           <button
