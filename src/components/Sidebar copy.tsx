@@ -1,9 +1,8 @@
-// src/components/Sidebar.tsx - AGGIORNATA con autenticazione
+// src/components/Sidebar.tsx
 'use client'
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useAuth } from '@/contexts/AuthContext'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: '🏠' },
@@ -17,16 +16,6 @@ const navigation = [
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const { user, logout } = useAuth()
-
-  const handleLogout = async () => {
-    if (confirm('Sei sicuro di voler uscire?')) {
-      await logout()
-    }
-  }
-
-  // Se non c'è utente, non mostrare la sidebar
-  if (!user) return null
 
   return (
     <div className="fixed inset-y-0 left-0 z-50 w-64 sidebar-adaptive shadow-lg border-r border-adaptive">
@@ -63,24 +52,15 @@ export default function Sidebar() {
 
         {/* User Section */}
         <div className="border-t border-adaptive p-4">
-          <div className="flex items-center mb-3">
+          <div className="flex items-center">
             <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-              {user.name.charAt(0).toUpperCase()}
+              U
             </div>
-            <div className="ml-3 flex-1 min-w-0">
-              <p className="text-sm font-medium text-adaptive-700 truncate">{user.name}</p>
-              <p className="text-xs text-adaptive-600 truncate">{user.email}</p>
-              <p className="text-xs text-adaptive-600">{user.currency}</p>
+            <div className="ml-3">
+              <p className="text-sm font-medium text-adaptive-700">Utente</p>
+              <p className="text-xs text-adaptive-600">EUR</p>
             </div>
           </div>
-          
-          {/* Logout Button */}
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-3 py-2 text-sm text-adaptive-600 hover:text-adaptive-900 hover:bg-gray-50 rounded-md transition-colors"
-          >
-            Esci
-          </button>
         </div>
       </div>
     </div>
