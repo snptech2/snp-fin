@@ -1,4 +1,4 @@
-// src/app/api/crypto-portfolios/route.ts - FASE 1 FIX
+// src/app/api/crypto-portfolios/route.ts - FIX COMPLETO CON PREZZI CORRENTI
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 
@@ -33,7 +33,43 @@ function calculateEnhancedStats(transactions: any[]) {
   }
 }
 
-// GET - Lista crypto portfolios con Enhanced Statistics
+// 🆕 NUOVA FUNZIONE: Ottieni prezzi correnti per gli asset
+async function fetchCurrentPrices(symbols: string[]): Promise<Record<string, number>> {
+  try {
+    if (symbols.length === 0) return {}
+    
+    console.log('🔍 Fetching current prices for:', symbols.join(', '))
+    
+    // Costruisci URL interno per l'API crypto-prices
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    const symbolsParam = symbols.join(',')
+    const url = `${baseUrl}/api/crypto-prices?symbols=${symbolsParam}`
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'SNP-Finance-App/1.0',
+      },
+      // Force fresh data per backend calculations
+      cache: 'no-store'
+    })
+
+    if (!response.ok) {
+      console.warn('⚠️ Errore API crypto-prices:', response.status)
+      return {}
+    }
+
+    const data = await response.json()
+    console.log('✅ Current prices fetched:', data.prices)
+    return data.prices || {}
+    
+  } catch (error) {
+    console.error('❌ Errore fetch prezzi correnti:', error)
+    return {}
+  }
+}
+
+// GET - Lista crypto portfolios con Enhanced Statistics e PREZZI CORRENTI
 export async function GET(request: NextRequest) {
   try {
     const portfolios = await prisma.cryptoPortfolio.findMany({
@@ -53,13 +89,29 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' }
     })
 
-    // 🎯 FIX FASE 1: Calcola Enhanced statistics per ogni portfolio
+    // 🆕 Raccoglie tutti i simboli unici dai holdings
+    const allSymbols = Array.from(new Set(
+      portfolios.flatMap(p => p.holdings.map(h => h.asset.symbol))
+    ))
+    
+    // 🆕 Ottieni prezzi correnti per tutti gli asset
+    const currentPrices = await fetchCurrentPrices(allSymbols)
+    
+    // 🎯 FIX CRITICO: Calcola Enhanced statistics con PREZZI CORRENTI
     const portfoliosWithStats = portfolios.map(portfolio => {
       // Applica Enhanced Cash Flow Logic
       const enhancedStats = calculateEnhancedStats(portfolio.transactions)
 
-      // Calcola valore attuale dei holdings (prezzo corrente - per ora usa avgPrice)
-      const totalValueEur = portfolio.holdings.reduce((sum, h) => sum + (h.quantity * h.avgPrice), 0)
+      // 🚨 FIX PRINCIPALE: Calcola valore attuale con PREZZI CORRENTI
+      const totalValueEur = portfolio.holdings.reduce((sum, h) => {
+        const currentPrice = currentPrices[h.asset.symbol] || h.currentPrice || h.avgPrice
+        const holdingValue = h.quantity * currentPrice
+        
+        console.log(`💰 ${h.asset.symbol}: ${h.quantity} × €${currentPrice} = €${holdingValue}`)
+        return sum + holdingValue
+      }, 0)
+      
+      console.log(`📊 Portfolio ${portfolio.name} - Total Value: €${totalValueEur}`)
       
       // 🔧 FIX: Calcola unrealized gains usando Enhanced logic
       const unrealizedGains = totalValueEur - enhancedStats.effectiveInvestment
@@ -70,86 +122,30 @@ export async function GET(request: NextRequest) {
 
       return {
         ...portfolio,
+        type: 'crypto_wallet', // Identificativo per il frontend
         stats: {
-          // Enhanced Cash Flow fields (source of truth)
           ...enhancedStats,
-          
-          // Derived calculations
+          // 🆕 VALORE ATTUALE CORRETTO con prezzi live
           totalValueEur,
           unrealizedGains,
           totalROI,
-          
-          // Counts
-          holdingsCount: portfolio._count.holdings
+          holdingsCount: portfolio.holdings.length,
+          // 🆕 Aggiungi info sui prezzi
+          pricesUpdated: currentPrices && Object.keys(currentPrices).length > 0,
+          pricesTimestamp: new Date().toISOString()
         }
       }
     })
+
+    console.log('✅ Crypto portfolios LIST with corrected current values:', portfoliosWithStats.length)
 
     return NextResponse.json(portfoliosWithStats)
+
   } catch (error) {
-    console.error('Errore recupero crypto portfolios:', error)
-    return NextResponse.json({ error: 'Errore recupero crypto portfolios' }, { status: 500 })
-  }
-}
-
-// POST - Crea nuovo crypto portfolio
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { name, description, accountId } = body
-
-    // Validazioni
-    if (!name || !name.trim()) {
-      return NextResponse.json({ error: 'Nome portfolio richiesto' }, { status: 400 })
-    }
-
-    if (!accountId) {
-      return NextResponse.json({ error: 'Account collegato richiesto' }, { status: 400 })
-    }
-
-    // Verifica che l'account esista e sia di investimento
-    const account = await prisma.account.findFirst({
-      where: { 
-        id: parseInt(accountId), 
-        userId: 1,
-        type: 'investment'
-      }
-    })
-
-    if (!account) {
-      return NextResponse.json({ error: 'Account di investimento non trovato' }, { status: 404 })
-    }
-
-    // Verifica che non esista già un portfolio con lo stesso nome
-    const existingPortfolio = await prisma.cryptoPortfolio.findFirst({
-      where: {
-        userId: 1,
-        name: name.trim()
-      }
-    })
-
-    if (existingPortfolio) {
-      return NextResponse.json({ error: 'Esiste già un portfolio con questo nome' }, { status: 400 })
-    }
-
-    const portfolio = await prisma.cryptoPortfolio.create({
-      data: {
-        name: name.trim(),
-        description: description?.trim() || null,
-        userId: 1,
-        accountId: parseInt(accountId),
-        isActive: true
-      },
-      include: {
-        account: {
-          select: { id: true, name: true, balance: true }
-        }
-      }
-    })
-
-    return NextResponse.json(portfolio, { status: 201 })
-  } catch (error) {
-    console.error('Errore creazione crypto portfolio:', error)
-    return NextResponse.json({ error: 'Errore creazione crypto portfolio' }, { status: 500 })
+    console.error('💥 Errore API crypto-portfolios LIST:', error)
+    return NextResponse.json(
+      { error: 'Errore interno del server' },
+      { status: 500 }
+    )
   }
 }
