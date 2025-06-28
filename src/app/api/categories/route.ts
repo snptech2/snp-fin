@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
@@ -12,10 +13,15 @@ const CATEGORY_COLORS = [
 
 export async function GET(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type')
     
-    const whereClause: any = { userId: 1 }
+    const whereClause: any = { userId }
     if (type && ['income', 'expense'].includes(type)) {
       whereClause.type = type
     }
@@ -36,6 +42,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const body = await request.json()
     const { name, type, color } = body
     
@@ -56,7 +67,7 @@ export async function POST(request: NextRequest) {
     // Controllo duplicati
     const existing = await prisma.category.findFirst({
       where: {
-        userId: 1,
+        userId,
         name: name.trim(),
         type: type
       }
@@ -83,7 +94,7 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         type,
         color: categoryColor,
-        userId: 1
+        userId
       }
     })
     

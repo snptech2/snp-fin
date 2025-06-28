@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const accounts = await prisma.account.findMany({
-      where: { userId: 1 },
+      where: { userId },
       orderBy: { createdAt: 'desc' }
     })
     
@@ -19,6 +25,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const { name, makeDefault, type } = await request.json()
     const accountType = type || 'bank' // Default to bank account
     
@@ -30,7 +41,7 @@ export async function POST(request: NextRequest) {
     const existingAccount = await prisma.account.findFirst({
       where: {
         name,
-        userId: 1
+        userId
       }
     })
 
@@ -42,7 +53,7 @@ export async function POST(request: NextRequest) {
     if (makeDefault) {
       await prisma.account.updateMany({
         where: { 
-          userId: 1,
+          userId,
           type: accountType // Only within the same type
         },
         data: { isDefault: false }
@@ -53,7 +64,7 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         type: accountType,
-        userId: 1,
+        userId,
         isDefault: makeDefault || false
       }
     })

@@ -1,6 +1,7 @@
 // src/app/api/categories/[id]/route.ts - VERSIONE CORRETTA
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
@@ -10,10 +11,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const resolvedParams = await params
     const categoryId = parseInt(resolvedParams.id)
     const body = await request.json()
-    const { name, type, color } = body  // 🔥 AGGIUNTO CAMPO COLOR
+    const { name, type, color } = body
 
     // Validazione
     if (!name || !type) {
@@ -30,7 +36,7 @@ export async function PUT(
       )
     }
 
-    // 🔥 VALIDAZIONE COLORE
+    // Validazione colore
     if (color && !color.match(/^#[0-9A-F]{6}$/i)) {
       return NextResponse.json(
         { error: 'Colore deve essere in formato esadecimale' },
@@ -42,7 +48,7 @@ export async function PUT(
     const existingCategory = await prisma.category.findFirst({
       where: {
         id: categoryId,
-        userId: 1
+        userId
       }
     })
 
@@ -58,7 +64,7 @@ export async function PUT(
       where: {
         name: name.trim(),
         type,
-        userId: 1,
+        userId,
         id: { not: categoryId }
       }
     })
@@ -70,7 +76,7 @@ export async function PUT(
       )
     }
 
-    // 🔥 AGGIORNA CATEGORIA CON COLORE
+    // Aggiorna categoria con colore
     const updateData: any = {
       name: name.trim(),
       type,
@@ -103,6 +109,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const resolvedParams = await params
     const categoryId = parseInt(resolvedParams.id)
 
@@ -110,7 +121,7 @@ export async function DELETE(
     const existingCategory = await prisma.category.findFirst({
       where: {
         id: categoryId,
-        userId: 1
+        userId
       }
     })
 

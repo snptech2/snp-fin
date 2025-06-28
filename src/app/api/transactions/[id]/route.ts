@@ -1,6 +1,7 @@
 // src/app/api/transactions/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
@@ -10,12 +11,17 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const transactionId = parseInt(params.id)
 
     const transaction = await prisma.transaction.findFirst({
       where: {
         id: transactionId,
-        userId: 1
+        userId
       },
       include: {
         account: {
@@ -50,6 +56,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const transactionId = parseInt(params.id)
     const body = await request.json()
     const { description, amount, date, accountId, categoryId, type } = body
@@ -81,7 +92,7 @@ export async function PUT(
     const existingTransaction = await prisma.transaction.findFirst({
       where: {
         id: transactionId,
-        userId: 1
+        userId
       }
     })
 
@@ -92,13 +103,13 @@ export async function PUT(
       )
     }
 
-    // Verifica che account e categoria esistano
+    // Verifica che account e categoria esistano e appartengano all'utente
     const [account, category] = await Promise.all([
       prisma.account.findFirst({
-        where: { id: parseInt(accountId), userId: 1 }
+        where: { id: parseInt(accountId), userId }
       }),
       prisma.category.findFirst({
-        where: { id: parseInt(categoryId), userId: 1, type }
+        where: { id: parseInt(categoryId), userId, type }
       })
     ])
 
@@ -116,53 +127,44 @@ export async function PUT(
       )
     }
 
-    // Inizia transazione database
+    // Aggiorna transazione e saldi in una transazione DB
     const result = await prisma.$transaction(async (tx) => {
-      // Ripristina il saldo precedente nel conto vecchio
+      // Revert old balance change
       const oldBalanceChange = existingTransaction.type === 'income' 
         ? -existingTransaction.amount 
         : existingTransaction.amount
 
       await tx.account.update({
         where: { id: existingTransaction.accountId },
-        data: {
-          balance: {
-            increment: oldBalanceChange
-          }
-        }
+        data: { balance: { increment: oldBalanceChange } }
       })
 
-      // Aggiorna transazione
+      // Apply new balance change
+      const newBalanceChange = type === 'income' ? parsedAmount : -parsedAmount
+
+      await tx.account.update({
+        where: { id: parseInt(accountId) },
+        data: { balance: { increment: newBalanceChange } }
+      })
+
+      // Update transaction
       const updatedTransaction = await tx.transaction.update({
         where: { id: transactionId },
         data: {
-          description: description?.trim() || null,
+          description: description || null,
           amount: parsedAmount,
           date: date ? new Date(date) : existingTransaction.date,
           type,
           accountId: parseInt(accountId),
-          categoryId: parseInt(categoryId),
-          updatedAt: new Date()
+          categoryId: parseInt(categoryId)
         },
         include: {
           account: {
             select: { id: true, name: true }
           },
           category: {
-            select: { id: true, name: true, type: true }
+            select: { id: true, name: true, type: true, color: true }
           }
-        }
-      })
-
-      // Applica nuovo saldo al conto (potrebbe essere diverso)
-      const newBalanceChange = type === 'income' ? parsedAmount : -parsedAmount
-      await tx.account.update({
-        where: { id: parseInt(accountId) },
-        data: {
-          balance: {
-            increment: newBalanceChange
-          },
-          updatedAt: new Date()
         }
       })
 
@@ -185,13 +187,18 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const transactionId = parseInt(params.id)
 
     // Recupera transazione esistente
     const existingTransaction = await prisma.transaction.findFirst({
       where: {
         id: transactionId,
-        userId: 1
+        userId
       }
     })
 
@@ -202,30 +209,25 @@ export async function DELETE(
       )
     }
 
-    // Inizia transazione database
+    // Cancella transazione e aggiorna saldo in una transazione DB
     await prisma.$transaction(async (tx) => {
-      // Ripristina il saldo nel conto
+      // Revert balance change
       const balanceChange = existingTransaction.type === 'income' 
         ? -existingTransaction.amount 
         : existingTransaction.amount
 
       await tx.account.update({
         where: { id: existingTransaction.accountId },
-        data: {
-          balance: {
-            increment: balanceChange
-          },
-          updatedAt: new Date()
-        }
+        data: { balance: { increment: balanceChange } }
       })
 
-      // Cancella transazione
+      // Delete transaction
       await tx.transaction.delete({
         where: { id: transactionId }
       })
     })
 
-    return NextResponse.json({ message: 'Transazione cancellata con successo' })
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Errore nella cancellazione transazione:', error)
     return NextResponse.json(

@@ -1,6 +1,7 @@
 // src/app/api/budgets/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
@@ -10,6 +11,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const budgetId = parseInt(params.id)
     if (isNaN(budgetId)) {
       return NextResponse.json(
@@ -25,7 +31,7 @@ export async function PUT(
     const existingBudget = await prisma.budget.findFirst({
       where: {
         id: budgetId,
-        userId: 1
+        userId
       }
     })
 
@@ -82,7 +88,7 @@ export async function PUT(
     if (parsedOrder !== existingBudget.order) {
       const existingBudgetWithOrder = await prisma.budget.findFirst({
         where: { 
-          userId: 1,
+          userId,
           order: parsedOrder,
           id: { not: budgetId }
         }
@@ -100,7 +106,7 @@ export async function PUT(
     if (name.trim() !== existingBudget.name) {
       const existingBudgetWithName = await prisma.budget.findFirst({
         where: { 
-          userId: 1,
+          userId,
           name: name.trim(),
           id: { not: budgetId }
         }
@@ -151,6 +157,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const budgetId = parseInt(params.id)
     if (isNaN(budgetId)) {
       return NextResponse.json(
@@ -163,7 +174,7 @@ export async function DELETE(
     const existingBudget = await prisma.budget.findFirst({
       where: {
         id: budgetId,
-        userId: 1
+        userId
       }
     })
 

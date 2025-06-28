@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
@@ -10,6 +11,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const accountId = parseInt(params.id)
     
     if (isNaN(accountId)) {
@@ -20,7 +26,7 @@ export async function PUT(
     const account = await prisma.account.findFirst({
       where: {
         id: accountId,
-        userId: 1 // TODO: sostituire con session reale
+        userId
       }
     })
 
@@ -34,7 +40,7 @@ export async function PUT(
       // Rimuovi isDefault da tutti gli account dell'utente
       await tx.account.updateMany({
         where: {
-          userId: 1, // TODO: sostituire con session reale
+          userId,
           isDefault: true
         },
         data: {

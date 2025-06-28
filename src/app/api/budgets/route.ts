@@ -1,20 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     // Get all budgets for the user
     const budgets = await prisma.budget.findMany({
-      where: { userId: 1 },
+      where: { userId },
       orderBy: { order: 'asc' }
     })
 
     // Calculate total liquidity from BANK accounts only
     const accounts = await prisma.account.findMany({
       where: { 
-        userId: 1,
+        userId,
         type: 'bank'
       }
     })
@@ -72,6 +78,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
     const { name, targetAmount, type, color } = await request.json()
 
     if (!name || !targetAmount || !type) {
@@ -90,7 +101,7 @@ export async function POST(request: NextRequest) {
     const existingBudget = await prisma.budget.findFirst({
       where: {
         name,
-        userId: 1
+        userId
       }
     })
 
@@ -100,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     // Get next order number
     const lastBudget = await prisma.budget.findFirst({
-      where: { userId: 1 },
+      where: { userId },
       orderBy: { order: 'desc' }
     })
 
@@ -113,7 +124,7 @@ export async function POST(request: NextRequest) {
         type,
         order: nextOrder,
         color: color || '#3B82F6',
-        userId: 1
+        userId
       }
     })
 
