@@ -1,9 +1,9 @@
-// src/app/investments/page.tsx - ENHANCED DISPLAY con breakdown profitti per portfolio
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { XMarkIcon } from '@heroicons/react/24/outline'
+import ProtectedRoute from '@/components/ProtectedRoute'
 
 interface Account {
   id: number
@@ -102,7 +102,7 @@ export default function InvestmentsPage() {
         setAccounts(Array.isArray(accountsData) ? accountsData : [])
       }
     } catch (error) {
-      console.error('Errore nel caricamento dati:', error)
+      console.error('Error fetching data:', error)
     } finally {
       setLoading(false)
     }
@@ -116,111 +116,41 @@ export default function InvestmentsPage() {
         setBtcPrice(data)
       }
     } catch (error) {
-      console.error('Errore nel recupero prezzo Bitcoin:', error)
+      console.error('Error fetching Bitcoin price:', error)
     }
   }
 
   // Format functions
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount)
-  }
+  const formatCurrency = (amount: number) => 
+    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
 
-  const formatBTC = (amount: number) => {
-    return `${amount.toFixed(8)} BTC`
-  }
+  const formatPercentage = (value: number) => 
+    new Intl.NumberFormat('it-IT', { style: 'percent', minimumFractionDigits: 1 }).format(value / 100)
 
-  const formatPercentage = (value: number) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
-  }
-
-  // 🚨 FIX: getDCACurrentValue con controllo di sicurezza per type
+  // DCA Current Value Calculator
   const getDCACurrentValue = (portfolio: Portfolio) => {
-    // 🚨 SAFETY CHECK MIGLIORATO: Solo DCA portfolios dovrebbero essere calcolati qui
-    if (portfolio.type !== 'dca_bitcoin') {
-      console.warn(`getDCACurrentValue called for non-DCA portfolio ${portfolio.name} (type: ${portfolio.type}), returning 0`)
+    if (portfolio.type !== 'dca_bitcoin' && !portfolio.stats?.totalBTC && !portfolio.stats?.netBTC) {
       return 0
     }
     
-    if (!btcPrice?.btcEur) return 0
+    if (!btcPrice?.btcEur) {
+      return 0
+    }
     
-    // 🎯 PRIORITÀ ASSOLUTA: USA SEMPRE netBTC se disponibile (include fee di rete)
-    if (portfolio.stats.netBTC !== undefined && portfolio.stats.netBTC !== null) {
+    // Priority: netBTC (includes network fees)
+    if (portfolio.stats?.netBTC !== undefined && portfolio.stats?.netBTC !== null) {
       return portfolio.stats.netBTC * btcPrice.btcEur
     }
     
-    // 🔧 FALLBACK TEMPORANEO: Se netBTC non disponibile, usa totalBTC
-    if (portfolio.stats.totalBTC !== undefined && portfolio.stats.totalBTC !== null && portfolio.stats.totalBTC > 0) {
-      console.warn(`DCA ${portfolio.name}: netBTC not available, using totalBTC=${portfolio.stats.totalBTC} (may overestimate due to fees)`)
+    // Fallback: totalBTC
+    if (portfolio.stats?.totalBTC !== undefined && portfolio.stats?.totalBTC !== null) {
       return portfolio.stats.totalBTC * btcPrice.btcEur
     }
     
-    // Se nessun dato BTC disponibile per DCA portfolio
-    console.error(`DCA ${portfolio.name}: No BTC data available`)
     return 0
   }
 
-  // 🚨 FIX: getPortfolioROI con controllo di sicurezza migliorato
-  const getPortfolioROI = (portfolio: Portfolio) => {
-    // 🎯 PRIORITÀ 1: Se il backend fornisce totalROI, usa sempre quello
-    if (portfolio.stats.totalROI !== undefined && portfolio.stats.totalROI !== null) {
-      return portfolio.stats.totalROI
-    }
-    
-    // 🔧 ENHANCED CALCULATION: Determina il tipo in base all'array di provenienza
-    const isCryptoWallet = cryptoPortfolios.includes(portfolio)
-    const currentValue = isCryptoWallet 
-      ? (portfolio.stats.totalValueEur || 0)
-      : getDCACurrentValue(portfolio)
-    
-    const effectiveInvestment = portfolio.stats.effectiveInvestment || 0
-    const realizedProfit = portfolio.stats.realizedProfit || 0
-    const totalInvested = portfolio.stats.totalInvested || 0
-    
-    if (totalInvested <= 0) return 0
-    
-    // Enhanced ROI formula
-    const unrealizedGains = currentValue - effectiveInvestment
-    const totalGains = realizedProfit + unrealizedGains
-    
-    return (totalGains / totalInvested) * 100
-  }
-
-  // 🚨 FIX: getPortfolioTotalGains con controllo di sicurezza migliorato
-  const getPortfolioTotalGains = (portfolio: Portfolio) => {
-    // 🔧 ENHANCED CALCULATION: Determina il tipo in base all'array di provenienza  
-    const isCryptoWallet = cryptoPortfolios.includes(portfolio)
-    const currentValue = isCryptoWallet 
-      ? (portfolio.stats.totalValueEur || 0)
-      : getDCACurrentValue(portfolio)
-    
-    const effectiveInvestment = portfolio.stats.effectiveInvestment || 0
-    const realizedProfit = portfolio.stats.realizedProfit || 0
-    
-    const unrealizedGains = currentValue - effectiveInvestment
-    return realizedProfit + unrealizedGains
-  }
-
-  // 🆕 NUOVA FUNZIONE: Get Portfolio Unrealized Gains
-  const getPortfolioUnrealizedGains = (portfolio: Portfolio) => {
-    // Se il backend fornisce unrealizedGains per crypto portfolios, usalo
-    if (portfolio.stats.unrealizedGains !== undefined && portfolio.stats.unrealizedGains !== null) {
-      return portfolio.stats.unrealizedGains
-    }
-
-    // Altrimenti calcola: currentValue - effectiveInvestment
-    const isCryptoWallet = cryptoPortfolios.includes(portfolio)
-    const currentValue = isCryptoWallet 
-      ? (portfolio.stats.totalValueEur || 0)
-      : getDCACurrentValue(portfolio)
-    
-    const effectiveInvestment = portfolio.stats.effectiveInvestment || 0
-    return currentValue - effectiveInvestment
-  }
-
-  // Enhanced Overall Stats - SOLO Backend Stats + Consistent Calculations
+  // Enhanced Overall Stats
   const overallStats = useMemo(() => {
     const allPortfolios = [...dcaPortfolios, ...cryptoPortfolios]
     
@@ -233,7 +163,6 @@ export default function InvestmentsPage() {
     // Calcola current value usando helper functions Enhanced
     let totalCurrentValue = 0
     allPortfolios.forEach(portfolio => {
-      // 🔧 FIX: Determina il tipo corretto in base all'array di provenienza
       const portfolioType = dcaPortfolios.includes(portfolio) ? 'dca_bitcoin' : 'crypto_wallet'
       
       if (portfolioType === 'crypto_wallet') {
@@ -334,102 +263,87 @@ export default function InvestmentsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-adaptive-600">Caricamento portfolio...</div>
-      </div>
+      <ProtectedRoute>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold text-adaptive-900">Investimenti</h1>
+            <p className="text-adaptive-600">Gestisci i tuoi portfolio di investimento</p>
+          </div>
+          <div className="flex justify-center items-center h-64">
+            <div className="text-adaptive-600">Caricamento portfolio...</div>
+          </div>
+        </div>
+      </ProtectedRoute>
     )
   }
 
   return (
-    <div className="min-h-screen bg-adaptive-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <ProtectedRoute>
+      <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-adaptive-900">Investimenti</h1>
-            <p className="text-adaptive-600 mt-1">Gestisci i tuoi portfolio con Enhanced Cash Flow</p>
+            <h1 className="text-3xl font-bold text-adaptive-900">📈 Investimenti</h1>
+            <p className="text-adaptive-600">Gestisci i tuoi portfolio di investimento con Enhanced Cash Flow</p>
           </div>
-          
           <div className="flex gap-3">
             <button
               onClick={() => setShowCreateDCAModal(true)}
-              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium"
+              className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 font-medium"
             >
-              🟠 DCA Bitcoin
+              🟠 Nuovo DCA Bitcoin
             </button>
             <button
               onClick={() => setShowCreateCryptoModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
             >
-              🚀 Crypto Wallet
+              🚀 Nuovo Crypto Wallet
             </button>
           </div>
         </div>
 
-        {/* Overview Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
+        {/* Enhanced Overall Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
             <h3 className="text-sm font-medium text-adaptive-500">💰 Totale Investito</h3>
             <p className="text-2xl font-bold text-adaptive-900">
               {formatCurrency(overallStats.totalInvested)}
             </p>
-            <p className="text-sm text-adaptive-600">
-              {overallStats.totalPortfolios} portfolio
-            </p>
+            <p className="text-sm text-adaptive-600">{overallStats.totalPortfolios} portfolio</p>
           </div>
-
-          <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
+          
+          <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
             <h3 className="text-sm font-medium text-adaptive-500">🔄 Capitale Recuperato</h3>
             <p className="text-2xl font-bold text-blue-600">
               {formatCurrency(overallStats.totalCapitalRecovered)}
             </p>
-            <p className="text-sm text-adaptive-600">
-              {overallStats.totalInvested > 0 ? 
-                ((overallStats.totalCapitalRecovered / overallStats.totalInvested) * 100).toFixed(1) : 0}%
-            </p>
+            <div className="flex items-center gap-2 text-sm text-adaptive-600">
+              <span>
+                {overallStats.totalInvested > 0 ? 
+                  `${((overallStats.totalCapitalRecovered / overallStats.totalInvested) * 100).toFixed(1)}%` : '0%'}
+              </span>
+              {overallStats.isFullyRecovered && <span className="text-green-600">✅</span>}
+            </div>
           </div>
-
-          <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-            <h3 className="text-sm font-medium text-adaptive-500">📈 Valore Attuale</h3>
-            <p className="text-2xl font-bold text-green-600">
-              {formatCurrency(overallStats.totalCurrentValue)}
-            </p>
-            <p className="text-sm text-adaptive-600">Holdings correnti</p>
-          </div>
-
-          <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-            <h3 className="text-sm font-medium text-adaptive-500">🎯 ROI Totale</h3>
-            <p className={`text-2xl font-bold ${overallStats.overallROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatPercentage(overallStats.overallROI)}
-            </p>
-            <p className="text-sm text-adaptive-600">Enhanced calculation</p>
-          </div>
-        </div>
-
-        {/* P&L Breakdown */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
+          
+          <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
             <h3 className="text-sm font-medium text-adaptive-500">⚠️ Soldi a Rischio</h3>
             <p className="text-2xl font-bold text-orange-600">
               {formatCurrency(overallStats.totalEffectiveInvestment)}
             </p>
-            <p className="text-sm text-adaptive-600">Non ancora recuperato</p>
-          </div>
-
-          <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-            <h3 className="text-sm font-medium text-adaptive-500">💸 Profitti Realizzati</h3>
-            <p className={`text-2xl font-bold ${overallStats.totalRealizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(overallStats.totalRealizedProfit)}
+            <p className="text-sm text-adaptive-600">
+              {overallStats.isFullyRecovered ? '🎉 Investimento gratis!' : 'Non ancora recuperato'}
             </p>
-            <p className="text-sm text-adaptive-600">Da vendite</p>
           </div>
-
-          <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-            <h3 className="text-sm font-medium text-adaptive-500">📊 Plus/Minus Non Real.</h3>
-            <p className={`text-2xl font-bold ${overallStats.totalUnrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(overallStats.totalUnrealizedGains)}
+          
+          <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
+            <h3 className="text-sm font-medium text-adaptive-500">📈 Valore Attuale</h3>
+            <p className="text-2xl font-bold text-green-600">
+              {formatCurrency(overallStats.totalCurrentValue)}
             </p>
-            <p className="text-sm text-adaptive-600">Su holdings correnti</p>
+            <p className={`text-sm ${overallStats.overallROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ROI: {formatPercentage(overallStats.overallROI)}
+            </p>
           </div>
         </div>
 
@@ -445,48 +359,46 @@ export default function InvestmentsPage() {
             
             <div className="divide-y divide-adaptive">
               {dcaPortfolios.map(portfolio => {
-                // USA SOLO Enhanced stats e helper functions
                 const currentValue = getDCACurrentValue(portfolio)
-                const totalROI = getPortfolioROI(portfolio)
-                const totalGains = getPortfolioTotalGains(portfolio)
+                const totalInvested = portfolio.stats.totalInvested || 0
+                const effectiveInvestment = portfolio.stats.effectiveInvestment || 0
                 const realizedProfit = portfolio.stats.realizedProfit || 0
-                const unrealizedGains = getPortfolioUnrealizedGains(portfolio)
+                const unrealizedGains = currentValue - effectiveInvestment
+                const totalGains = realizedProfit + unrealizedGains
+                const totalROI = totalInvested > 0 ? ((totalGains / totalInvested) * 100) : 0
 
                 return (
                   <Link key={portfolio.id} href={`/investments/${portfolio.id}`}>
-                    <div className="p-6 hover:bg-adaptive-50 transition-colors">
+                    <div className="p-6 hover:bg-adaptive-50 transition-colors cursor-pointer">
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
-                          <h3 className="font-medium text-adaptive-900 mb-1">{portfolio.name}</h3>
-                          <div className="flex items-center gap-4 text-sm text-adaptive-600 mb-3">
-                            <span>🟠 DCA Bitcoin</span>
-                            <span>{portfolio.stats.transactionCount} transazioni</span>
-                            {/* 🎯 PRIORITÀ: Mostra netBTC se disponibile (include fee), altrimenti totalBTC */}
-                            {(portfolio.stats.netBTC !== undefined && portfolio.stats.netBTC !== null) ? (
-                              <span className="text-green-600">{formatBTC(portfolio.stats.netBTC)} (netto)</span>
-                            ) : (portfolio.stats.totalBTC !== undefined && portfolio.stats.totalBTC !== null && portfolio.stats.totalBTC > 0) ? (
-                              <span className="text-orange-600">{formatBTC(portfolio.stats.totalBTC)} (no fees)</span>
-                            ) : (
-                              <span className="text-adaptive-500">0 BTC</span>
-                            )}
+                          <div className="flex items-center gap-4 mb-3">
+                            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                              <span className="text-2xl">🟠</span>
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold text-adaptive-900">{portfolio.name}</h3>
+                              <p className="text-sm text-adaptive-600">
+                                {portfolio.stats.transactionCount} transazioni • Account: {accounts.find(a => a.id === portfolio.accountId)?.name}
+                              </p>
+                            </div>
                           </div>
 
-                          {/* 🆕 ENHANCED P&L BREAKDOWN */}
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                             <div>
-                              <p className="text-adaptive-500">💸 Profitti Realizzati</p>
+                              <p className="text-adaptive-500">Profitto Realizzato</p>
                               <p className={`font-semibold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {formatCurrency(realizedProfit)}
                               </p>
                             </div>
                             <div>
-                              <p className="text-adaptive-500">📈 Plus/Minus Non Real.</p>
+                              <p className="text-adaptive-500">Plus/Minus Non Realizzati</p>
                               <p className={`font-semibold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {formatCurrency(unrealizedGains)}
                               </p>
                             </div>
                             <div>
-                              <p className="text-adaptive-500">🎯 P&L Totale</p>
+                              <p className="text-adaptive-500">Totale P&L</p>
                               <p className={`font-semibold ${totalGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {formatCurrency(totalGains)}
                               </p>
@@ -505,7 +417,7 @@ export default function InvestmentsPage() {
                           <div className="text-center min-w-[100px]">
                             <p className="text-xs text-adaptive-500">Investito</p>
                             <p className="font-semibold text-adaptive-900">
-                              {formatCurrency(portfolio.stats.totalInvested)}
+                              {formatCurrency(totalInvested)}
                             </p>
                           </div>
 
@@ -526,7 +438,7 @@ export default function InvestmentsPage() {
           </div>
         )}
 
-        {/* 🔧 FIX: Crypto Portfolios - Usa Enhanced Stats dal Backend */}
+        {/* Crypto Portfolios */}
         {cryptoPortfolios.length > 0 && (
           <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-8">
             <div className="p-6 border-b border-adaptive">
@@ -538,7 +450,7 @@ export default function InvestmentsPage() {
             
             <div className="divide-y divide-adaptive">
               {cryptoPortfolios.map(portfolio => {
-                // 🔧 FIX: Usa le Enhanced stats dal backend
+                // Usa le Enhanced stats dal backend
                 const totalInvested = portfolio.stats.totalInvested || 0
                 const currentValue = portfolio.stats.totalValueEur || 0
                 const totalROI = portfolio.stats.totalROI || 0
@@ -548,32 +460,36 @@ export default function InvestmentsPage() {
 
                 return (
                   <Link key={portfolio.id} href={`/investments/crypto-portfolio/${portfolio.id}`}>
-                    <div className="p-6 hover:bg-adaptive-50 transition-colors">
+                    <div className="p-6 hover:bg-adaptive-50 transition-colors cursor-pointer">
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
-                          <h3 className="font-medium text-adaptive-900 mb-1">{portfolio.name}</h3>
-                          <div className="flex items-center gap-4 text-sm text-adaptive-600 mb-3">
-                            <span>🚀 Crypto Wallet</span>
-                            <span>{portfolio.stats.transactionCount} transazioni</span>
-                            <span>{portfolio.stats.holdingsCount || 0} asset</span>
+                          <div className="flex items-center gap-4 mb-3">
+                            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                              <span className="text-2xl">🚀</span>
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold text-adaptive-900">{portfolio.name}</h3>
+                              <p className="text-sm text-adaptive-600">
+                                {portfolio.stats.holdingsCount} asset • {portfolio.stats.transactionCount} transazioni
+                              </p>
+                            </div>
                           </div>
 
-                          {/* 🆕 ENHANCED P&L BREAKDOWN */}
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                             <div>
-                              <p className="text-adaptive-500">💸 Profitti Realizzati</p>
+                              <p className="text-adaptive-500">Profitto Realizzato</p>
                               <p className={`font-semibold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {formatCurrency(realizedProfit)}
                               </p>
                             </div>
                             <div>
-                              <p className="text-adaptive-500">📈 Plus/Minus Non Real.</p>
+                              <p className="text-adaptive-500">Plus/Minus Non Realizzati</p>
                               <p className={`font-semibold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {formatCurrency(unrealizedGains)}
                               </p>
                             </div>
                             <div>
-                              <p className="text-adaptive-500">🎯 P&L Totale</p>
+                              <p className="text-adaptive-500">Totale P&L</p>
                               <p className={`font-semibold ${totalGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {formatCurrency(totalGains)}
                               </p>
@@ -639,12 +555,12 @@ export default function InvestmentsPage() {
         {/* Create DCA Portfolio Modal */}
         {showCreateDCAModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">🟠 Nuovo Portfolio DCA Bitcoin</h3>
+                <h3 className="text-lg font-semibold text-adaptive-900">🟠 Nuovo Portfolio DCA Bitcoin</h3>
                 <button
                   onClick={() => setShowCreateDCAModal(false)}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-adaptive-600 hover:text-adaptive-900"
                 >
                   <XMarkIcon className="w-5 h-5" />
                 </button>
@@ -652,28 +568,28 @@ export default function InvestmentsPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
                     Nome Portfolio
                   </label>
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="es. Bitcoin DCA Principale"
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="es. DCA Bitcoin Principale"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Account di Riferimento
+                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                    Account di Investimento
                   </label>
                   <select
                     value={formData.accountId || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, accountId: parseInt(e.target.value) || undefined }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(e) => setFormData({ ...formData, accountId: Number(e.target.value) || undefined })}
+                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="">Seleziona account...</option>
+                    <option value="">Seleziona account</option>
                     {investmentAccounts.map(account => (
                       <option key={account.id} value={account.id}>
                         {account.name} ({formatCurrency(account.balance)})
@@ -681,22 +597,22 @@ export default function InvestmentsPage() {
                     ))}
                   </select>
                 </div>
-              </div>
 
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={createDCAPortfolio}
-                  disabled={submitLoading}
-                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 font-medium"
-                >
-                  {submitLoading ? 'Creazione...' : 'Crea Portfolio'}
-                </button>
-                <button
-                  onClick={() => setShowCreateDCAModal(false)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-                >
-                  Annulla
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowCreateDCAModal(false)}
+                    className="flex-1 px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-adaptive-50"
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    onClick={createDCAPortfolio}
+                    disabled={submitLoading}
+                    className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
+                  >
+                    {submitLoading ? 'Creazione...' : 'Crea Portfolio'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -705,12 +621,12 @@ export default function InvestmentsPage() {
         {/* Create Crypto Portfolio Modal */}
         {showCreateCryptoModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">🚀 Nuovo Portfolio Crypto Wallet</h3>
+                <h3 className="text-lg font-semibold text-adaptive-900">🚀 Nuovo Portfolio Crypto</h3>
                 <button
                   onClick={() => setShowCreateCryptoModal(false)}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-adaptive-600 hover:text-adaptive-900"
                 >
                   <XMarkIcon className="w-5 h-5" />
                 </button>
@@ -718,41 +634,41 @@ export default function InvestmentsPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
                     Nome Portfolio
                   </label>
                   <input
                     type="text"
                     value={cryptoFormData.name}
-                    onChange={(e) => setCryptoFormData(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(e) => setCryptoFormData({ ...cryptoFormData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
                     placeholder="es. Portfolio Altcoin"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
                     Descrizione (opzionale)
                   </label>
                   <input
                     type="text"
                     value={cryptoFormData.description}
-                    onChange={(e) => setCryptoFormData(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="es. Portfolio diversificato"
+                    onChange={(e) => setCryptoFormData({ ...cryptoFormData, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Portfolio per diversificazione crypto"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Account di Riferimento
+                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                    Account di Investimento
                   </label>
                   <select
                     value={cryptoFormData.accountId || ''}
-                    onChange={(e) => setCryptoFormData(prev => ({ ...prev, accountId: parseInt(e.target.value) || undefined }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(e) => setCryptoFormData({ ...cryptoFormData, accountId: Number(e.target.value) || undefined })}
+                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="">Seleziona account...</option>
+                    <option value="">Seleziona account</option>
                     {investmentAccounts.map(account => (
                       <option key={account.id} value={account.id}>
                         {account.name} ({formatCurrency(account.balance)})
@@ -760,27 +676,27 @@ export default function InvestmentsPage() {
                     ))}
                   </select>
                 </div>
-              </div>
 
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={createCryptoPortfolio}
-                  disabled={submitLoading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 font-medium"
-                >
-                  {submitLoading ? 'Creazione...' : 'Crea Portfolio'}
-                </button>
-                <button
-                  onClick={() => setShowCreateCryptoModal(false)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-                >
-                  Annulla
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowCreateCryptoModal(false)}
+                    className="flex-1 px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-adaptive-50"
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    onClick={createCryptoPortfolio}
+                    disabled={submitLoading}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {submitLoading ? 'Creazione...' : 'Crea Portfolio'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </ProtectedRoute>
   )
 }

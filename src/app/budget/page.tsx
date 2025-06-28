@@ -1,276 +1,185 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import Link from 'next/link'
-import { XMarkIcon } from '@heroicons/react/24/outline'
+import { useState, useEffect } from 'react'
+import { formatCurrency } from '@/utils/formatters'
 import ProtectedRoute from '@/components/ProtectedRoute'
 
-interface Account {
+interface Budget {
   id: number
   name: string
+  targetAmount: number
   type: string
-  balance: number
+  order: number
+  color: string
+  allocatedAmount?: number
+  progress?: number
+  isCompleted?: boolean
+  deficit?: number
+  createdAt: string
+  updatedAt: string
 }
 
-interface Portfolio {
-  id: number
+interface BudgetData {
+  budgets: Budget[]
+  totalLiquidity: number
+  unallocated: number
+  availableColors: string[]
+}
+
+interface FormData {
   name: string
-  accountId: number
-  type: 'dca_bitcoin' | 'crypto_wallet'
-  stats: {
-    // Enhanced Cash Flow Fields
-    totalInvested: number
-    capitalRecovered: number
-    effectiveInvestment: number
-    realizedProfit: number
-    isFullyRecovered: boolean
-    
-    // Portfolio-specific fields
-    totalValueEur?: number // Per crypto portfolios
-    netBTC?: number // Per DCA portfolios (PRIORITÀ ASSOLUTA)
-    totalBTC?: number // Fallback per DCA portfolios
-    totalROI?: number // Calcolato dal backend quando disponibile
-    unrealizedGains?: number // Calcolato dal backend per crypto portfolios
-    
-    // Counts
-    transactionCount: number
-    buyCount: number
-    sellCount?: number
-    holdingsCount?: number // Per crypto portfolios
-    
-    // Legacy fields (backwards compatibility)
-    realizedGains?: number
-    totalGains?: number
-  }
+  targetAmount: string
+  type: 'fixed' | 'unlimited'
+  order: string
+  color: string
 }
 
-interface BitcoinPrice {
-  btcUsd: number
-  btcEur: number
-  cached: boolean
-}
-
-export default function InvestmentsPage() {
-  const [dcaPortfolios, setDcaPortfolios] = useState<Portfolio[]>([])
-  const [cryptoPortfolios, setCryptoPortfolios] = useState<Portfolio[]>([])
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null)
+export default function BudgetPage() {
+  const [budgetData, setBudgetData] = useState<BudgetData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [showCreateDCAModal, setShowCreateDCAModal] = useState(false)
-  const [showCreateCryptoModal, setShowCreateCryptoModal] = useState(false)
-  const [submitLoading, setSubmitLoading] = useState(false)
-
-  // Form states
-  const [formData, setFormData] = useState({
+  const [showForm, setShowForm] = useState(false)
+  const [editingBudget, setEditingBudget] = useState<Budget | null>(null)
+  const [formData, setFormData] = useState<FormData>({
     name: '',
-    accountId: undefined as number | undefined
+    targetAmount: '',
+    type: 'fixed',
+    order: '',
+    color: '#3B82F6'
   })
+  const [submitting, setSubmitting] = useState(false)
 
-  const [cryptoFormData, setCryptoFormData] = useState({
-    name: '',
-    description: '',
-    accountId: undefined as number | undefined
-  })
-
-  const investmentAccounts = accounts.filter(acc => acc.type === 'investment')
-
-  useEffect(() => {
-    fetchData()
-    fetchBitcoinPrice()
-  }, [])
-
-  const fetchData = async () => {
+  // Carica budget
+  const loadBudgets = async () => {
     try {
-      const [dcaRes, cryptoRes, accountsRes] = await Promise.all([
-        fetch('/api/dca-portfolios'),
-        fetch('/api/crypto-portfolios'),
-        fetch('/api/accounts')
-      ])
-
-      if (dcaRes.ok) {
-        const dcaData = await dcaRes.json()
-        setDcaPortfolios(Array.isArray(dcaData) ? dcaData : [])
-      }
-
-      if (cryptoRes.ok) {
-        const cryptoData = await cryptoRes.json()
-        setCryptoPortfolios(Array.isArray(cryptoData) ? cryptoData : [])
-      }
-
-      if (accountsRes.ok) {
-        const accountsData = await accountsRes.json()
-        setAccounts(Array.isArray(accountsData) ? accountsData : [])
+      const response = await fetch('/api/budgets')
+      if (response.ok) {
+        const data = await response.json()
+        setBudgetData(data)
       }
     } catch (error) {
-      console.error('Error fetching data:', error)
+      console.error('Errore nel caricamento budget:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchBitcoinPrice = async () => {
-    try {
-      const response = await fetch('/api/bitcoin-price')
-      if (response.ok) {
-        const data = await response.json()
-        setBtcPrice(data)
-      }
-    } catch (error) {
-      console.error('Error fetching Bitcoin price:', error)
-    }
-  }
+  useEffect(() => {
+    loadBudgets()
+  }, [])
 
-  // Format functions
-  const formatCurrency = (amount: number) => 
-    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
-
-  const formatPercentage = (value: number) => 
-    new Intl.NumberFormat('it-IT', { style: 'percent', minimumFractionDigits: 1 }).format(value / 100)
-
-  // DCA Current Value Calculator
-  const getDCACurrentValue = (portfolio: Portfolio) => {
-    if (portfolio.type !== 'dca_bitcoin' && !portfolio.stats?.totalBTC && !portfolio.stats?.netBTC) {
-      return 0
-    }
-    
-    if (!btcPrice?.btcEur) {
-      return 0
-    }
-    
-    // Priority: netBTC (includes network fees)
-    if (portfolio.stats?.netBTC !== undefined && portfolio.stats?.netBTC !== null) {
-      return portfolio.stats.netBTC * btcPrice.btcEur
-    }
-    
-    // Fallback: totalBTC
-    if (portfolio.stats?.totalBTC !== undefined && portfolio.stats?.totalBTC !== null) {
-      return portfolio.stats.totalBTC * btcPrice.btcEur
-    }
-    
-    return 0
-  }
-
-  // Enhanced Overall Stats
-  const overallStats = useMemo(() => {
-    const allPortfolios = [...dcaPortfolios, ...cryptoPortfolios]
-    
-    // Enhanced Cash Flow: Somma tutte le stats dai portfolio backend
-    const totalInvested = allPortfolios.reduce((sum, p) => sum + (p.stats.totalInvested || 0), 0)
-    const totalCapitalRecovered = allPortfolios.reduce((sum, p) => sum + (p.stats.capitalRecovered || 0), 0)
-    const totalEffectiveInvestment = allPortfolios.reduce((sum, p) => sum + (p.stats.effectiveInvestment || 0), 0)
-    const totalRealizedProfit = allPortfolios.reduce((sum, p) => sum + (p.stats.realizedProfit || 0), 0)
-    
-    // Calcola current value usando helper functions Enhanced
-    let totalCurrentValue = 0
-    allPortfolios.forEach(portfolio => {
-      const portfolioType = dcaPortfolios.includes(portfolio) ? 'dca_bitcoin' : 'crypto_wallet'
-      
-      if (portfolioType === 'crypto_wallet') {
-        // Crypto portfolios: usa totalValueEur dal backend
-        totalCurrentValue += portfolio.stats.totalValueEur || 0
-      } else {
-        // DCA portfolios: usa Enhanced current value calculation
-        totalCurrentValue += getDCACurrentValue(portfolio)
-      }
+  // Reset form
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      targetAmount: '',
+      type: 'fixed',
+      order: '',
+      color: budgetData?.availableColors?.[0] || '#3B82F6'
     })
-    
-    // Enhanced calculation per overall metrics
-    const totalUnrealizedGains = totalCurrentValue - totalEffectiveInvestment
-    const overallROI = totalInvested > 0 ? 
-      ((totalRealizedProfit + totalUnrealizedGains) / totalInvested) * 100 : 0
+    setEditingBudget(null)
+    setShowForm(false)
+  }
 
-    return {
-      // Enhanced Cash Flow Metrics
-      totalInvested,
-      totalCapitalRecovered,
-      totalEffectiveInvestment,
-      totalRealizedProfit,
-      isFullyRecovered: totalCapitalRecovered >= totalInvested,
-      
-      // Current Performance
-      totalCurrentValue,
-      totalUnrealizedGains,
-      overallROI,
-      
-      // Counts
-      totalPortfolios: allPortfolios.length,
-      dcaCount: dcaPortfolios.length,
-      cryptoCount: cryptoPortfolios.length
-    }
-  }, [dcaPortfolios, cryptoPortfolios, btcPrice])
+  // Apri form per nuovo budget
+  const openCreateForm = () => {
+    resetForm()
+    setShowForm(true)
+    const maxOrder = budgetData?.budgets.reduce((max, b) => Math.max(max, b.order), 0) || 0
+    setFormData(prev => ({ 
+      ...prev, 
+      order: (maxOrder + 1).toString(),
+      color: budgetData?.availableColors?.[0] || '#3B82F6'
+    }))
+  }
 
-  // Create DCA Portfolio
-  const createDCAPortfolio = async () => {
-    if (!formData.name.trim() || !formData.accountId) {
-      alert('Nome e account sono obbligatori')
-      return
-    }
+  // Apri form per modifica
+  const openEditForm = (budget: Budget) => {
+    setEditingBudget(budget)
+    setFormData({
+      name: budget.name,
+      targetAmount: budget.targetAmount.toString(),
+      type: budget.type as 'fixed' | 'unlimited',
+      order: budget.order.toString(),
+      color: budget.color || '#3B82F6'
+    })
+    setShowForm(true)
+  }
+
+  // Submit form
+  const handleSubmit = async () => {
+    setSubmitting(true)
 
     try {
-      setSubmitLoading(true)
-      const response = await fetch('/api/dca-portfolios', {
-        method: 'POST',
+      const url = editingBudget 
+        ? `/api/budgets/${editingBudget.id}`
+        : '/api/budgets'
+      
+      const method = editingBudget ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          name: formData.name,
+          targetAmount: parseFloat(formData.targetAmount),
+          type: formData.type,
+          order: parseInt(formData.order),
+          color: formData.color
+        })
       })
 
       if (response.ok) {
-        await fetchData()
-        setShowCreateDCAModal(false)
-        setFormData({ name: '', accountId: undefined })
+        await loadBudgets()
+        resetForm()
       } else {
         const error = await response.json()
-        alert(error.error || 'Errore nella creazione portfolio')
+        alert(`Errore: ${error.error}`)
       }
     } catch (error) {
-      console.error('Errore:', error)
-      alert('Errore nella creazione portfolio')
+      console.error('Errore nel salvataggio:', error)
+      alert('Errore nel salvataggio del budget')
     } finally {
-      setSubmitLoading(false)
+      setSubmitting(false)
     }
   }
 
-  // Create Crypto Portfolio
-  const createCryptoPortfolio = async () => {
-    if (!cryptoFormData.name.trim() || !cryptoFormData.accountId) {
-      alert('Nome e account sono obbligatori')
-      return
-    }
+  // Cancella budget
+  const deleteBudget = async (id: number) => {
+    if (!confirm('Sei sicuro di voler cancellare questo budget?')) return
 
     try {
-      setSubmitLoading(true)
-      const response = await fetch('/api/crypto-portfolios', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cryptoFormData)
+      const response = await fetch(`/api/budgets/${id}`, {
+        method: 'DELETE'
       })
 
       if (response.ok) {
-        await fetchData()
-        setShowCreateCryptoModal(false)
-        setCryptoFormData({ name: '', description: '', accountId: undefined })
+        await loadBudgets()
       } else {
         const error = await response.json()
-        alert(error.error || 'Errore nella creazione portfolio')
+        alert(`Errore: ${error.error}`)
       }
     } catch (error) {
-      console.error('Errore:', error)
-      alert('Errore nella creazione portfolio')
-    } finally {
-      setSubmitLoading(false)
+      console.error('Errore nella cancellazione:', error)
+      alert('Errore nella cancellazione del budget')
     }
   }
+
+  // Colori disponibili
+  const availableColors = [
+    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+    '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
+  ]
 
   if (loading) {
     return (
       <ProtectedRoute>
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold text-adaptive-900">Investimenti</h1>
-            <p className="text-adaptive-600">Gestisci i tuoi portfolio di investimento</p>
+            <h1 className="text-3xl font-bold text-adaptive-900">Budget</h1>
+            <p className="text-adaptive-600">Gestione allocazione fondi</p>
           </div>
           <div className="flex justify-center items-center h-64">
-            <div className="text-adaptive-600">Caricamento portfolio...</div>
+            <div className="text-adaptive-600">Caricamento...</div>
           </div>
         </div>
       </ProtectedRoute>
@@ -283,415 +192,276 @@ export default function InvestmentsPage() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-adaptive-900">📈 Investimenti</h1>
-            <p className="text-adaptive-600">Gestisci i tuoi portfolio di investimento con Enhanced Cash Flow</p>
+            <h1 className="text-3xl font-bold text-adaptive-900">Budget</h1>
+            <p className="text-adaptive-600">Gestione allocazione fondi per priorità</p>
           </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowCreateDCAModal(true)}
-              className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 font-medium"
-            >
-              🟠 Nuovo DCA Bitcoin
-            </button>
-            <button
-              onClick={() => setShowCreateCryptoModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
-            >
-              🚀 Nuovo Crypto Wallet
-            </button>
-          </div>
+          <button
+            onClick={openCreateForm}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            ➕ Nuovo Budget
+          </button>
         </div>
 
-        {/* Enhanced Overall Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
-            <h3 className="text-sm font-medium text-adaptive-500">💰 Totale Investito</h3>
-            <p className="text-2xl font-bold text-adaptive-900">
-              {formatCurrency(overallStats.totalInvested)}
-            </p>
-            <p className="text-sm text-adaptive-600">{overallStats.totalPortfolios} portfolio</p>
-          </div>
-          
-          <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
-            <h3 className="text-sm font-medium text-adaptive-500">🔄 Capitale Recuperato</h3>
+        {/* Statistiche */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+            <h3 className="text-sm font-medium text-adaptive-500">Liquidità Totale</h3>
             <p className="text-2xl font-bold text-blue-600">
-              {formatCurrency(overallStats.totalCapitalRecovered)}
+              {formatCurrency(budgetData?.totalLiquidity || 0)}
             </p>
-            <div className="flex items-center gap-2 text-sm text-adaptive-600">
-              <span>
-                {overallStats.totalInvested > 0 ? 
-                  `${((overallStats.totalCapitalRecovered / overallStats.totalInvested) * 100).toFixed(1)}%` : '0%'}
-              </span>
-              {overallStats.isFullyRecovered && <span className="text-green-600">✅</span>}
-            </div>
+            <p className="text-sm text-adaptive-600">Da tutti i conti</p>
           </div>
           
-          <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
-            <h3 className="text-sm font-medium text-adaptive-500">⚠️ Soldi a Rischio</h3>
-            <p className="text-2xl font-bold text-orange-600">
-              {formatCurrency(overallStats.totalEffectiveInvestment)}
-            </p>
-            <p className="text-sm text-adaptive-600">
-              {overallStats.isFullyRecovered ? '🎉 Investimento gratis!' : 'Non ancora recuperato'}
-            </p>
-          </div>
-          
-          <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
-            <h3 className="text-sm font-medium text-adaptive-500">📈 Valore Attuale</h3>
+          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+            <h3 className="text-sm font-medium text-adaptive-500">Allocato</h3>
             <p className="text-2xl font-bold text-green-600">
-              {formatCurrency(overallStats.totalCurrentValue)}
+              {formatCurrency((budgetData?.totalLiquidity || 0) - (budgetData?.unallocated || 0))}
             </p>
-            <p className={`text-sm ${overallStats.overallROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              ROI: {formatPercentage(overallStats.overallROI)}
+            <p className="text-sm text-adaptive-600">Budget assegnati</p>
+          </div>
+          
+          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+            <h3 className="text-sm font-medium text-adaptive-500">Non Allocato</h3>
+            <p className="text-2xl font-bold text-orange-600">
+              {formatCurrency(budgetData?.unallocated || 0)}
             </p>
+            <p className="text-sm text-adaptive-600">Fondi liberi</p>
           </div>
         </div>
 
-        {/* DCA Bitcoin Portfolios */}
-        {dcaPortfolios.length > 0 && (
-          <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-8">
-            <div className="p-6 border-b border-adaptive">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-adaptive-900">🟠 DCA Bitcoin Portfolios</h2>
-                <span className="text-sm text-adaptive-500">{dcaPortfolios.length} portfolio</span>
-              </div>
-            </div>
-            
-            <div className="divide-y divide-adaptive">
-              {dcaPortfolios.map(portfolio => {
-                const currentValue = getDCACurrentValue(portfolio)
-                const totalInvested = portfolio.stats.totalInvested || 0
-                const effectiveInvestment = portfolio.stats.effectiveInvestment || 0
-                const realizedProfit = portfolio.stats.realizedProfit || 0
-                const unrealizedGains = currentValue - effectiveInvestment
-                const totalGains = realizedProfit + unrealizedGains
-                const totalROI = totalInvested > 0 ? ((totalGains / totalInvested) * 100) : 0
-
-                return (
-                  <Link key={portfolio.id} href={`/investments/${portfolio.id}`}>
-                    <div className="p-6 hover:bg-adaptive-50 transition-colors cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-4 mb-3">
-                            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                              <span className="text-2xl">🟠</span>
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-semibold text-adaptive-900">{portfolio.name}</h3>
-                              <p className="text-sm text-adaptive-600">
-                                {portfolio.stats.transactionCount} transazioni • Account: {accounts.find(a => a.id === portfolio.accountId)?.name}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <p className="text-adaptive-500">Profitto Realizzato</p>
-                              <p className={`font-semibold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(realizedProfit)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-adaptive-500">Plus/Minus Non Realizzati</p>
-                              <p className={`font-semibold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(unrealizedGains)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-adaptive-500">Totale P&L</p>
-                              <p className={`font-semibold ${totalGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(totalGains)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-adaptive-500">ROI</p>
-                              <p className={`font-semibold ${totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPercentage(totalROI)}
-                              </p>
-                            </div>
-                          </div>
+        {/* Lista Budget */}
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
+          <div className="p-6 border-b border-adaptive">
+            <h3 className="text-lg font-medium text-adaptive-900">
+              Allocazione Budget ({budgetData?.budgets.length || 0})
+            </h3>
+          </div>
+          <div className="p-6">
+            {budgetData?.budgets && budgetData.budgets.length > 0 ? (
+              <div className="space-y-3">
+                {budgetData.budgets.map((budget) => (
+                  <div key={budget.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <div className="flex items-center gap-4 flex-1">
+                      {/* Priorità */}
+                      <div className="bg-gray-200 text-gray-700 px-2 py-1 rounded text-sm font-medium min-w-[40px] text-center">
+                        #{budget.order}
+                      </div>
+                      
+                      {/* Colore */}
+                      <div 
+                        className="w-4 h-4 rounded-full border-2 border-gray-300"
+                        style={{ backgroundColor: budget.color }}
+                        title={`Colore: ${budget.color}`}
+                      />
+                      
+                      {/* Info Budget */}
+                      <div className="flex-1 min-w-[200px]">
+                        <h4 className="font-semibold text-adaptive-900">{budget.name}</h4>
+                        <p className="text-sm text-adaptive-600">
+                          {budget.type === 'fixed' 
+                            ? `Target: ${formatCurrency(budget.targetAmount)}`
+                            : 'Budget illimitato (tutto il resto)'
+                          }
+                        </p>
+                      </div>
+                      
+                      {/* Importo Allocato */}
+                      <div className="text-right min-w-[120px]">
+                        <div className="text-lg font-bold text-adaptive-900">
+                          {formatCurrency(budget.allocatedAmount || 0)}
                         </div>
-
-                        <div className="flex items-center gap-6 ml-6">
-                          {/* Investito */}
-                          <div className="text-center min-w-[100px]">
-                            <p className="text-xs text-adaptive-500">Investito</p>
-                            <p className="font-semibold text-adaptive-900">
-                              {formatCurrency(totalInvested)}
-                            </p>
+                        {budget.type === 'fixed' && (
+                          <div className="text-sm text-adaptive-600">
+                            {((budget.allocatedAmount || 0) / budget.targetAmount * 100).toFixed(1)}%
                           </div>
-
-                          {/* Valore Attuale */}
-                          <div className="text-center min-w-[100px]">
-                            <p className="text-xs text-adaptive-500">Valore Attuale</p>
-                            <p className="font-semibold text-green-600">
-                              {formatCurrency(currentValue)}
-                            </p>
+                        )}
+                      </div>
+                      
+                      {/* Barra di Progresso */}
+                      <div className="min-w-[200px]">
+                        {budget.type === 'fixed' ? (
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-adaptive-600">
+                              <span>Progresso</span>
+                              <span>{((budget.allocatedAmount || 0) / budget.targetAmount * 100).toFixed(1)}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-3">
+                              <div 
+                                className="h-3 rounded-full transition-all duration-300"
+                                style={{ 
+                                  width: `${Math.min(100, (budget.allocatedAmount || 0) / budget.targetAmount * 100)}%`,
+                                  backgroundColor: budget.color 
+                                }}
+                              />
+                            </div>
+                            {(budget.allocatedAmount || 0) < budget.targetAmount && (
+                              <div className="text-xs text-red-600">
+                                Deficit: {formatCurrency(budget.targetAmount - (budget.allocatedAmount || 0))}
+                              </div>
+                            )}
                           </div>
-                        </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <div className="text-xs text-adaptive-600">Budget Illimitato</div>
+                            <div className="w-full bg-gray-200 rounded-full h-3">
+                              <div 
+                                className="h-3 rounded-full"
+                                style={{ 
+                                  width: '100%',
+                                  backgroundColor: budget.color 
+                                }}
+                              />
+                            </div>
+                            <div className="text-xs text-adaptive-600">
+                              Riceve tutti i fondi rimanenti
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Crypto Portfolios */}
-        {cryptoPortfolios.length > 0 && (
-          <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-8">
-            <div className="p-6 border-b border-adaptive">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-adaptive-900">🚀 Crypto Wallet Portfolios</h2>
-                <span className="text-sm text-adaptive-500">{cryptoPortfolios.length} portfolio</span>
-              </div>
-            </div>
-            
-            <div className="divide-y divide-adaptive">
-              {cryptoPortfolios.map(portfolio => {
-                // Usa le Enhanced stats dal backend
-                const totalInvested = portfolio.stats.totalInvested || 0
-                const currentValue = portfolio.stats.totalValueEur || 0
-                const totalROI = portfolio.stats.totalROI || 0
-                const realizedProfit = portfolio.stats.realizedProfit || 0
-                const unrealizedGains = portfolio.stats.unrealizedGains || 0
-                const totalGains = realizedProfit + unrealizedGains
-
-                return (
-                  <Link key={portfolio.id} href={`/investments/crypto-portfolio/${portfolio.id}`}>
-                    <div className="p-6 hover:bg-adaptive-50 transition-colors cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-4 mb-3">
-                            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <span className="text-2xl">🚀</span>
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-semibold text-adaptive-900">{portfolio.name}</h3>
-                              <p className="text-sm text-adaptive-600">
-                                {portfolio.stats.holdingsCount} asset • {portfolio.stats.transactionCount} transazioni
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <p className="text-adaptive-500">Profitto Realizzato</p>
-                              <p className={`font-semibold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(realizedProfit)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-adaptive-500">Plus/Minus Non Realizzati</p>
-                              <p className={`font-semibold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(unrealizedGains)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-adaptive-500">Totale P&L</p>
-                              <p className={`font-semibold ${totalGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(totalGains)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-adaptive-500">ROI</p>
-                              <p className={`font-semibold ${totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPercentage(totalROI)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-6 ml-6">
-                          {/* Investito */}
-                          <div className="text-center min-w-[100px]">
-                            <p className="text-xs text-adaptive-500">Investito</p>
-                            <p className="font-semibold text-adaptive-900">
-                              {formatCurrency(totalInvested)}
-                            </p>
-                          </div>
-
-                          {/* Valore Attuale */}
-                          <div className="text-center min-w-[100px]">
-                            <p className="text-xs text-adaptive-500">Valore Attuale</p>
-                            <p className="font-semibold text-green-600">
-                              {formatCurrency(currentValue)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                    
+                    {/* Azioni */}
+                    <div className="flex items-center gap-2 ml-4">
+                      <button
+                        onClick={() => openEditForm(budget)}
+                        className="text-blue-600 hover:text-blue-800 p-1"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => deleteBudget(budget.id)}
+                        className="text-red-600 hover:text-red-800 p-1"
+                      >
+                        🗑️
+                      </button>
                     </div>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {dcaPortfolios.length === 0 && cryptoPortfolios.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">📊</div>
-            <h3 className="text-xl font-semibold text-adaptive-900 mb-2">Nessun portfolio ancora</h3>
-            <p className="text-adaptive-600 mb-6">Inizia creando il tuo primo portfolio di investimenti</p>
-            <div className="flex gap-4 justify-center">
-              <button
-                onClick={() => setShowCreateDCAModal(true)}
-                className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium"
-              >
-                🟠 Crea DCA Bitcoin
-              </button>
-              <button
-                onClick={() => setShowCreateCryptoModal(true)}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-              >
-                🚀 Crea Crypto Wallet
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Create DCA Portfolio Modal */}
-        {showCreateDCAModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-adaptive-900">🟠 Nuovo Portfolio DCA Bitcoin</h3>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-adaptive-600 mb-4">📊 Nessun budget configurato</p>
+                <p className="text-adaptive-500 mb-6">Crea il tuo primo budget per iniziare ad allocare i fondi</p>
                 <button
-                  onClick={() => setShowCreateDCAModal(false)}
-                  className="text-adaptive-600 hover:text-adaptive-900"
+                  onClick={openCreateForm}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  <XMarkIcon className="w-5 h-5" />
+                  Crea Primo Budget
                 </button>
               </div>
+            )}
+          </div>
+        </div>
 
+        {/* Modal */}
+        {showForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
+              <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
+                {editingBudget ? 'Modifica Budget' : 'Nuovo Budget'}
+              </h3>
+              
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
-                    Nome Portfolio
+                  <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                    Nome Budget
                   </label>
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="es. DCA Bitcoin Principale"
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="es. Fondo Emergenza"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
-                    Account di Investimento
+                  <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                    Tipo Budget
                   </label>
                   <select
-                    value={formData.accountId || ''}
-                    onChange={(e) => setFormData({ ...formData, accountId: Number(e.target.value) || undefined })}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    value={formData.type}
+                    onChange={(e) => setFormData(prev => ({ 
+                      ...prev, 
+                      type: e.target.value as 'fixed' | 'unlimited',
+                      targetAmount: e.target.value === 'unlimited' ? '0' : prev.targetAmount
+                    }))}
+                    className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">Seleziona account</option>
-                    {investmentAccounts.map(account => (
-                      <option key={account.id} value={account.id}>
-                        {account.name} ({formatCurrency(account.balance)})
-                      </option>
-                    ))}
+                    <option value="fixed">💰 Budget Fisso</option>
+                    <option value="unlimited">♾️ Budget Illimitato</option>
                   </select>
                 </div>
 
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowCreateDCAModal(false)}
-                    className="flex-1 px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-adaptive-50"
-                  >
-                    Annulla
-                  </button>
-                  <button
-                    onClick={createDCAPortfolio}
-                    disabled={submitLoading}
-                    className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
-                  >
-                    {submitLoading ? 'Creazione...' : 'Crea Portfolio'}
-                  </button>
+                {formData.type === 'fixed' && (
+                  <div>
+                    <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                      Importo Target (EUR)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={formData.targetAmount}
+                      onChange={(e) => setFormData(prev => ({ ...prev, targetAmount: e.target.value }))}
+                      className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="1000.00"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-adaptive-700 mb-1">
+                    Priorità
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.order}
+                    onChange={(e) => setFormData(prev => ({ ...prev, order: e.target.value }))}
+                    className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="1"
+                  />
+                  <p className="text-xs text-adaptive-600 mt-1">
+                    I budget vengono allocati in ordine di priorità (1 = massima priorità)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-adaptive-700 mb-2">
+                    Colore
+                  </label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {availableColors.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, color }))}
+                        className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                          formData.color === color ? 'border-gray-800' : 'border-gray-300'
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* Create Crypto Portfolio Modal */}
-        {showCreateCryptoModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-adaptive-900">🚀 Nuovo Portfolio Crypto</h3>
+              <div className="flex justify-end space-x-3 mt-6">
                 <button
-                  onClick={() => setShowCreateCryptoModal(false)}
-                  className="text-adaptive-600 hover:text-adaptive-900"
+                  onClick={resetForm}
+                  className="px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-gray-50"
                 >
-                  <XMarkIcon className="w-5 h-5" />
+                  Annulla
                 </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
-                    Nome Portfolio
-                  </label>
-                  <input
-                    type="text"
-                    value={cryptoFormData.name}
-                    onChange={(e) => setCryptoFormData({ ...cryptoFormData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="es. Portfolio Altcoin"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
-                    Descrizione (opzionale)
-                  </label>
-                  <input
-                    type="text"
-                    value={cryptoFormData.description}
-                    onChange={(e) => setCryptoFormData({ ...cryptoFormData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Portfolio per diversificazione crypto"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
-                    Account di Investimento
-                  </label>
-                  <select
-                    value={cryptoFormData.accountId || ''}
-                    onChange={(e) => setCryptoFormData({ ...cryptoFormData, accountId: Number(e.target.value) || undefined })}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">Seleziona account</option>
-                    {investmentAccounts.map(account => (
-                      <option key={account.id} value={account.id}>
-                        {account.name} ({formatCurrency(account.balance)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowCreateCryptoModal(false)}
-                    className="flex-1 px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-adaptive-50"
-                  >
-                    Annulla
-                  </button>
-                  <button
-                    onClick={createCryptoPortfolio}
-                    disabled={submitLoading}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {submitLoading ? 'Creazione...' : 'Crea Portfolio'}
-                  </button>
-                </div>
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting || !formData.name || (formData.type === 'fixed' && !formData.targetAmount)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {submitting ? 'Salvataggio...' : editingBudget ? 'Aggiorna' : 'Crea'}
+                </button>
               </div>
             </div>
           </div>
