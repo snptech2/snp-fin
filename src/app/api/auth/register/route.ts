@@ -1,4 +1,4 @@
-// src/app/api/auth/register/route.ts
+// src/app/api/auth/register/route.ts - FIX COOKIE AUTHENTICATION
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { hashPassword, generateToken } from '@/lib/auth'
@@ -73,18 +73,34 @@ export async function POST(request: NextRequest) {
       token
     })
 
-    // Imposta cookie sicuro
-    response.cookies.set('auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 // 7 giorni
+    // 🔧 FIX: Cookie settings corretti per deployment
+    // Determina se usare secure basandosi su HTTPS, non su NODE_ENV
+    const isHttps = process.env.FORCE_HTTPS === 'true' || 
+                   request.headers.get('x-forwarded-proto') === 'https' ||
+                   request.url.startsWith('https://')
+
+    console.log('🍪 Registration Cookie Settings Debug:', {
+      isHttps,
+      nodeEnv: process.env.NODE_ENV,
+      protocol: request.url.split('://')[0],
+      xForwardedProto: request.headers.get('x-forwarded-proto')
     })
 
+    // Imposta cookie con settings corretti
+    response.cookies.set('auth_token', token, {
+      httpOnly: true,
+      secure: isHttps, // 🔧 Solo se effettivamente HTTPS
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60, // 7 giorni
+      path: '/', // 🔧 Assicura che sia disponibile ovunque
+      domain: undefined // 🔧 Lascia che il browser determini il domain automaticamente
+    })
+
+    console.log('✅ Registration successful for:', email)
     return response
 
   } catch (error) {
-    console.error('Errore durante la registrazione:', error)
+    console.error('❌ Errore durante la registrazione:', error)
     return NextResponse.json(
       { error: 'Errore interno del server' },
       { status: 500 }
