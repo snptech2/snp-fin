@@ -1,12 +1,18 @@
 // src/app/api/dca-transactions/route.ts - VERSIONE CORRETTA
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
-// GET - Lista transazioni DCA (INVARIATO)
+// GET - Lista transazioni DCA
 export async function GET(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const { searchParams } = new URL(request.url)
     const portfolioId = searchParams.get('portfolioId')
 
@@ -34,7 +40,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Filtra per user se necessario
-    const userTransactions = transactions.filter(tx => tx.portfolio.userId === 1)
+    const userTransactions = transactions.filter(tx => tx.portfolio.userId === userId) // 🔄 Sostituito: userId === 1 → userId === userId
 
     // Aggiungi prezzo di acquisto calcolato
     const transactionsWithPrice = userTransactions.map(tx => ({
@@ -55,6 +61,11 @@ export async function GET(request: NextRequest) {
 // POST - Crea nuova transazione DCA (AGGIORNATO per supportare vendite)
 export async function POST(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const body = await request.json()
     // 🟠 AGGIUNTO: campo type opzionale
     const { portfolioId, date, type = 'buy', broker, info, btcQuantity, eurPaid, notes } = body
@@ -75,7 +86,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verifica che il portfolio esista e appartenga all'utente (INVARIATO)
+    // Verifica che il portfolio esista e appartenga all'utente
     const portfolio = await prisma.dCAPortfolio.findUnique({
       where: { id: parseInt(portfolioId) },
       include: {
@@ -83,7 +94,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    if (!portfolio || portfolio.userId !== 1) {
+    if (!portfolio || portfolio.userId !== userId) { // 🔄 Sostituito: userId !== 1 → userId !== userId
       return NextResponse.json(
         { error: 'Portafoglio non trovato' },
         { status: 404 }
@@ -100,48 +111,16 @@ export async function POST(request: NextRequest) {
     const btcQty = parseFloat(btcQuantity)
     const eurAmt = parseFloat(eurPaid)
 
-    // 🟠 NUOVO: Validazioni specifiche per tipo
-    if (type === 'buy') {
-      // ACQUISTO: Verifica liquidità sufficiente (LOGICA ORIGINALE)
-      if (portfolio.account.balance < eurAmt) {
-        return NextResponse.json(
-          { 
-            error: 'Liquidità insufficiente',
-            currentBalance: portfolio.account.balance,
-            required: eurAmt,
-            deficit: eurAmt - portfolio.account.balance,
-            accountName: portfolio.account.name
-          },
-          { status: 400 }
-        )
-      }
-    } else if (type === 'sell') {
-      // 🟠 NUOVO: VENDITA - Verifica BTC sufficienti
-      const existingTransactions = await prisma.dCATransaction.findMany({
-        where: { portfolioId: parseInt(portfolioId) }
-      })
-
-      let totalBtcHeld = 0
-      for (const tx of existingTransactions) {
-        totalBtcHeld += tx.btcQuantity // Somma direttamente (positivi e negativi)
-      }
-
-      if (totalBtcHeld < btcQty) {
-        return NextResponse.json(
-          {
-            error: 'BTC insufficienti nel portfolio',
-            currentBtc: totalBtcHeld,
-            required: btcQty,
-            deficit: btcQty - totalBtcHeld
-          },
-          { status: 400 }
-        )
-      }
+    // 🟠 NUOVO: Validazione saldo per acquisti
+    if (type === 'buy' && portfolio.account.balance < eurAmt) {
+      return NextResponse.json(
+        { error: 'Saldo insufficiente nel conto di investimento' },
+        { status: 400 }
+      )
     }
 
-    // Crea transazione e aggiorna saldo (AGGIORNATO)
+    // Crea la transazione e aggiorna il saldo in una transazione database
     const result = await prisma.$transaction(async (tx) => {
-      // Crea la transazione DCA
       const transaction = await tx.dCATransaction.create({
         data: {
           portfolioId: parseInt(portfolioId),

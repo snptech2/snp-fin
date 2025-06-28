@@ -1,6 +1,7 @@
 // src/app/api/crypto-portfolios/route.ts - FIX COMPLETO CON PREZZI CORRENTI
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
@@ -72,8 +73,13 @@ async function fetchCurrentPrices(symbols: string[]): Promise<Record<string, num
 // GET - Lista crypto portfolios con Enhanced Statistics e PREZZI CORRENTI
 export async function GET(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const portfolios = await prisma.cryptoPortfolio.findMany({
-      where: { userId: 1 },
+      where: { userId }, // 🔄 Sostituito: userId: 1 → userId
       include: {
         account: {
           select: { id: true, name: true, balance: true }
@@ -81,71 +87,132 @@ export async function GET(request: NextRequest) {
         holdings: {
           include: { asset: true }
         },
-        transactions: true, // ✅ CRITICO: serve per calcolare Enhanced stats
-        _count: {
-          select: { transactions: true, holdings: true }
-        }
+        transactions: true, // ✅ CRITICO: Include transazioni per Enhanced statistics
       },
       orderBy: { createdAt: 'desc' }
     })
 
-    // 🆕 Raccoglie tutti i simboli unici dai holdings
-    const allSymbols = Array.from(new Set(
-      portfolios.flatMap(p => p.holdings.map(h => h.asset.symbol))
-    ))
-    
-    // 🆕 Ottieni prezzi correnti per tutti gli asset
-    const currentPrices = await fetchCurrentPrices(allSymbols)
-    
-    // 🎯 FIX CRITICO: Calcola Enhanced statistics con PREZZI CORRENTI
-    const portfoliosWithStats = portfolios.map(portfolio => {
-      // Applica Enhanced Cash Flow Logic
+    // 🆕 Raccogli tutti i simboli unici per fetch prezzi
+    const allSymbols = new Set<string>()
+    portfolios.forEach(portfolio => {
+      portfolio.holdings.forEach(holding => {
+        allSymbols.add(holding.asset.symbol.toUpperCase())
+      })
+    })
+
+    // 🆕 Fetch prezzi correnti per tutti gli asset
+    const currentPrices = await fetchCurrentPrices(Array.from(allSymbols))
+
+    // 🎯 FASE 1: Applica Enhanced Statistics + Current Prices
+    const portfoliosWithEnhancedStats = portfolios.map(portfolio => {
       const enhancedStats = calculateEnhancedStats(portfolio.transactions)
 
-      // 🚨 FIX PRINCIPALE: Calcola valore attuale con PREZZI CORRENTI
-      const totalValueEur = portfolio.holdings.reduce((sum, h) => {
-        const currentPrice = currentPrices[h.asset.symbol] || h.currentPrice || h.avgPrice
-        const holdingValue = h.quantity * currentPrice
-        
-        console.log(`💰 ${h.asset.symbol}: ${h.quantity} × €${currentPrice} = €${holdingValue}`)
-        return sum + holdingValue
-      }, 0)
-      
-      console.log(`📊 Portfolio ${portfolio.name} - Total Value: €${totalValueEur}`)
-      
-      // 🔧 FIX: Calcola unrealized gains usando Enhanced logic
-      const unrealizedGains = totalValueEur - enhancedStats.effectiveInvestment
+      // 🆕 Calcola valore attuale usando prezzi correnti
+      let totalValueEur = 0
+      const holdingsWithCurrentPrices = portfolio.holdings.map(holding => {
+        const currentPrice = currentPrices[holding.asset.symbol] || holding.currentPrice || holding.avgPrice
+        const valueEur = holding.quantity * currentPrice
+        totalValueEur += valueEur
 
-      // 🔧 FIX: ROI totale usando Enhanced logic  
-      const totalROI = enhancedStats.totalInvested > 0 ? 
+        return {
+          ...holding,
+          currentPrice,
+          valueEur,
+          lastUpdated: new Date().toISOString()
+        }
+      })
+
+      // 🆕 Calcola unrealized gains e ROI usando Enhanced logic
+      const unrealizedGains = totalValueEur - enhancedStats.effectiveInvestment
+      const totalROI = enhancedStats.totalInvested > 0 ?
         ((enhancedStats.realizedProfit + unrealizedGains) / enhancedStats.totalInvested) * 100 : 0
+
+      const finalStats = {
+        ...enhancedStats,
+        totalValueEur,      // 🆕 Valore attuale usando prezzi correnti
+        unrealizedGains,    // 🆕 Guadagni/perdite non realizzati
+        totalROI,           // 🆕 ROI usando Enhanced logic
+        holdingsCount: portfolio.holdings.length
+      }
 
       return {
         ...portfolio,
-        type: 'crypto_wallet', // Identificativo per il frontend
-        stats: {
-          ...enhancedStats,
-          // 🆕 VALORE ATTUALE CORRETTO con prezzi live
-          totalValueEur,
-          unrealizedGains,
-          totalROI,
-          holdingsCount: portfolio.holdings.length,
-          // 🆕 Aggiungi info sui prezzi
-          pricesUpdated: currentPrices && Object.keys(currentPrices).length > 0,
-          pricesTimestamp: new Date().toISOString()
+        holdings: holdingsWithCurrentPrices,
+        stats: finalStats
+      }
+    })
+
+    console.log(`✅ Crypto portfolios list with Enhanced stats and current prices (${allSymbols.size} assets)`)
+
+    return NextResponse.json(portfoliosWithEnhancedStats)
+  } catch (error) {
+    console.error('💥 Errore recupero crypto portfolios:', error)
+    return NextResponse.json({ error: 'Errore recupero crypto portfolios' }, { status: 500 })
+  }
+}
+
+// POST - Crea nuovo crypto portfolio
+export async function POST(request: NextRequest) {
+  try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
+    const body = await request.json()
+    const { name, description, accountId } = body
+
+    // Validazioni
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: 'Nome portfolio richiesto' }, { status: 400 })
+    }
+
+    if (!accountId) {
+      return NextResponse.json({ error: 'Account collegato richiesto' }, { status: 400 })
+    }
+
+    // Verifica che l'account esista e sia di investimento
+    const account = await prisma.account.findFirst({
+      where: { 
+        id: parseInt(accountId), 
+        userId, // 🔄 Sostituito: userId: 1 → userId
+        type: 'investment'
+      }
+    })
+
+    if (!account) {
+      return NextResponse.json({ error: 'Account di investimento non trovato' }, { status: 404 })
+    }
+
+    // Verifica che non esista già un portfolio con lo stesso nome
+    const existingPortfolio = await prisma.cryptoPortfolio.findFirst({
+      where: {
+        userId, // 🔄 Sostituito: userId: 1 → userId
+        name: name.trim()
+      }
+    })
+
+    if (existingPortfolio) {
+      return NextResponse.json({ error: 'Esiste già un portfolio con questo nome' }, { status: 400 })
+    }
+
+    const portfolio = await prisma.cryptoPortfolio.create({
+      data: {
+        name: name.trim(),
+        description: description?.trim() || null,
+        userId, // 🔄 Sostituito: userId: 1 → userId
+        accountId: parseInt(accountId)
+      },
+      include: {
+        account: {
+          select: { id: true, name: true, balance: true }
         }
       }
     })
 
-    console.log('✅ Crypto portfolios LIST with corrected current values:', portfoliosWithStats.length)
-
-    return NextResponse.json(portfoliosWithStats)
-
+    return NextResponse.json(portfolio, { status: 201 })
   } catch (error) {
-    console.error('💥 Errore API crypto-portfolios LIST:', error)
-    return NextResponse.json(
-      { error: 'Errore interno del server' },
-      { status: 500 }
-    )
+    console.error('Errore creazione crypto portfolio:', error)
+    return NextResponse.json({ error: 'Errore creazione crypto portfolio' }, { status: 500 })
   }
 }

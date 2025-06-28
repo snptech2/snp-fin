@@ -1,12 +1,18 @@
 // src/app/api/network-fees/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
 // GET - Lista fee di rete (con filtro opzionale per portfolio)
 export async function GET(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const { searchParams } = new URL(request.url)
     const portfolioId = searchParams.get('portfolioId')
 
@@ -34,7 +40,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Filtra per user se necessario
-    const userFees = fees.filter(fee => fee.portfolio.userId === 1)
+    const userFees = fees.filter(fee => fee.portfolio.userId === userId) // 🔄 Sostituito: userId === 1 → userId === userId
 
     // Aggiungi conversione in BTC
     const feesWithBTC = userFees.map(fee => ({
@@ -55,6 +61,11 @@ export async function GET(request: NextRequest) {
 // POST - Crea nuova fee di rete
 export async function POST(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const body = await request.json()
     const { portfolioId, sats, date, description } = body
 
@@ -74,8 +85,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Verifica che il portfolio esista e appartenga all'utente
-    const portfolio = await prisma.dCAPortfolio.findUnique({
-      where: { id: parseInt(portfolioId), userId: 1 }
+    const portfolio = await prisma.dCAPortfolio.findFirst({
+      where: { id: parseInt(portfolioId), userId } // 🔄 Sostituito: userId: 1 → userId
     })
 
     if (!portfolio) {
@@ -121,6 +132,11 @@ export async function POST(request: NextRequest) {
 // DELETE - Cancella fee di rete (per operazioni batch)
 export async function DELETE(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const body = await request.json()
     const { ids } = body
 
@@ -135,7 +151,7 @@ export async function DELETE(request: NextRequest) {
     const fees = await prisma.networkFee.findMany({
       where: {
         id: { in: ids.map(id => parseInt(id)) },
-        portfolio: { userId: 1 }
+        portfolio: { userId } // 🔄 Sostituito: userId: 1 → userId
       }
     })
 

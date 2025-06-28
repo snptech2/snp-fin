@@ -1,6 +1,6 @@
-// src/app/api/transfers/[id]/route.ts - ADD PUT method
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
@@ -10,6 +10,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const transferId = parseInt(params.id)
     const { amount, description, fromAccountId, toAccountId, date } = await request.json()
     
@@ -34,7 +39,7 @@ export async function PUT(
     const existingTransfer = await prisma.transfer.findFirst({
       where: {
         id: transferId,
-        userId: 1
+        userId // 🔄 Sostituito: userId: 1 → userId
       }
     })
     
@@ -44,8 +49,8 @@ export async function PUT(
     
     // Validate accounts exist
     const [fromAccount, toAccount] = await Promise.all([
-      prisma.account.findFirst({ where: { id: parseInt(fromAccountId), userId: 1 } }),
-      prisma.account.findFirst({ where: { id: parseInt(toAccountId), userId: 1 } })
+      prisma.account.findFirst({ where: { id: parseInt(fromAccountId), userId } }), // 🔄 Sostituito: userId: 1 → userId
+      prisma.account.findFirst({ where: { id: parseInt(toAccountId), userId } }) // 🔄 Sostituito: userId: 1 → userId
     ])
     
     if (!fromAccount || !toAccount) {
@@ -103,19 +108,24 @@ export async function PUT(
   }
 }
 
-// DELETE method (existing, unchanged)
+// DELETE method 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const transferId = parseInt(params.id)
     
     // Get transfer details first
     const transfer = await prisma.transfer.findFirst({
       where: {
         id: transferId,
-        userId: 1 // TODO: get from session
+        userId // 🔄 Sostituito: userId: 1 → userId
       }
     })
     

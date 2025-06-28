@@ -1,6 +1,7 @@
 // src/app/api/dca-portfolios/route.ts - FIX ENHANCED LOGIC COMPLETO
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
@@ -46,10 +47,15 @@ function calculateEnhancedStats(transactions: any[]) {
 }
 
 // GET - Recupera tutti i portafogli DCA
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const portfolios = await prisma.dCAPortfolio.findMany({
-      where: { userId: 1 },
+      where: { userId }, // 🔄 Sostituito: userId: 1 → userId
       include: {
         account: {
           select: { id: true, name: true, balance: true }
@@ -74,7 +80,7 @@ export async function GET() {
       const netBTC = Math.max(0, enhancedStats.totalBTC - totalFeesBTC)
 
       // 🔧 FIX: Prezzo medio di acquisto corretto usando Enhanced logic
-      const avgPurchasePrice = enhancedStats.totalInvested > 0 && netBTC > 0 ? 
+      const avgPurchasePrice = enhancedStats.totalInvested > 0 && netBTC > 0 ?
         enhancedStats.totalInvested / netBTC : 0
 
       // Final stats - Enhanced è source of truth
@@ -103,6 +109,11 @@ export async function GET() {
 // POST - Crea nuovo portafoglio DCA
 export async function POST(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const body = await request.json()
     const { name, accountId } = body
 
@@ -119,7 +130,7 @@ export async function POST(request: NextRequest) {
     const account = await prisma.account.findFirst({
       where: { 
         id: parseInt(accountId), 
-        userId: 1,
+        userId, // 🔄 Sostituito: userId: 1 → userId
         type: 'investment'
       }
     })
@@ -131,7 +142,7 @@ export async function POST(request: NextRequest) {
     // Verifica che non esista già un portfolio con lo stesso nome
     const existingPortfolio = await prisma.dCAPortfolio.findFirst({
       where: {
-        userId: 1,
+        userId, // 🔄 Sostituito: userId: 1 → userId
         name: name.trim()
       }
     })
@@ -144,7 +155,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: name.trim(),
         type: 'dca_bitcoin',      // 🔧 FIX: Campo obbligatorio dal schema
-        userId: 1,
+        userId, // 🔄 Sostituito: userId: 1 → userId
         accountId: parseInt(accountId),
         isActive: true
       },

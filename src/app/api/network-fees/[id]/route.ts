@@ -1,6 +1,7 @@
 // src/app/api/network-fees/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
@@ -10,6 +11,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const id = parseInt(params.id)
     const body = await request.json()
     const { sats, date, description } = body
@@ -40,7 +46,7 @@ export async function PUT(
     const existingFee = await prisma.networkFee.findFirst({
       where: { 
         id,
-        portfolio: { userId: 1 }
+        portfolio: { userId } // 🔄 Sostituito: userId: 1 → userId
       },
       include: {
         portfolio: true
@@ -93,6 +99,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const id = parseInt(params.id)
 
     if (isNaN(id)) {
@@ -106,7 +117,7 @@ export async function DELETE(
     const existingFee = await prisma.networkFee.findFirst({
       where: { 
         id,
-        portfolio: { userId: 1 }
+        portfolio: { userId } // 🔄 Sostituito: userId: 1 → userId
       },
       include: {
         portfolio: {

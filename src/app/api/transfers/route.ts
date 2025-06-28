@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
 export async function GET(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
@@ -15,7 +21,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
     
     const where: any = {
-      userId: 1, // TODO: get from session
+      userId, // 🔄 Sostituito: userId: 1 → userId
     }
     
     if (search) {
@@ -64,6 +70,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const { amount, description, fromAccountId, toAccountId, date } = await request.json()
     
     // Validations
@@ -82,10 +93,10 @@ export async function POST(request: NextRequest) {
     // Check if accounts exist and belong to user
     const [fromAccount, toAccount] = await Promise.all([
       prisma.account.findFirst({
-        where: { id: fromAccountId, userId: 1 } // TODO: get from session
+        where: { id: fromAccountId, userId } // 🔄 Sostituito: userId: 1 → userId
       }),
       prisma.account.findFirst({
-        where: { id: toAccountId, userId: 1 } // TODO: get from session
+        where: { id: toAccountId, userId } // 🔄 Sostituito: userId: 1 → userId
       })
     ])
     
@@ -106,7 +117,7 @@ export async function POST(request: NextRequest) {
           amount,
           description,
           date: date ? new Date(date) : new Date(),
-          userId: 1, // TODO: get from session
+          userId, // 🔄 Sostituito: userId: 1 → userId
           fromAccountId,
           toAccountId,
         },

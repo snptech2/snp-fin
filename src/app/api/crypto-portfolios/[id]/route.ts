@@ -1,6 +1,7 @@
 // src/app/api/crypto-portfolios/[id]/route.ts - CON DEBUG INTEGRATO
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
@@ -63,173 +64,59 @@ async function fetchCurrentPrices(symbols: string[]): Promise<Record<string, num
   }
 }
 
-// 🔍 FUNZIONE DEBUG: Analizza transazioni in dettaglio
-function debugTransactions(portfolio: any) {
-  console.log(`\n🔍 DEBUG PORTFOLIO: ${portfolio.name} (ID: ${portfolio.id})`)
-  console.log(`📊 Totale transazioni: ${portfolio.transactions.length}`)
-
-  const analysis = {
-    portfolioInfo: {
-      id: portfolio.id,
-      name: portfolio.name,
-      totalTransactions: portfolio.transactions.length
-    },
-    transactions: [],
-    calculations: {
-      buyTransactions: [],
-      sellTransactions: []
-    }
-  }
-
-  // Analizza ogni transazione
-  let runningInvested = 0
-  let runningRecovered = 0
-
-  portfolio.transactions.forEach((tx: any, index: number) => {
-    const transactionData = {
-      index: index + 1,
-      id: tx.id,
-      date: tx.date.toISOString().split('T')[0],
-      type: tx.type,
-      asset: tx.asset.symbol,
-      quantity: tx.quantity,
-      eurValue: tx.eurValue,
-      pricePerUnit: tx.pricePerUnit,
-      notes: tx.notes || '-'
-    }
-
-    analysis.transactions.push(transactionData)
-
-    if (tx.type === 'buy') {
-      runningInvested += tx.eurValue
-      analysis.calculations.buyTransactions.push({
-        ...transactionData,
-        runningInvested
-      })
-      console.log(`${index + 1}. 💰 BUY ${tx.quantity} ${tx.asset.symbol} = €${tx.eurValue} | Total Invested: €${runningInvested}`)
-    } else if (tx.type === 'sell') {
-      runningRecovered += tx.eurValue
-      analysis.calculations.sellTransactions.push({
-        ...transactionData,
-        runningRecovered
-      })
-      console.log(`${index + 1}. 💸 SELL ${tx.quantity} ${tx.asset.symbol} = €${tx.eurValue} | Total Recovered: €${runningRecovered}`)
-    }
-  })
-
-  // 🧮 CALCOLI ENHANCED CASH FLOW
-  const enhancedStats = calculateEnhancedStats(portfolio.transactions)
-
-  console.log(`\n📊 ENHANCED CASH FLOW RESULTS:`)
-  console.log(`💰 Total Invested: €${enhancedStats.totalInvested}`)
-  console.log(`🔄 Capital Recovered: €${enhancedStats.capitalRecovered}`)
-  console.log(`⚠️  Effective Investment (Soldi a Rischio): €${enhancedStats.effectiveInvestment}`)
-  console.log(`💹 Realized Profit: €${enhancedStats.realizedProfit}`)
-  console.log(`✅ Fully Recovered: ${enhancedStats.isFullyRecovered}`)
-
-  // 🔍 SUMMARY PER DEBUG
-  const summary = {
-    scenario: "Portfolio qwe dovrebbe avere:",
-    expected: {
-      totalInvested: "820€ (150€ SOL + 670€ ETH)",
-      capitalRecovered: "950€ (vendita 8 SOL)",
-      effectiveInvestment: "0€ (perché 950 > 820)",
-      realizedProfit: "130€ (950 - 820)"
-    },
-    actual: enhancedStats,
-    discrepancy: {
-      totalInvested: enhancedStats.totalInvested - 820,
-      capitalRecovered: enhancedStats.capitalRecovered - 950,
-      effectiveInvestment: enhancedStats.effectiveInvestment - 0
-    }
-  }
-
-  return { analysis, summary, enhancedStats }
-}
-
-// GET - Recupera crypto portfolio specifico con PREZZI CORRENTI e DEBUG
+// GET - Dettaglio crypto portfolio specifico
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = parseInt(params.id)
-    const { searchParams } = new URL(request.url)
-    const debug = searchParams.get('debug') === 'true'
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
 
-    if (isNaN(id)) {
-      return NextResponse.json(
-        { error: 'ID portfolio non valido' },
-        { status: 400 }
-      )
+    const portfolioId = parseInt(params.id)
+
+    if (isNaN(portfolioId)) {
+      return NextResponse.json({ error: 'ID portfolio non valido' }, { status: 400 })
     }
 
-    const portfolio = await prisma.cryptoPortfolio.findUnique({
-      where: { id, userId: 1 },
+    const portfolio = await prisma.cryptoPortfolio.findFirst({
+      where: { id: portfolioId, userId }, // 🔄 Sostituito: userId: 1 → userId
       include: {
         account: {
-          select: {
-            id: true,
-            name: true,
-            balance: true
-          }
+          select: { id: true, name: true, balance: true }
         },
         holdings: {
-          include: {
-            asset: true
-          },
-          orderBy: { id: 'desc' }
+          include: { asset: true }
         },
         transactions: {
-          include: {
-            asset: true
-          },
+          include: { asset: true },
           orderBy: { date: 'desc' }
         }
       }
     })
 
     if (!portfolio) {
-      return NextResponse.json(
-        { error: 'Portfolio non trovato' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Portfolio non trovato' }, { status: 404 })
     }
 
-    // 🔍 DEBUG MODE: Se richiesto, esegui debug dettagliato
-    if (debug) {
-      const debugData = debugTransactions(portfolio)
-      return NextResponse.json({
-        success: true,
-        debugMode: true,
-        ...debugData,
-        timestamp: new Date().toISOString()
-      })
-    }
-
-    // 🆕 Ottieni prezzi correnti per tutti gli asset nel portfolio
-    const symbols = portfolio.holdings.map(h => h.asset.symbol)
-    const currentPrices = await fetchCurrentPrices(symbols)
-    
-    // 🎯 FASE 1: Applica Enhanced Statistics 
+    // 🎯 Applica Enhanced Statistics
     const enhancedStats = calculateEnhancedStats(portfolio.transactions)
 
-    // 🚨 FIX PRINCIPALE: Calcola valore attuale con PREZZI CORRENTI
-    const totalValueEur = portfolio.holdings.reduce((sum: number, h: any) => {
-      const currentPrice = currentPrices[h.asset.symbol] || h.currentPrice || h.avgPrice
-      const holdingValue = h.quantity * currentPrice
-      
-      console.log(`💰 ${h.asset.symbol}: ${h.quantity} × €${currentPrice} = €${holdingValue}`)
-      return sum + holdingValue
-    }, 0)
-    
-    console.log(`📊 Portfolio ${portfolio.name} Detail - Total Value: €${totalValueEur}`)
-    
-    // 🔧 FIX: Calcola unrealized gains usando Enhanced logic
-    const unrealizedGains = totalValueEur - enhancedStats.effectiveInvestment
+    // 🆕 Fetch prezzi correnti per holdings
+    const symbols = portfolio.holdings.map(h => h.asset.symbol.toUpperCase())
+    const currentPrices = await fetchCurrentPrices(symbols)
 
-    // 🔧 FIX: ROI totale usando Enhanced logic  
-    const totalROI = enhancedStats.totalInvested > 0 ? 
+    // 🆕 Calcola valore attuale e unrealized gains
+    let totalValueEur = 0
+    portfolio.holdings.forEach(holding => {
+      const currentPrice = currentPrices[holding.asset.symbol] || holding.currentPrice || holding.avgPrice
+      totalValueEur += holding.quantity * currentPrice
+    })
+
+    const unrealizedGains = totalValueEur - enhancedStats.effectiveInvestment
+    const totalROI = enhancedStats.totalInvested > 0 ?
       ((enhancedStats.realizedProfit + unrealizedGains) / enhancedStats.totalInvested) * 100 : 0
 
     // 🆕 Aggiorna i holdings con i prezzi correnti ottenuti
@@ -266,5 +153,105 @@ export async function GET(
       { error: 'Errore interno del server' },
       { status: 500 }
     )
+  }
+}
+
+// PUT - Aggiorna crypto portfolio
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
+    const portfolioId = parseInt(params.id)
+    const body = await request.json()
+    const { name, description } = body
+
+    if (isNaN(portfolioId)) {
+      return NextResponse.json({ error: 'ID portfolio non valido' }, { status: 400 })
+    }
+
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: 'Nome portfolio richiesto' }, { status: 400 })
+    }
+
+    // Verifica che il portfolio esista ed appartenga all'utente
+    const existingPortfolio = await prisma.cryptoPortfolio.findFirst({
+      where: { id: portfolioId, userId } // 🔄 Sostituito: userId: 1 → userId
+    })
+
+    if (!existingPortfolio) {
+      return NextResponse.json({ error: 'Portfolio non trovato' }, { status: 404 })
+    }
+
+    // Controlla se esiste già un altro portfolio con lo stesso nome
+    const duplicatePortfolio = await prisma.cryptoPortfolio.findFirst({
+      where: {
+        userId, // 🔄 Sostituito: userId: 1 → userId
+        name: name.trim(),
+        id: { not: portfolioId }
+      }
+    })
+
+    if (duplicatePortfolio) {
+      return NextResponse.json({ error: 'Esiste già un portfolio con questo nome' }, { status: 400 })
+    }
+
+    const updatedPortfolio = await prisma.cryptoPortfolio.update({
+      where: { id: portfolioId },
+      data: { 
+        name: name.trim(),
+        description: description?.trim() || null
+      }
+    })
+
+    return NextResponse.json(updatedPortfolio)
+  } catch (error) {
+    console.error('Errore aggiornamento crypto portfolio:', error)
+    return NextResponse.json({ error: 'Errore aggiornamento crypto portfolio' }, { status: 500 })
+  }
+}
+
+// DELETE - Elimina crypto portfolio
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
+    const portfolioId = parseInt(params.id)
+
+    if (isNaN(portfolioId)) {
+      return NextResponse.json({ error: 'ID portfolio non valido' }, { status: 400 })
+    }
+
+    // Verifica che il portfolio esista ed appartenga all'utente
+    const existingPortfolio = await prisma.cryptoPortfolio.findFirst({
+      where: { id: portfolioId, userId } // 🔄 Sostituito: userId: 1 → userId
+    })
+
+    if (!existingPortfolio) {
+      return NextResponse.json({ error: 'Portfolio non trovato' }, { status: 404 })
+    }
+
+    // Elimina portfolio e dati correlati in una transazione
+    await prisma.$transaction([
+      prisma.cryptoPortfolioTransaction.deleteMany({ where: { portfolioId } }),
+      prisma.cryptoPortfolioHolding.deleteMany({ where: { portfolioId } }),
+      prisma.cryptoPortfolio.delete({ where: { id: portfolioId } })
+    ])
+
+    return NextResponse.json({ message: 'Portfolio eliminato con successo' })
+  } catch (error) {
+    console.error('Errore eliminazione crypto portfolio:', error)
+    return NextResponse.json({ error: 'Errore eliminazione crypto portfolio' }, { status: 500 })
   }
 }
