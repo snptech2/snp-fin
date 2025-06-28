@@ -170,7 +170,7 @@ export default function DCAPortfolioPage() {
 
   const fetchNetworkFees = async () => {
     try {
-      const response = await fetch(`/api/dca-portfolios/${portfolioId}/network-fees`)
+      const response = await fetch(`/api/network-fees?portfolioId=${portfolioId}`)
       if (response.ok) {
         const data = await response.json()
         setNetworkFees(data)
@@ -202,11 +202,12 @@ export default function DCAPortfolioPage() {
     try {
       const formData = {
         ...transactionForm,
+        portfolioId: parseInt(portfolioId),
         btcQuantity: parseFloat(transactionForm.btcQuantity),
         eurPaid: parseFloat(transactionForm.eurPaid)
       }
 
-      const response = await fetch(`/api/dca-portfolios/${portfolioId}/transactions`, {
+      const response = await fetch(`/api/dca-transactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -241,11 +242,12 @@ export default function DCAPortfolioPage() {
     try {
       const formData = {
         ...transactionForm,
+        portfolioId: parseInt(portfolioId),
         btcQuantity: parseFloat(transactionForm.btcQuantity),
         eurPaid: parseFloat(transactionForm.eurPaid)
       }
 
-      const response = await fetch(`/api/dca-portfolios/${portfolioId}/transactions/${editingTransaction.id}`, {
+      const response = await fetch(`/api/dca-transactions/${editingTransaction.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -267,7 +269,7 @@ export default function DCAPortfolioPage() {
     if (!confirm('Sei sicuro di voler eliminare questa transazione?')) return
 
     try {
-      const response = await fetch(`/api/dca-portfolios/${portfolioId}/transactions/${transactionId}`, {
+      const response = await fetch(`/api/dca-transactions/${transactionId}`, {
         method: 'DELETE'
       })
 
@@ -322,10 +324,11 @@ export default function DCAPortfolioPage() {
     try {
       const formData = {
         ...feeForm,
+        portfolioId: parseInt(portfolioId),
         sats: parseInt(feeForm.sats)
       }
 
-      const response = await fetch(`/api/dca-portfolios/${portfolioId}/network-fees`, {
+      const response = await fetch(`/api/network-fees`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -357,10 +360,11 @@ export default function DCAPortfolioPage() {
     try {
       const formData = {
         ...feeForm,
+        portfolioId: parseInt(portfolioId),
         sats: parseInt(feeForm.sats)
       }
 
-      const response = await fetch(`/api/dca-portfolios/${portfolioId}/network-fees/${editingFee.id}`, {
+      const response = await fetch(`/api/network-fees/${editingFee.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -383,7 +387,7 @@ export default function DCAPortfolioPage() {
     if (!confirm('Sei sicuro di voler eliminare questa commissione di rete?')) return
 
     try {
-      const response = await fetch(`/api/dca-portfolios/${portfolioId}/network-fees/${feeId}`, {
+      const response = await fetch(`/api/network-fees/${feeId}`, {
         method: 'DELETE'
       })
 
