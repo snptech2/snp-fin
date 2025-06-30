@@ -84,7 +84,6 @@ export default function ChangelogPage() {
   }
 
   const handleCancel = () => {
-    // Ripristina il contenuto dal database
     setChanges(changelog?.content || '')
     setIsEditing(false)
     setError(null)
@@ -100,7 +99,6 @@ export default function ChangelogPage() {
     })
   }
 
-  // Loading state
   if (loading) {
     return (
       <ProtectedRoute>
@@ -117,7 +115,6 @@ export default function ChangelogPage() {
   return (
     <ProtectedRoute>
       <div className="space-y-6">
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-adaptive-900">📝 Changelog</h1>
           <p className="text-adaptive-600">Ultime modifiche apportate all'applicazione</p>
@@ -128,21 +125,18 @@ export default function ChangelogPage() {
           )}
         </div>
 
-        {/* Messaggio di errore */}
         {error && (
           <div className="card-adaptive rounded-lg p-4 bg-red-50 border border-red-200">
             <p className="text-red-600">⚠️ {error}</p>
           </div>
         )}
 
-        {/* Contenuto Principale */}
         <div className="card-adaptive p-8 rounded-lg shadow-sm border-adaptive">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-adaptive-900">
               🚀 Note di Rilascio
             </h2>
             
-            {/* Bottoni visibili SOLO agli admin */}
             {isAdmin && (
               !isEditing ? (
                 <button
@@ -173,7 +167,6 @@ export default function ChangelogPage() {
           </div>
 
           {!isEditing ? (
-            // Modalità visualizzazione
             <div className="space-y-4">
               {changelog?.content ? (
                 <div className="prose max-w-none">
@@ -208,7 +201,6 @@ export default function ChangelogPage() {
               )}
             </div>
           ) : isAdmin ? (
-            // Modalità modifica - SOLO PER ADMIN
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-adaptive-700 mb-2">
@@ -217,32 +209,13 @@ export default function ChangelogPage() {
                 <textarea
                   value={changes}
                   onChange={(e) => setChanges(e.target.value)}
-                  placeholder="Incolla qui le note delle ultime modifiche apportate all'applicazione...
-
-Esempio:
-🔧 Versione 2.1.0 - 30/06/2025
-• Aggiunta pagina changelog
-• Migliorata interfaccia sidebar
-• Correzioni bug minori
-
-🆕 Versione 2.0.5 - 28/06/2025  
-• Ottimizzate performance
-• Aggiornata gestione investimenti"
+                  placeholder="Incolla qui le note delle ultime modifiche..."
                   className="w-full h-96 p-4 rounded-lg border border-adaptive resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  style={{
-                    backgroundColor: 'var(--input-bg)',
-                    color: 'var(--input-text)'
-                  }}
                   disabled={saving}
                 />
               </div>
-              
-              <div className="text-sm text-adaptive-600">
-                💡 <strong>Suggerimento:</strong> Usa emoji per rendere più leggibili le note (🔧 per correzioni, 🆕 per nuove funzionalità, 🐛 per bug fix, ecc.)
-              </div>
             </div>
           ) : (
-            // Messaggio di errore se non admin ma in modalità modifica
             <div className="text-center py-12">
               <div className="text-6xl mb-4">🔒</div>
               <h3 className="text-lg font-medium text-adaptive-900 mb-2">
@@ -253,32 +226,6 @@ Esempio:
               </p>
             </div>
           )}
-        </div>
-
-        {/* Info Box */}
-        <div className="card-adaptive rounded-lg p-6 bg-blue-50 border border-blue-200">
-          <div className="flex items-start gap-3">
-            <div className="text-blue-600 text-xl">ℹ️</div>
-            <div>
-              <h3 className="text-lg font-medium text-blue-900 mb-1">
-                {isAdmin ? 'Come utilizzare questa pagina' : 'Informazioni'}
-              </h3>
-              {isAdmin ? (
-                <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• Clicca "Modifica" per aggiornare le note di rilascio</li>
-                  <li>• Copia e incolla le modifiche dal tuo documento di lavoro</li>
-                  <li>• Le modifiche vengono salvate automaticamente nel database</li>
-                  <li>• Usa emoji e formattazione per rendere più leggibili le note</li>
-                  <li>• Il sistema traccia automaticamente chi ha fatto l'ultimo aggiornamento</li>
-                </ul>
-              ) : (
-                <p className="text-sm text-blue-700">
-                  Questa pagina mostra le ultime modifiche e aggiornamenti dell'applicazione. 
-                  Solo gli amministratori possono modificare il contenuto.
-                </p>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </ProtectedRoute>

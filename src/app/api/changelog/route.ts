@@ -62,7 +62,6 @@ export async function PUT(request: NextRequest) {
     }
 
     // Crea o aggiorna il changelog
-    // Prima elimina eventuali changelog esistenti (manteniamo solo l'ultimo)
     await prisma.changelog.deleteMany({})
     
     // Crea il nuovo changelog
