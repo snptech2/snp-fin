@@ -1,4 +1,4 @@
-// src/components/Sidebar.tsx - AGGIORNATA con autenticazione
+// src/components/Sidebar.tsx - AGGIORNATA con Changelog
 'use client'
 
 import Link from 'next/link'
@@ -13,6 +13,7 @@ const navigation = [
   { name: 'Budget', href: '/budget', icon: '📊' },
   { name: 'Investimenti', href: '/investments', icon: '📈' },
   { name: 'Altro', href: '/other', icon: '📄' },
+  { name: 'Changelog', href: '/changelog', icon: '📝' }, // NUOVA VOCE AGGIUNTA
 ]
 
 export default function Sidebar() {
