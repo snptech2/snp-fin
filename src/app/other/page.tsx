@@ -1,7 +1,9 @@
 'use client'
+import ProtectedRoute from '@/components/ProtectedRoute'  // ← AGGIUNTO
 
 export default function OtherPage() {
   return (
+    <ProtectedRoute>
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-adaptive-900">Altro</h1>
@@ -17,5 +19,6 @@ export default function OtherPage() {
         </ul>
       </div>
     </div>
+    </ProtectedRoute>
   )
 }
