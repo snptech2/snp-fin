@@ -55,6 +55,7 @@ NODE_ENV="production"
 - **Database condiviso**: Una migration vale per entrambi gli ambienti
 - **Folder**: `prisma/migrations/` (COMMITTATO su Git)
 - **Storia**: Migration iniziale: `20250630135140_initial_migration`
+- **Ultima**: `20250630175634_add_changelog_table` (Changelog feature)
 
 ### 🚨 Setup Risolto (Giugno 2025)
 **Problema risolto**: Le migrations erano erroneamente in `.gitignore`
@@ -79,6 +80,33 @@ git push origin main
 ```
 
 ## 🚀 Deploy Process
+
+### ⚠️ Deploy Script Limitations (IMPORTANTE)
+**PROBLEMA IDENTIFICATO (30/06/2025)**: Il deploy script **NON controlla errori Git** e può fallire silenziosamente!
+
+**Sintomi**:
+- ✅ Deploy script dice "✅ Deploy completed!"
+- ❌ Ma git pull è fallito per conflitti
+- ❌ App buildatta con codice vecchio
+- ❌ Migrations non applicate
+
+**SOLUZIONE**: Sempre verificare manualmente prima del deploy:
+```bash
+# 🔧 WORKFLOW CORRETTO PRE-DEPLOY
+ssh ubuntu@56.228.35.85
+cd /var/www/finance-app
+
+# 1. Controlla status Git
+git status
+# Se ci sono modifiche locali non committate, risolvere prima!
+
+# 2. Test git pull manuale
+git pull origin main
+# Se fallisce per conflitti, risolvere prima!
+
+# 3. Solo se tutto OK:
+./deploy.sh
+```
 
 ### Script Deploy (/var/www/finance-app/deploy.sh)
 ```bash
@@ -206,6 +234,7 @@ prisma/schema.prisma     # Schema database
 - **Budget**: Gestione budget fissi/illimitati
 - **Conti**: Bancari e Investimento
 - **Auth**: JWT con sistema login/register
+- **Changelog**: Sistema interno per note di rilascio (admin-only)
 
 ## 🔧 Troubleshooting Comune
 
@@ -252,6 +281,59 @@ git add prisma/migrations/ --force
 grep -v "prisma/migrations" .gitignore
 ```
 
+### 🚨 NEW FEATURES DEPLOYMENT ISSUES (Changelog Case Study - 30/06/2025)
+
+**Problema**: Feature funziona in locale ma non in produzione
+**Causa**: Prisma Client non aggiornato con nuovi modelli
+
+#### Sintomi Tipici:
+- ✅ Migration applicata (`npx prisma migrate status` = OK)
+- ✅ Codice deployato correttamente
+- ❌ API restituisce 500 Internal Server Error
+- ❌ Prisma non riconosce nuovo modello (es: `Changelog`)
+
+#### Soluzione Standard:
+```bash
+# 1. Verifica migration status
+npx prisma migrate status
+
+# 2. Se migration OK ma API 500, rigenera client Prisma
+npx prisma generate
+
+# 3. Restart app
+pm2 restart finance-app
+
+# 4. Test API
+curl http://56.228.35.85:3000/api/your-new-endpoint
+```
+
+#### Debug Process per New Features:
+```bash
+# Step 1: Verifica file deployment
+ls -la src/app/api/your-feature/
+
+# Step 2: Verifica migration
+npx prisma migrate status
+
+# Step 3: Controlla logs real-time
+pm2 logs finance-app --lines 0
+# (poi testa API in altro terminal)
+
+# Step 4: Force clean rebuild se necessario
+rm -rf .next
+npm run build
+pm2 restart finance-app
+```
+
+#### Prevenzione:
+**Quando aggiungi nuovi modelli Prisma:**
+1. ✅ Migration in locale (`npx prisma migrate dev`)
+2. ✅ Test completo in locale
+3. ✅ Commit e push
+4. ✅ Deploy in produzione
+5. ✅ **SEMPRE** rigenera client: `npx prisma generate`
+6. ✅ Restart app: `pm2 restart finance-app`
+
 ## 📊 Monitoring e Performance
 
 ### PM2 Monitoring
@@ -275,6 +357,17 @@ pm2 logs finance-app --lines 100  # Ultimi 100 log
 - **Deploy script**: Aggiornato con `migrate deploy`
 - **Workflow**: Stabilito per futuro
 
+### ✅ Giugno 2025 - Changelog Feature Implementation
+- **Data**: 30/06/2025 - 18:30
+- **Migration**: `20250630175634_add_changelog_table`
+- **Problemi risolti**: 
+  - Deploy script fallimento silenzioso su git conflicts
+  - Prisma Client non aggiornato con nuovi modelli
+  - API 500 errors su nuove feature
+- **Soluzioni documentate**: Pre-deploy checks, `prisma generate` workflow
+- **Feature completata**: Sistema changelog con admin controls
+
 ---
-**Ultimo aggiornamento**: 30 Giugno 2025 - Setup migrations completo e testato
+**Ultimo aggiornamento**: 30 Giugno 2025 - Changelog feature implementato, troubleshooting documentato
 **Ambiente**: Database Neon condiviso, migrations attive, deploy automatizzato
+**Lezioni apprese**: Deploy script migliorabile, sempre verificare git status pre-deploy
