@@ -100,7 +100,7 @@ export default function ExpensesPage() {
   // Stati per paginazione
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(25)
-  const [showCategories, setShowCategories] = useState(false)
+  const [showCategories, setShowCategories] = useState(true)
   
   // Stati per selezione multipla
   const [selectedTransactions, setSelectedTransactions] = useState<number[]>([])
@@ -979,22 +979,36 @@ export default function ExpensesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Categoria *
-                  </label>
-                  <select
-                    value={transactionForm.categoryId}
-                    onChange={(e) => setTransactionForm(prev => ({ ...prev, categoryId: e.target.value }))}
-                    required
-                  >
-                    <option value="">Seleziona categoria</option>
-                    {categories.map(category => (
-                      <option key={category.id} value={category.id.toString()}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+  <label className="block text-sm font-medium mb-1">
+    Categoria *
+  </label>
+  <div className="flex gap-2">
+    <select
+      value={transactionForm.categoryId}
+      onChange={(e) => setTransactionForm(prev => ({ ...prev, categoryId: e.target.value }))}
+      required
+      className="flex-1"
+    >
+      <option value="">Seleziona categoria</option>
+      {categories.map(category => (
+        <option key={category.id} value={category.id.toString()}>
+          {category.name}
+        </option>
+      ))}
+    </select>
+    <button
+      type="button"
+      onClick={() => {
+        resetCategoryForm()
+        setShowCategoryForm(true)
+      }}
+      className="px-3 py-2 text-sm bg-adaptive-100 hover:bg-adaptive-200 border border-adaptive rounded-md transition-colors"
+      title="Aggiungi nuova categoria"
+    >
+      +
+    </button>
+  </div>
+</div>
 
                 <div className="flex gap-3 pt-4">
                   <button

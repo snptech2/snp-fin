@@ -100,7 +100,7 @@ export default function IncomePage() {
   // Stati per paginazione
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(25)
-  const [showCategories, setShowCategories] = useState(false)
+  const [showCategories, setShowCategories] = useState(true)
   
   // Stati per selezione multipla
   const [selectedTransactions, setSelectedTransactions] = useState<number[]>([])
@@ -524,9 +524,11 @@ export default function IncomePage() {
     return (
       <ProtectedRoute>
         <div className="space-y-6">
+          
           <div>
             <h1 className="text-3xl font-bold text-adaptive-900">Entrate</h1>
             <p className="text-adaptive-600">Gestisci le tue entrate e categorie</p>
+            
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             <div className="card-adaptive animate-pulse rounded-lg h-64"></div>
@@ -979,22 +981,36 @@ export default function IncomePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Categoria *
-                  </label>
-                  <select
-                    value={transactionForm.categoryId}
-                    onChange={(e) => setTransactionForm(prev => ({ ...prev, categoryId: e.target.value }))}
-                    required
-                  >
-                    <option value="">Seleziona categoria</option>
-                    {categories.map(category => (
-                      <option key={category.id} value={category.id.toString()}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+  <label className="block text-sm font-medium mb-1">
+    Categoria *
+  </label>
+  <div className="flex gap-2">
+    <select
+      value={transactionForm.categoryId}
+      onChange={(e) => setTransactionForm(prev => ({ ...prev, categoryId: e.target.value }))}
+      required
+      className="flex-1"
+    >
+      <option value="">Seleziona categoria</option>
+      {categories.map(category => (
+        <option key={category.id} value={category.id.toString()}>
+          {category.name}
+        </option>
+      ))}
+    </select>
+    <button
+      type="button"
+      onClick={() => {
+        resetCategoryForm()
+        setShowCategoryForm(true)
+      }}
+      className="px-3 py-2 text-sm bg-adaptive-100 hover:bg-adaptive-200 border border-adaptive rounded-md transition-colors"
+      title="Aggiungi nuova categoria"
+    >
+      +
+    </button>
+  </div>
+</div>
 
                 <div className="flex gap-3 pt-4">
                   <button
