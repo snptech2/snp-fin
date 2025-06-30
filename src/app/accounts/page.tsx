@@ -101,6 +101,24 @@ export default function AccountsPage() {
     }
   }
 
+  // 1. AGGIUNGERE questa funzione per impostare il conto predefinito
+const handleSetDefaultAccount = async (accountId: number) => {
+  try {
+    const response = await fetch(`/api/accounts/${accountId}/set-default`, {
+      method: 'PUT'
+    })
+    
+    if (response.ok) {
+      await fetchData() // Ricarica i dati per aggiornare l'interfaccia
+    } else {
+      alert('Errore nell\'impostazione del conto predefinito')
+    }
+  } catch (error) {
+    console.error('Error setting default account:', error)
+    alert('Errore nell\'impostazione del conto predefinito')
+  }
+}
+
   // DCA Current Value Calculator
   const getDCACurrentValue = (portfolio: Portfolio) => {
     if (portfolio.type !== 'dca_bitcoin' && !portfolio.stats?.totalBTC && !portfolio.stats?.netBTC) {
@@ -130,25 +148,30 @@ export default function AccountsPage() {
   }, [])
 
   const fetchData = async () => {
-    setLoading(true)
-    try {
-      const [accountsRes, dcaRes, cryptoRes, transfersRes] = await Promise.all([
-        fetch('/api/accounts'),
-        fetch('/api/dca-portfolios'),
-        fetch('/api/crypto-portfolios'),
-        fetch('/api/transfers')
-      ])
+  setLoading(true)
+  try {
+    const [accountsRes, dcaRes, cryptoRes, transfersRes] = await Promise.all([
+      fetch('/api/accounts'),
+      fetch('/api/dca-portfolios'),
+      fetch('/api/crypto-portfolios'),
+      fetch('/api/transfers')
+    ])
 
-      if (accountsRes.ok) setAccounts(await accountsRes.json())
-      if (dcaRes.ok) setDCAPortfolios(await dcaRes.json())
-      if (cryptoRes.ok) setCryptoPortfolios(await cryptoRes.json())
-      if (transfersRes.ok) setTransfers(await transfersRes.json())
-    } catch (error) {
-      console.error('Error fetching data:', error)
-    } finally {
-      setLoading(false)
+    if (accountsRes.ok) setAccounts(await accountsRes.json())
+    if (dcaRes.ok) setDCAPortfolios(await dcaRes.json())
+    if (cryptoRes.ok) setCryptoPortfolios(await cryptoRes.json())
+    
+    // 🔧 FIX: Estrae correttamente l'array transfers dalla risposta API
+    if (transfersRes.ok) {
+      const data = await transfersRes.json()
+      setTransfers(data.transfers || [])  // Era: setTransfers(await transfersRes.json())
     }
+  } catch (error) {
+    console.error('Error fetching data:', error)
+  } finally {
+    setLoading(false)
   }
+}
 
   // Enhanced account breakdowns con prezzo Bitcoin
   const enhancedAccountBreakdowns = useMemo(() => {
@@ -195,27 +218,35 @@ export default function AccountsPage() {
 
   // Account handlers
   const handleAccountSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      const method = editingAccount ? 'PUT' : 'POST'
-      const url = editingAccount ? `/api/accounts/${editingAccount.id}` : '/api/accounts'
-      
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(accountForm)
+  e.preventDefault()
+  try {
+    const method = editingAccount ? 'PUT' : 'POST'
+    const url = editingAccount ? `/api/accounts/${editingAccount.id}` : '/api/accounts'
+    
+    // 🔧 NUOVO: Se è il primo conto bancario, lo impostiamo automaticamente come predefinito
+    const isFirstBankAccount = !editingAccount && 
+                               accountForm.type === 'bank' && 
+                               bankAccounts.length === 0
+    
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...accountForm,
+        makeDefault: isFirstBankAccount // 🔧 NUOVO: Imposta come predefinito se è il primo conto bancario
       })
+    })
 
-      if (response.ok) {
-        await fetchData()
-        setShowAccountModal(false)
-        setEditingAccount(null)
-        setAccountForm({ name: '', type: 'bank' })
-      }
-    } catch (error) {
-      console.error('Error saving account:', error)
+    if (response.ok) {
+      await fetchData()
+      setShowAccountModal(false)
+      setEditingAccount(null)
+      setAccountForm({ name: '', type: 'bank' })
     }
+  } catch (error) {
+    console.error('Error saving account:', error)
   }
+}
 
   const handleDeleteAccount = async (accountId: number) => {
     if (confirm('Sei sicuro di voler eliminare questo account?')) {
@@ -410,67 +441,120 @@ export default function AccountsPage() {
         </div>
 
         {/* Bank Accounts */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-adaptive-900 mb-4">🏦 Conti Bancari</h2>
-          {bankAccounts.length === 0 ? (
-            <div className="card-adaptive rounded-lg p-8 text-center">
-              <div className="text-4xl mb-4">🏦</div>
-              <h3 className="text-lg font-medium text-adaptive-900 mb-2">Nessun Conto Bancario</h3>
-              <p className="text-adaptive-600 mb-4">Crea il tuo primo conto per iniziare a gestire le tue finanze</p>
+<div className="mb-8">
+  <h2 className="text-2xl font-bold text-adaptive-900 mb-4">🏦 Conti Bancari</h2>
+  {bankAccounts.length === 0 ? (
+    <div className="card-adaptive rounded-lg p-8 text-center">
+      <div className="text-4xl mb-4">🏦</div>
+      <h3 className="text-lg font-medium text-adaptive-900 mb-2">Nessun Conto Bancario</h3>
+      <p className="text-adaptive-600 mb-4">Crea il tuo primo conto per iniziare a gestire le tue finanze</p>
+      <button
+        onClick={() => {
+          setAccountForm({ name: '', type: 'bank' })
+          setShowAccountModal(true)
+        }}
+        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+      >
+        Crea Primo Conto
+      </button>
+    </div>
+  ) : (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {bankAccounts.map((account) => (
+        <div key={account.id} className="card-adaptive rounded-lg p-6 hover:shadow-md transition-shadow">
+          {/* Header with edit/delete buttons */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🏦</span>
+              <div>
+                <h4 className="font-semibold text-adaptive-900 flex items-center gap-2">
+                  {account.name}
+                  {account.isDefault && (
+                    <span className="px-2 py-1 bg-green-100 text-green-600 text-xs rounded-full">
+                      Predefinito
+                    </span>
+                  )}
+                </h4>
+                <p className="text-sm text-adaptive-600">Conto Bancario</p>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              {/* 🔧 NUOVO: Bottone stella per impostare come predefinito */}
               <button
-                onClick={() => {
-                  setAccountForm({ name: '', type: 'bank' })
-                  setShowAccountModal(true)
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                onClick={() => handleSetDefaultAccount(account.id)}
+                className={`p-1 ${account.isDefault ? 'text-yellow-500' : 'text-adaptive-600 hover:text-yellow-500'}`}
+                title={account.isDefault ? 'Conto predefinito' : 'Imposta come predefinito'}
               >
-                Crea Primo Conto
+                <span className="text-sm">{account.isDefault ? '⭐' : '☆'}</span>
+              </button>
+              <button
+                onClick={() => handleEditAccount(account)}
+                className="p-1 text-adaptive-600 hover:text-blue-600"
+              >
+                <PencilIcon className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleDeleteAccount(account.id)}
+                className="p-1 text-adaptive-600 hover:text-red-600"
+              >
+                <TrashIcon className="w-4 h-4" />
               </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {bankAccounts.map((account) => (
-                <div key={account.id} className="card-adaptive rounded-lg p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🏦</span>
-                      <div>
-                        <h4 className="font-semibold text-adaptive-900 flex items-center gap-2">
-                          {account.name}
-                          {account.isDefault && (
-                            <span className="px-2 py-1 bg-green-100 text-green-600 text-xs rounded-full">
-                              Predefinito
-                            </span>
-                          )}
-                        </h4>
-                        <p className="text-sm text-adaptive-600">Conto Bancario</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleEditAccount(account)}
-                        className="p-1 text-adaptive-600 hover:text-blue-600"
-                      >
-                        <PencilIcon className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteAccount(account.id)}
-                        className="p-1 text-adaptive-600 hover:text-red-600"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-adaptive-900">
-                      {formatCurrency(account.balance)}
-                    </p>
-                  </div>
-                </div>
-              ))}
+          </div>
+
+          {/* Balance */}
+          <div className="text-center mb-4">
+            <p className="text-2xl font-bold text-adaptive-900">
+              {formatCurrency(account.balance)}
+            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              {/* Nuova Entrata */}
+              <a
+                href={`/income?accountId=${account.id}`}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
+              >
+                <span className="text-xs">💰</span>
+                Entrata
+              </a>
+
+              {/* Nuova Uscita */}
+              <a
+                href={`/expenses?accountId=${account.id}`}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
+              >
+                <span className="text-xs">💸</span>
+                Uscita
+              </a>
             </div>
-          )}
+
+            {/* Trasferimento */}
+            <button
+              onClick={() => {
+                setTransferForm({
+                  fromAccountId: account.id.toString(),
+                  toAccountId: '',
+                  amount: '',
+                  description: '',
+                  date: new Date().toISOString().split('T')[0]
+                })
+                setShowTransferModal(true)
+              }}
+              disabled={accounts.length < 2}
+              className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <ArrowsRightLeftIcon className="w-4 h-4" />
+              Trasferimento
+            </button>
+          </div>
         </div>
+      ))}
+    </div>
+  )}
+</div>
 
         {/* Investment Accounts with Enhanced Breakdown */}
         <div className="mb-8">
