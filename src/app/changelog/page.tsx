@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import ProtectedRoute from '@/components/ProtectedRoute'  // ← AGGIUNTO
+
 
 export default function ChangelogPage() {
   const { user } = useAuth()
@@ -52,6 +54,7 @@ export default function ChangelogPage() {
   }
 
   return (
+    <ProtectedRoute>
     <div className="space-y-6">
       {/* Header */}
       <div>
@@ -206,5 +209,6 @@ Esempio:
         </div>
       </div>
     </div>
+    </ProtectedRoute>
   )
 }
