@@ -110,8 +110,9 @@ export default function IncomePage() {
 
   // Trova conto predefinito
   const getDefaultAccount = () => {
-    return accounts.find(account => account.isDefault) || accounts[0]
-  }
+  return accounts.find(account => account.isDefault && account.type === 'bank') || 
+         accounts.find(account => account.type === 'bank')
+}
 
   // Caricamento iniziale
   useEffect(() => {
@@ -592,11 +593,11 @@ export default function IncomePage() {
                       className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">Tutti i conti</option>
-                      {accounts.map(account => (
-                        <option key={account.id} value={account.id}>
-                          {account.name}
-                        </option>
-                      ))}
+                      {accounts.filter(account => account.type === 'bank').map(account => (
+  <option key={account.id} value={account.id.toString()}>
+    {account.name}
+  </option>
+))}
                     </select>
                   </div>
 
@@ -836,11 +837,11 @@ export default function IncomePage() {
                     required
                   >
                     <option value="">Seleziona conto</option>
-                    {accounts.map(account => (
-                      <option key={account.id} value={account.id.toString()}>
-                        {account.name}{account.isDefault ? ' ⭐' : ''} (€ {account.balance.toFixed(2)})
-                      </option>
-                    ))}
+                    {accounts.filter(account => account.type === 'bank').map(account => (
+  <option key={account.id} value={account.id.toString()}>
+    {account.name}{account.isDefault ? '  (Predefinito)' : ''}
+  </option>
+))}
                   </select>
                 </div>
 

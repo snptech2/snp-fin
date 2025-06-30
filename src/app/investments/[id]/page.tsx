@@ -196,42 +196,48 @@ export default function DCAPortfolioPage() {
   }
 
   const handleAddTransaction = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSubmitLoading(true)
+  e.preventDefault()
+  setSubmitLoading(true)
 
-    try {
-      const formData = {
-        ...transactionForm,
-        portfolioId: parseInt(portfolioId),
-        btcQuantity: parseFloat(transactionForm.btcQuantity),
-        eurPaid: parseFloat(transactionForm.eurPaid)
-      }
-
-      const response = await fetch(`/api/dca-transactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      })
-
-      if (response.ok) {
-        setShowAddTransaction(false)
-        setTransactionForm({
-          date: new Date().toISOString().split('T')[0],
-          type: 'buy',
-          broker: '',
-          info: '',
-          btcQuantity: '',
-          eurPaid: '',
-          notes: ''
-        })
-        fetchPortfolio()
-      }
-    } catch (error) {
-      console.error('Errore:', error)
-    } finally {
-      setSubmitLoading(false)
+  try {
+    const formData = {
+      ...transactionForm,
+      portfolioId: parseInt(portfolioId),
+      btcQuantity: parseFloat(transactionForm.btcQuantity),
+      eurPaid: parseFloat(transactionForm.eurPaid)
     }
+
+    const response = await fetch(`/api/dca-transactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData)
+    })
+
+    if (response.ok) {
+      setShowAddTransaction(false)
+      setTransactionForm({
+        date: new Date().toISOString().split('T')[0],
+        type: 'buy',
+        broker: '',
+        info: '',
+        btcQuantity: '',
+        eurPaid: '',
+        notes: ''
+      })
+      fetchPortfolio()
+    } else {
+      // ✅ AGGIUNTO: Gestione errori mancante
+      const errorData = await response.json()
+      console.error('Errore API:', errorData)
+      alert(errorData.error || 'Errore durante la creazione della transazione')
+    }
+  } catch (error) {
+    console.error('Errore di rete:', error)
+    alert('Errore di rete durante la creazione della transazione')
+  } finally {
+    setSubmitLoading(false)
   }
+}
 
   const handleEditTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
