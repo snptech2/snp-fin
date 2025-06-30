@@ -28,8 +28,12 @@ model User {
   transfers    Transfer[]
   dcaPortfolios DCAPortfolio[]
   cryptoPortfolios CryptoPortfolio[]
+  changelogUpdates Changelog[] // Changelog modificati da questo utente
 
 }
+
+
+
 
 model Account {
   id              Int           @id @default(autoincrement())
@@ -247,4 +251,17 @@ model CryptoPortfolioHolding {
   asset        CryptoPortfolioAsset @relation(fields: [assetId], references: [id])
   
   @@unique([portfolioId, assetId])
+}
+
+model Changelog {
+  id        Int      @id @default(autoincrement())
+  content   String   // Contenuto del changelog (può essere molto lungo)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Chi ha fatto l'ultimo aggiornamento
+  updatedBy Int
+  user      User     @relation(fields: [updatedBy], references: [id])
+  
+  @@map("changelog") // Nome tabella nel database
 }

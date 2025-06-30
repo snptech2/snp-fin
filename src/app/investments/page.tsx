@@ -558,6 +558,7 @@ export default function InvestmentsPage() {
             <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-adaptive-900">🟠 Nuovo Portfolio DCA Bitcoin</h3>
+                
                 <button
                   onClick={() => setShowCreateDCAModal(false)}
                   className="text-adaptive-600 hover:text-adaptive-900"
@@ -565,7 +566,7 @@ export default function InvestmentsPage() {
                   <XMarkIcon className="w-5 h-5" />
                 </button>
               </div>
-
+<h4>Questo portfolio supporta esclusivamente l'acquisto e la vendita di btc con valute FIAT. Se hai bisogno di swap con stablecoins o shitcoins utilizza il Crypto Wallet.</h4><br></br>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-adaptive-900 mb-1">
@@ -596,6 +597,7 @@ export default function InvestmentsPage() {
                       </option>
                     ))}
                   </select>
+                  
                 </div>
 
                 <div className="flex gap-3">
