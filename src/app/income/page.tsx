@@ -1,12 +1,14 @@
 'use client'
 import { formatCurrency } from '@/utils/formatters'
 import { useState, useEffect, useMemo } from 'react'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { 
   PlusIcon, PencilIcon, TrashIcon, TagIcon, CurrencyEuroIcon, 
   FunnelIcon, MagnifyingGlassIcon, ChevronLeftIcon, ChevronRightIcon,
   CalendarIcon, CheckIcon, ChevronDownIcon
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { usePathname } from 'next/navigation'
 
 interface Account {
   id: number
@@ -108,11 +110,72 @@ export default function IncomePage() {
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Pathname per i grafici
+  const pathname = usePathname()
+
+  // === NUOVE FUNZIONI PER RIEPILOGHI === 
+  // Calcola transazioni del mese corrente
+  const getCurrentMonthTransactions = useMemo(() => {
+    const now = new Date()
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
+    
+    return transactions.filter(transaction => {
+      const transactionDate = new Date(transaction.date)
+      return transactionDate.getMonth() === currentMonth && 
+             transactionDate.getFullYear() === currentYear
+    })
+  }, [transactions])
+
+  // Calcola dati per grafico mese corrente  
+  const currentMonthChartData = useMemo(() => {
+    const categoryTotals = getCurrentMonthTransactions.reduce((acc, transaction) => {
+      const categoryName = transaction.category.name
+      const categoryColor = transaction.category.color || '#3B82F6'
+      
+      if (!acc[categoryName]) {
+        acc[categoryName] = { amount: 0, color: categoryColor }
+      }
+      acc[categoryName].amount += transaction.amount
+      return acc
+    }, {})
+
+    return Object.entries(categoryTotals).map(([name, data]) => ({
+      name,
+      value: data.amount,
+      color: data.color
+    }))
+  }, [getCurrentMonthTransactions])
+
+  // Calcola dati per grafico totale
+  const totalChartData = useMemo(() => {
+    const categoryTotals = transactions.reduce((acc, transaction) => {
+      const categoryName = transaction.category.name
+      const categoryColor = transaction.category.color || '#3B82F6'
+      
+      if (!acc[categoryName]) {
+        acc[categoryName] = { amount: 0, color: categoryColor }
+      }
+      acc[categoryName].amount += transaction.amount
+      return acc
+    }, {})
+
+    return Object.entries(categoryTotals).map(([name, data]) => ({
+      name,
+      value: data.amount,
+      color: data.color
+    }))
+  }, [transactions])
+
+  // Calcola totali
+  const currentMonthTotal = getCurrentMonthTransactions.reduce((sum, t) => sum + t.amount, 0)
+  const grandTotal = transactions.reduce((sum, t) => sum + t.amount, 0)
+
   // Trova conto predefinito
   const getDefaultAccount = () => {
-  return accounts.find(account => account.isDefault && account.type === 'bank') || 
-         accounts.find(account => account.type === 'bank')
-}
+    return accounts.find(account => account.isDefault && account.type === 'bank') || 
+           accounts.find(account => account.type === 'bank')
+  }
 
   // Caricamento iniziale
   useEffect(() => {
@@ -408,6 +471,55 @@ export default function IncomePage() {
     return stats.sort((a, b) => b.total - a.total)
   }, [categories, transactions, totalIncome])
 
+  // === COMPONENTE GRAFICO ===
+  const renderPieChart = (data, title, total) => (
+    <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
+      <h3 className="text-lg font-medium text-adaptive-900 mb-4">{title}</h3>
+      <div className="flex items-center justify-between">
+        <div className="w-48 h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value) => formatCurrency(value)} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="ml-6">
+          <p className="text-sm text-adaptive-600 mb-2">Totale</p>
+          <p className="text-2xl font-bold text-adaptive-900">
+            {formatCurrency(total)}
+          </p>
+          <div className="mt-4 space-y-2">
+            {data.map((item, index) => (
+              <div key={index} className="flex items-center text-sm">
+                <div 
+                  className="w-3 h-3 rounded-full mr-2" 
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="text-adaptive-600">{item.name}</span>
+                <span className="ml-auto font-medium">
+                  {formatCurrency(item.value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
   if (loading) {
     return (
       <ProtectedRoute>
@@ -471,6 +583,27 @@ export default function IncomePage() {
             </button>
           </div>
         </div>
+
+        {/* === RIEPILOGHI CON GRAFICI === */}
+        {!loading && transactions.length > 0 && (
+          <div className="mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Riepilogo Mese Corrente */}
+              {renderPieChart(
+                currentMonthChartData, 
+                `📊 ${pathname === '/income' ? 'Entrate' : 'Uscite'} - ${new Date().toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}`,
+                currentMonthTotal
+              )}
+              
+              {/* Riepilogo Totale */}
+              {renderPieChart(
+                totalChartData, 
+                `📈 Totale ${pathname === '/income' ? 'Entrate' : 'Uscite'}`,
+                grandTotal
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Gestione Categorie */}
         <div className={`card-adaptive rounded-lg p-6 transition-all duration-300 ${
@@ -594,10 +727,10 @@ export default function IncomePage() {
                     >
                       <option value="">Tutti i conti</option>
                       {accounts.filter(account => account.type === 'bank').map(account => (
-  <option key={account.id} value={account.id.toString()}>
-    {account.name}
-  </option>
-))}
+                        <option key={account.id} value={account.id.toString()}>
+                          {account.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -838,10 +971,10 @@ export default function IncomePage() {
                   >
                     <option value="">Seleziona conto</option>
                     {accounts.filter(account => account.type === 'bank').map(account => (
-  <option key={account.id} value={account.id.toString()}>
-    {account.name}{account.isDefault ? '  (Predefinito)' : ''}
-  </option>
-))}
+                      <option key={account.id} value={account.id.toString()}>
+                        {account.name}{account.isDefault ? '  (Predefinito)' : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
