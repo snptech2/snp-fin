@@ -387,7 +387,8 @@ const handleSetDefaultAccount = async (accountId: number) => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-adaptive-900">Conti</h1>
-            <p className="text-adaptive-600 mt-2">Gestisci i tuoi conti bancari e di investimento con Enhanced Cash Flow</p>
+            <p className="text-adaptive-600 mt-2">Gestisci i tuoi conti bancari e di investimento con Enhanced Cash Flow.</p>
+            
           </div>
           <div className="flex gap-3">
             <button
@@ -443,6 +444,8 @@ const handleSetDefaultAccount = async (accountId: number) => {
         {/* Bank Accounts */}
 <div className="mb-8">
   <h2 className="text-2xl font-bold text-adaptive-900 mb-4">🏦 Conti Bancari</h2>
+              <p className="text-adaptive-600 mt-2">Utilizza uno o più conti bancari per gestire le entrate, le uscite e pianificare budget personalizzati.</p><br></br>
+
   {bankAccounts.length === 0 ? (
     <div className="card-adaptive rounded-lg p-8 text-center">
       <div className="text-4xl mb-4">🏦</div>
@@ -559,6 +562,8 @@ const handleSetDefaultAccount = async (accountId: number) => {
         {/* Investment Accounts with Enhanced Breakdown */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-adaptive-900 mb-4">📈 Conti Investimento</h2>
+                        <p className="text-adaptive-600 mt-2">Collega uno o più Portfolio per gestire i tuoi investimenti.</p><br></br>
+
           {investmentAccounts.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-adaptive-600 mb-4">Nessun conto di investimento trovato</p>
@@ -669,6 +674,8 @@ const handleSetDefaultAccount = async (accountId: number) => {
         {/* Recent Transfers */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-adaptive-900 mb-4">🔄 Trasferimenti</h2>
+                        <p className="text-adaptive-600 mt-2">Trasferimenti di liquidità tra due conti diversi.</p><br></br>
+
           {!Array.isArray(transfers) || transfers.length === 0 ? (
             <div className="card-adaptive rounded-lg p-8 text-center">
               <div className="text-4xl mb-4">🔄</div>
@@ -746,6 +753,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
               </div>
 
               <form onSubmit={handleAccountSubmit} className="space-y-4">
+                <p>Usa Conto Bancario per gestione entrate e uscite, usa Conto Investimento per collegarlo a dei Portfolio</p>
                 <div>
                   <label className="block text-sm font-medium text-adaptive-900 mb-1">
                     Nome Conto

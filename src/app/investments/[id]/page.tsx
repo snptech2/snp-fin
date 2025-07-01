@@ -406,19 +406,20 @@ export default function DCAPortfolioPage() {
     }
   }
 
-  const openEditTransaction = (transaction: DCATransaction) => {
-    setEditingTransaction(transaction)
-    setTransactionForm({
-      date: transaction.date,
-      type: transaction.type,
-      broker: transaction.broker,
-      info: transaction.info,
-      btcQuantity: transaction.btcQuantity.toString(),
-      eurPaid: transaction.eurPaid.toString(),
-      notes: transaction.notes || ''
-    })
-    setShowEditTransaction(true)
-  }
+// NUOVO (CORRETTO):
+const openEditTransaction = (transaction: DCATransaction) => {
+  setEditingTransaction(transaction)
+  setTransactionForm({
+    date: transaction.date.split('T')[0],  // ← FIX: converte DateTime a date
+    type: transaction.type,
+    broker: transaction.broker,
+    info: transaction.info,
+    btcQuantity: transaction.btcQuantity.toString(),
+    eurPaid: transaction.eurPaid.toString(),
+    notes: transaction.notes || ''
+  })
+  setShowEditTransaction(true)
+}
 
   const openEditFee = (fee: NetworkFee) => {
     setEditingFee(fee)
