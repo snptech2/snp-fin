@@ -1,6 +1,7 @@
-// src/app/api/dca-transactions/[id]/route.ts - VERSIONE CORRETTA
+// src/app/api/dca-transactions/[id]/route.ts - VERSIONE CORRETTA COMPLETA
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware' // ← AGGIUNTO
 
 const prisma = new PrismaClient()
 
@@ -10,6 +11,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 🔐 AGGIUNTO: Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const id = parseInt(params.id)
     // 🟠 AGGIUNTO: campo type opzionale
     const { date, type, broker, info, btcQuantity, eurPaid, notes } = await request.json()
@@ -30,11 +36,11 @@ export async function PUT(
       )
     }
 
-    // Recupera transazione esistente (INVARIATO)
+    // Recupera transazione esistente (AGGIORNATO con userId reale)
     const existingTransaction = await prisma.dCATransaction.findFirst({
       where: { 
         id,
-        portfolio: { userId: 1 }
+        portfolio: { userId } // ← FIX: userId reale invece di 1
       },
       include: {
         portfolio: {
@@ -82,14 +88,14 @@ export async function PUT(
       balanceChange = -(oldAmount + newAmount)
     }
 
-    // Verifica liquidità (INVARIATO)
+    // Verifica liquidità
     const currentBalance = existingTransaction.portfolio.account.balance
     const newBalance = currentBalance + balanceChange
 
     if (newBalance < 0) {
       return NextResponse.json(
         { 
-          error: 'Liquidità insufficiente per questa modifica',
+          error: `Liquidità insufficiente. Saldo attuale: €${currentBalance.toFixed(2)}, saldo dopo modifica: €${newBalance.toFixed(2)}`,
           currentBalance,
           requiredChange: balanceChange,
           newBalance,
@@ -183,6 +189,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 🔐 AGGIUNTO: Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const id = parseInt(params.id)
 
     if (isNaN(id)) {
@@ -192,11 +203,11 @@ export async function DELETE(
       )
     }
 
-    // Recupera transazione (INVARIATO)
+    // Recupera transazione (AGGIORNATO con userId reale)
     const existingTransaction = await prisma.dCATransaction.findFirst({
       where: { 
         id,
-        portfolio: { userId: 1 }
+        portfolio: { userId } // ← FIX: userId reale invece di 1
       },
       include: {
         portfolio: {

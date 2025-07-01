@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     
     const { name, targetAmount, type, color } = await request.json()
 
-    if (!name || !targetAmount || !type) {
+    if (!name || targetAmount === undefined || targetAmount === null || !type) {
       return NextResponse.json({ error: 'Name, target amount, and type are required' }, { status: 400 })
     }
 
@@ -93,8 +93,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Type must be fixed or unlimited' }, { status: 400 })
     }
 
-    if (targetAmount <= 0) {
-      return NextResponse.json({ error: 'Target amount must be positive' }, { status: 400 })
+    // Validazione targetAmount specifica per tipo
+    if (type === 'fixed' && targetAmount <= 0) {
+      return NextResponse.json({ error: 'Target amount must be positive for fixed budgets' }, { status: 400 })
+    }
+
+    // Per budget unlimited, targetAmount può essere qualsiasi valore (anche 0)
+    if (type === 'unlimited') {
+      // Non è necessaria validazione particolare per unlimited
     }
 
     // Check if name already exists for this user
