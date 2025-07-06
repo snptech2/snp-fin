@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { formatCurrency } from '@/utils/formatters'
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import ProtectedRoute from '@/components/ProtectedRoute'
 
 interface Budget {
@@ -171,6 +172,105 @@ export default function BudgetPage() {
     '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
   ]
 
+  // Dati per il grafico a torta
+  const chartData = useMemo(() => {
+    if (!budgetData?.budgets) return []
+    
+    const data = []
+    
+    // Aggiungi budget individuali
+    budgetData.budgets.forEach(budget => {
+      if (budget.allocatedAmount && budget.allocatedAmount > 0) {
+        data.push({
+          name: budget.name,
+          value: budget.allocatedAmount,
+          color: budget.color || '#3B82F6'
+        })
+      }
+    })
+    
+    // Aggiungi fondi non allocati
+    if (budgetData.unallocated > 0) {
+      data.push({
+        name: 'Fondi Disponibili',
+        value: budgetData.unallocated,
+        color: '#6B7280'
+      })
+    }
+    
+    return data
+  }, [budgetData])
+
+  // Componente grafico a torta
+  const renderPieChart = () => {
+    if (!budgetData || chartData.length === 0) return null
+    
+    return (
+      <div className="w-full">
+        <h4 className="text-md font-medium text-adaptive-900 mb-4">📊 Visualizzazione Allocazione</h4>
+        
+        <div className="flex items-center gap-6">
+          {/* Pie Chart */}
+          <div className="w-40 h-40">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={35}
+                  outerRadius={70}
+                  paddingAngle={2}
+                  dataKey="value"
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          
+          {/* Legend */}
+          <div className="flex-1 space-y-3">
+            {chartData.map((item, index) => {
+              const percentage = budgetData.totalLiquidity > 0 ? (item.value / budgetData.totalLiquidity) * 100 : 0
+              return (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="text-sm text-adaptive-700">{item.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-adaptive-900">
+                      {formatCurrency(item.value)}
+                    </div>
+                    <div className="text-xs text-adaptive-500">
+                      {percentage.toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+            
+            {/* Total */}
+            <div className="pt-3 border-t border-adaptive">
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-adaptive-700">Totale:</span>
+                <span className="text-sm font-semibold text-adaptive-900">
+                  {formatCurrency(budgetData.totalLiquidity)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <ProtectedRoute>
@@ -240,8 +340,13 @@ export default function BudgetPage() {
           </div>
           <div className="p-6">
             {budgetData?.budgets && budgetData.budgets.length > 0 ? (
-              <div className="space-y-3">
-                {budgetData.budgets.map((budget) => (
+              <div className="space-y-6">
+                {/* Grafico a torta */}
+                {renderPieChart()}
+                
+                {/* Lista budget */}
+                <div className="space-y-3">
+                  {budgetData.budgets.map((budget) => (
                   <div key={budget.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                     <div className="flex items-center gap-4 flex-1">
                       {/* Priorità */}
@@ -338,7 +443,8 @@ export default function BudgetPage() {
                       </button>
                     </div>
                   </div>
-                ))}
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="text-center py-8">

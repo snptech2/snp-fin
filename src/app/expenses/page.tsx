@@ -474,46 +474,61 @@ export default function ExpensesPage() {
   // === COMPONENTE GRAFICO ===
   const renderPieChart = (data, title, total) => (
     <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-      <h3 className="text-lg font-medium text-adaptive-900 mb-4">{title}</h3>
-      <div className="flex items-center justify-between">
-        <div className="w-48 h-48">
+      <h3 className="text-lg font-medium text-adaptive-900 mb-6">{title}</h3>
+      
+      <div className="flex items-center gap-6">
+        {/* Pie Chart */}
+        <div className="w-40 h-40">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={data}
                 cx="50%"
                 cy="50%"
-                outerRadius={80}
-                fill="#8884d8"
+                innerRadius={35}
+                outerRadius={70}
+                paddingAngle={2}
                 dataKey="value"
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
               >
                 {data.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => formatCurrency(value)} />
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="ml-6">
-          <p className="text-sm text-adaptive-600 mb-2">Totale</p>
-          <p className="text-2xl font-bold text-adaptive-900">
-            {formatCurrency(total)}
-          </p>
-          <div className="mt-4 space-y-2">
-            {data.map((item, index) => (
-              <div key={index} className="flex items-center text-sm">
-                <div 
-                  className="w-3 h-3 rounded-full mr-2" 
-                  style={{ backgroundColor: item.color }}
-                />
-                <span className="text-adaptive-600">{item.name}</span>
-                <span className="ml-auto font-medium">
-                  {formatCurrency(item.value)}
-                </span>
+        
+        {/* Legend */}
+        <div className="flex-1 space-y-3">
+          {data.map((item, index) => {
+            const percentage = total > 0 ? (item.value / total) * 100 : 0
+            return (
+              <div key={index} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="text-sm text-adaptive-700">{item.name}</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-semibold text-adaptive-900">
+                    {formatCurrency(item.value)}
+                  </div>
+                  <div className="text-xs text-adaptive-500">
+                    {percentage.toFixed(1)}%
+                  </div>
+                </div>
               </div>
-            ))}
+            )
+          })}
+          
+          {/* Total */}
+          <div className="pt-3 border-t border-adaptive">
+            <div className="flex justify-between">
+              <span className="text-sm font-medium text-adaptive-700">Totale:</span>
+              <span className="text-sm font-semibold text-adaptive-900">{formatCurrency(total)}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -591,14 +606,14 @@ export default function ExpensesPage() {
               {/* Riepilogo Mese Corrente */}
               {renderPieChart(
                 currentMonthChartData, 
-                `📊 ${pathname === '/income' ? 'Entrate' : 'Uscite'} - ${new Date().toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}`,
+                `📊 Uscite - ${new Date().toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}`,
                 currentMonthTotal
               )}
               
               {/* Riepilogo Totale */}
               {renderPieChart(
                 totalChartData, 
-                `📈 Totale ${pathname === '/income' ? 'Entrate' : 'Uscite'}`,
+                `📈 Totale Uscite`,
                 grandTotal
               )}
             </div>

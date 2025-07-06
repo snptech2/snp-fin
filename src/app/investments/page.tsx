@@ -294,21 +294,6 @@ export default function InvestmentsPage() {
   return (
     <ProtectedRoute>
       <div className="space-y-6">
-        {/* Enhanced Cash Flow Update Notice */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <div className="text-blue-600 text-xl">ℹ️</div>
-            <div>
-              <h3 className="text-sm font-semibold text-blue-900">Aggiornamento Enhanced Cash Flow</h3>
-              <p className="text-xs text-blue-700 mt-1">
-                Abbiamo migliorato il calcolo delle metriche per una maggiore precisione. 
-                "Capitale Recuperato" ora riflette correttamente il capitale effettivamente recuperato, 
-                e i calcoli ROI sono più accurati.
-              </p>
-            </div>
-          </div>
-        </div>
-
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>

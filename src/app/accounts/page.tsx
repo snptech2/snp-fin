@@ -654,11 +654,21 @@ const handleSetDefaultAccount = async (accountId: number) => {
                           <div className="mt-4 pt-4 border-t border-adaptive">
                             <h6 className="font-medium text-adaptive-900 mb-2">Portfolio Collegati:</h6>
                             <div className="flex flex-wrap gap-2">
-                              {linkedPortfolios.map((portfolio) => (
-                                <span key={portfolio.id} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-                                  {portfolio.name} - {portfolio.type === 'dca_bitcoin' ? '🟠 DCA Bitcoin' : '🚀 Crypto Wallet'}
-                                </span>
-                              ))}
+                              {linkedPortfolios.map((portfolio) => {
+                                const portfolioUrl = portfolio.type === 'dca_bitcoin' 
+                                  ? `/investments/${portfolio.id}` 
+                                  : `/investments/crypto-portfolio/${portfolio.id}`
+                                
+                                return (
+                                  <a
+                                    key={portfolio.id}
+                                    href={portfolioUrl}
+                                    className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full hover:bg-blue-200 transition-colors cursor-pointer"
+                                  >
+                                    {portfolio.name} - {portfolio.type === 'dca_bitcoin' ? '🟠 DCA Bitcoin' : '🚀 Crypto Wallet'}
+                                  </a>
+                                )
+                              })}
                             </div>
                           </div>
                         )}
