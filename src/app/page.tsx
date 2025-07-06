@@ -6,16 +6,103 @@ import { CurrencyEuroIcon, ChartPieIcon, BanknotesIcon, ArrowTrendingUpIcon } fr
 import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute'
 
+// Interfaces
+interface BitcoinPrice {
+  btcUsd: number;
+  btcEur: number;
+  cached: boolean;
+}
+
+interface Account {
+  id: number;
+  name: string;
+  type: 'bank' | 'investment';
+  balance: number;
+}
+
+interface Portfolio {
+  id: number;
+  name: string;
+  type: 'dca_bitcoin' | 'crypto_wallet';
+  stats: {
+    totalInvested?: number;
+    capitalRecovered?: number;
+    effectiveInvestment?: number;
+    realizedProfit?: number;
+    isFullyRecovered?: boolean;
+    totalValueEur?: number;
+    netBTC?: number;
+    totalBTC?: number;
+    totalROI?: number;
+  };
+}
+
+interface Budget {
+  id: number;
+  name: string;
+  targetAmount: number;
+  allocatedAmount: number;
+  color: string;
+}
+
+interface Transaction {
+  id: number;
+  description?: string;
+  amount: number;
+  date: string;
+  type: 'income' | 'expense';
+}
+
+interface EnhancedCashFlow {
+  totalInvested: number;
+  capitalRecovered: number;
+  effectiveInvestment: number;
+  realizedProfit: number;
+  isFullyRecovered: boolean;
+}
+
+interface DashboardTotals {
+  bankLiquidity: number;
+  investmentLiquidity: number;
+  holdingsValue: number;
+  totalPatrimony: number;
+}
+
+interface DashboardData {
+  accounts: Account[];
+  investments: Portfolio[];
+  budgets: Budget[];
+  budgetTotals: { totalLiquidity: number; totalAllocated: number };
+  transactions: Transaction[];
+  enhancedCashFlow: EnhancedCashFlow | null;
+  totals: DashboardTotals;
+}
+
+interface AllocationDataItem {
+  name: string;
+  value: number;
+  color: string;
+  percentage: number;
+}
+
+interface BudgetBreakdownItem {
+  name: string;
+  allocated: number;
+  target: number;
+  percentage: number;
+  color: string;
+}
+
 const Dashboard = () => {
-  const [loading, setLoading] = useState(true);
-  const [btcPrice, setBtcPrice] = useState(null); // ✅ NUOVO: Bitcoin price
-  const [dashboardData, setDashboardData] = useState({
+  const [loading, setLoading] = useState<boolean>(true);
+  const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
     accounts: [],
     investments: [],
     budgets: [],
     budgetTotals: { totalLiquidity: 0, totalAllocated: 0 },
     transactions: [],
-    enhancedCashFlow: null, // ✅ NUOVO: Enhanced Cash Flow stats
+    enhancedCashFlow: null,
     totals: {
       bankLiquidity: 0,
       investmentLiquidity: 0,
@@ -25,23 +112,23 @@ const Dashboard = () => {
   });
 
   // Format functions
-  const formatCurrency = (amount) => {
+  const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('it-IT', {
       style: 'currency',
       currency: 'EUR'
     }).format(amount);
   };
 
-  const formatPercentage = (value) => {
+  const formatPercentage = (value: number): string => {
     return `${value.toFixed(1)}%`;
   };
 
   // ✅ NUOVO: Fetch Bitcoin price
-  const fetchBitcoinPrice = async () => {
+  const fetchBitcoinPrice = async (): Promise<void> => {
     try {
       const response = await fetch('/api/bitcoin-price');
       if (response.ok) {
-        const data = await response.json();
+        const data: BitcoinPrice = await response.json();
         setBtcPrice(data);
         console.log('🟠 Bitcoin Price loaded:', data.btcEur, 'EUR');
       }
@@ -51,7 +138,7 @@ const Dashboard = () => {
   };
 
   // ✅ NUOVO: DCA Current Value Calculator (same as investments page)
-  const getDCACurrentValue = (portfolio, btcPrice) => {
+  const getDCACurrentValue = (portfolio: Portfolio, btcPrice: BitcoinPrice | null): number => {
     if (portfolio.type !== 'dca_bitcoin' && !portfolio.stats?.totalBTC && !portfolio.stats?.netBTC) {
       return 0;
     }
@@ -91,7 +178,7 @@ const Dashboard = () => {
     }
   }, [btcPrice]);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (): Promise<void> => {
     try {
       // Fetch all data in parallel
       const [
@@ -109,15 +196,15 @@ const Dashboard = () => {
       ]);
 
       // Parse responses
-      const accounts = accountsRes.ok ? await accountsRes.json() : [];
-      const dcaPortfolios = dcaRes.ok ? await dcaRes.json() : [];
-      const cryptoPortfolios = cryptoRes.ok ? await cryptoRes.json() : [];
+      const accounts: Account[] = accountsRes.ok ? await accountsRes.json() : [];
+      const dcaPortfolios: Portfolio[] = dcaRes.ok ? await dcaRes.json() : [];
+      const cryptoPortfolios: Portfolio[] = cryptoRes.ok ? await cryptoRes.json() : [];
       const budgetsResponse = budgetsRes.ok ? await budgetsRes.json() : null;
-      const transactions = transactionsRes.ok ? 
+      const transactions: Transaction[] = transactionsRes.ok ? 
         await transactionsRes.json() : [];
 
       // ✅ CORREZIONE: L'API budget restituisce un oggetto, non un array diretto
-      const budgets = budgetsResponse?.budgets || [];
+      const budgets: Budget[] = budgetsResponse?.budgets || [];
       const budgetTotals = {
         totalLiquidity: budgetsResponse?.totalLiquidity || 0,
         totalAllocated: budgetsResponse?.totalAllocated || 0
@@ -130,25 +217,25 @@ const Dashboard = () => {
 
       // Calculate totals
       const bankLiquidity = accounts
-        .filter(account => account.type === 'bank')
-        .reduce((sum, account) => sum + account.balance, 0);
+        .filter((account: Account) => account.type === 'bank')
+        .reduce((sum: number, account: Account) => sum + account.balance, 0);
 
       const investmentLiquidity = accounts
-        .filter(account => account.type === 'investment')  
-        .reduce((sum, account) => sum + account.balance, 0);
+        .filter((account: Account) => account.type === 'investment')  
+        .reduce((sum: number, account: Account) => sum + account.balance, 0);
 
       // ✅ FIX: Calculate holdings value using same logic as investments page
       let holdingsValue = 0;
       
       // Calculate crypto portfolios value
-      const cryptoValue = cryptoPortfolios.reduce((sum, portfolio) => {
+      const cryptoValue = cryptoPortfolios.reduce((sum: number, portfolio: Portfolio) => {
         const value = portfolio.stats?.totalValueEur || 0;
         console.log(`🚀 Crypto ${portfolio.name}: €${value} (from backend)`);
         return sum + value;
       }, 0);
       
       // Calculate DCA portfolios value
-      const dcaValue = dcaPortfolios.reduce((sum, portfolio) => {
+      const dcaValue = dcaPortfolios.reduce((sum: number, portfolio: Portfolio) => {
         const value = getDCACurrentValue(portfolio, btcPrice);
         console.log(`🟠 DCA ${portfolio.name}: €${value} (calculated with BTC price)`);
         return sum + value;
@@ -159,13 +246,13 @@ const Dashboard = () => {
       console.log(`🎯 Total Holdings Value: €${holdingsValue}`);
 
       // ✅ NUOVO: Calculate Enhanced Cash Flow totals - UNIFICATO
-      const allPortfolios = [...cryptoPortfolios, ...dcaPortfolios];
-      const enhancedCashFlow = allPortfolios.length > 0 ? {
-        totalInvested: allPortfolios.reduce((sum, p) => sum + (p.stats?.totalInvested || 0), 0),
-        capitalRecovered: allPortfolios.reduce((sum, p) => sum + (p.stats?.capitalRecovered || 0), 0),
-        effectiveInvestment: allPortfolios.reduce((sum, p) => sum + (p.stats?.effectiveInvestment || 0), 0),
-        realizedProfit: allPortfolios.reduce((sum, p) => sum + (p.stats?.realizedProfit || 0), 0),
-        isFullyRecovered: allPortfolios.every(p => p.stats?.isFullyRecovered || false)
+      const allPortfolios: Portfolio[] = [...cryptoPortfolios, ...dcaPortfolios];
+      const enhancedCashFlow: EnhancedCashFlow | null = allPortfolios.length > 0 ? {
+        totalInvested: allPortfolios.reduce((sum: number, p: Portfolio) => sum + (p.stats?.totalInvested || 0), 0),
+        capitalRecovered: allPortfolios.reduce((sum: number, p: Portfolio) => sum + (p.stats?.capitalRecovered || 0), 0),
+        effectiveInvestment: allPortfolios.reduce((sum: number, p: Portfolio) => sum + (p.stats?.effectiveInvestment || 0), 0),
+        realizedProfit: allPortfolios.reduce((sum: number, p: Portfolio) => sum + (p.stats?.realizedProfit || 0), 0),
+        isFullyRecovered: allPortfolios.every((p: Portfolio) => p.stats?.isFullyRecovered || false)
       } : null;
 
       const totalPatrimony = bankLiquidity + investmentLiquidity + holdingsValue;
@@ -196,7 +283,7 @@ const Dashboard = () => {
   const budgetSummary = dashboardData.budgetTotals?.totalAllocated > 0 ? {
     total: dashboardData.budgetTotals.totalLiquidity,
     allocated: dashboardData.budgetTotals.totalAllocated
-  } : (Array.isArray(dashboardData.budgets) ? dashboardData.budgets : []).reduce((acc, budget) => {
+  } : (Array.isArray(dashboardData.budgets) ? dashboardData.budgets : []).reduce((acc: { total: number; allocated: number }, budget: Budget) => {
     // 🔧 FIX: Usa targetAmount e allocatedAmount invece di amount/currentAmount
     const budgetTarget = budget.targetAmount || 0;
     const budgetAllocated = budget.allocatedAmount || 0;
@@ -215,13 +302,13 @@ const Dashboard = () => {
   console.log('💰 Budget Summary Final:', budgetSummary);
 
   // ✅ NUOVO: Allocation data dettagliata con budget individuali
-  const allocationData = useMemo(() => {
-    const data = [];
+  const allocationData: AllocationDataItem[] = useMemo(() => {
+    const data: AllocationDataItem[] = [];
     const totalPatrimony = dashboardData.totals.totalPatrimony;
     
     // Budget individuali
     if (Array.isArray(dashboardData.budgets)) {
-      dashboardData.budgets.forEach(budget => {
+      dashboardData.budgets.forEach((budget: Budget) => {
         if (budget.allocatedAmount > 0) {
           data.push({
             name: budget.name,
@@ -269,8 +356,8 @@ const Dashboard = () => {
   }, [dashboardData, budgetSummary]);
 
   // ✅ CORREZIONE: Calculate budget breakdown con campi corretti
-  const budgetBreakdown = Array.isArray(dashboardData.budgets) ? 
-    dashboardData.budgets.map(budget => {
+  const budgetBreakdown: BudgetBreakdownItem[] = Array.isArray(dashboardData.budgets) ? 
+    dashboardData.budgets.map((budget: Budget) => {
       // 🔧 FIX: Usa targetAmount e allocatedAmount invece di amount/currentAmount
       const target = budget.targetAmount || 0;
       const allocated = budget.allocatedAmount || 0;
@@ -466,7 +553,7 @@ const Dashboard = () => {
                         paddingAngle={2}
                         dataKey="value"
                       >
-                        {allocationData.map((entry, index) => (
+                        {allocationData.map((entry: AllocationDataItem, index: number) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
@@ -476,7 +563,7 @@ const Dashboard = () => {
                 
                 {/* Legend */}
                 <div className="flex-1 space-y-3">
-                  {allocationData.map((item, index) => (
+                  {allocationData.map((item: AllocationDataItem, index: number) => (
                     <div key={index} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div 
@@ -509,7 +596,7 @@ const Dashboard = () => {
               </div>
               
               <div className="space-y-4">
-                {budgetBreakdown.slice(0, 4).map((budget, index) => (
+                {budgetBreakdown.slice(0, 4).map((budget: BudgetBreakdownItem, index: number) => (
                   <div key={index} className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
@@ -576,7 +663,7 @@ const Dashboard = () => {
                 </Link>
               </div>
               <div className="space-y-4">
-                {dashboardData.investments.slice(0, 3).map((portfolio, index) => (
+                {dashboardData.investments.slice(0, 3).map((portfolio: Portfolio, index: number) => (
                   <div key={index} className="flex items-center justify-between p-3 rounded-lg border border-adaptive bg-adaptive-50">
                     <div>
                       <p className="text-sm font-medium text-adaptive-900">{portfolio.name}</p>
@@ -614,7 +701,7 @@ const Dashboard = () => {
                 </Link>
               </div>
               <div className="space-y-4">
-                {dashboardData.transactions.map((transaction, index) => (
+                {dashboardData.transactions.map((transaction: Transaction, index: number) => (
                   <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-adaptive-50">
                     <div className="flex items-center gap-3">
                       <div className={`w-2 h-2 rounded-full ${transaction.type === 'income' ? 'bg-green-500' : 'bg-red-500'}`} />
