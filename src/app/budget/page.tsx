@@ -22,6 +22,7 @@ interface Budget {
 interface BudgetData {
   budgets: Budget[]
   totalLiquidity: number
+  totalAllocated: number
   unallocated: number
   availableColors: string[]
 }
@@ -216,7 +217,7 @@ export default function BudgetPage() {
           <div className="card-adaptive p-4 rounded-lg border-adaptive">
             <h3 className="text-sm font-medium text-adaptive-500">Allocato</h3>
             <p className="text-2xl font-bold text-green-600">
-              {formatCurrency((budgetData?.totalLiquidity || 0) - (budgetData?.unallocated || 0))}
+              {formatCurrency(budgetData?.totalAllocated || 0)}
             </p>
             <p className="text-sm text-adaptive-600">Budget assegnati</p>
           </div>

@@ -59,10 +59,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Calculate actual total allocated amount
+    const actualTotalAllocated = allocatedBudgets.reduce((sum, budget) => sum + (budget.allocatedAmount || 0), 0)
+    const unallocated = Math.max(0, totalLiquidity - actualTotalAllocated)
+
     return NextResponse.json({
       budgets: allocatedBudgets,
       totalLiquidity,
-      totalAllocated: totalLiquidity,
+      totalAllocated: actualTotalAllocated,
+      unallocated,
       summary: {
         totalBudgets: budgets.length,
         fixedBudgets: budgets.filter(b => b.type === 'fixed').length,
