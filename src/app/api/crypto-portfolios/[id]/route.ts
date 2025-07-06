@@ -5,26 +5,56 @@ import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
-// 🎯 ENHANCED CASH FLOW LOGIC - UNIFICATA con DCA logic
-function calculateEnhancedStats(transactions: any[]) {
-  const buyTransactions = transactions.filter((tx: any) => tx.type === 'buy' || !tx.type)
-  const sellTransactions = transactions.filter((tx: any) => tx.type === 'sell')
+// 🎯 ENHANCED CASH FLOW LOGIC - UNIFICATA con DCA logic + STAKING REWARDS + SWAP + NETWORK FEES
+function calculateEnhancedStats(transactions: any[], networkFees: any[] = []) {
+  const buyTransactions = transactions.filter((tx: any) => tx.type === 'buy' || tx.type === 'swap_in' || !tx.type)
+  const sellTransactions = transactions.filter((tx: any) => tx.type === 'sell' || tx.type === 'swap_out')
+  const stakeRewardTransactions = transactions.filter((tx: any) => tx.type === 'stake_reward')
 
   // 🔧 FIX FASE 1: Applica esattamente la logica Enhanced definita nei documenti
   const totalInvested = buyTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
   const capitalRecovered = sellTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
+  const stakeRewards = stakeRewardTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
+  
+  // 🆕 NETWORK FEES - Calcoli aggregati
+  const totalFeesEur = networkFees.reduce((sum: number, fee: any) => sum + (fee.eurValue || 0), 0)
+  const networkFeesCount = networkFees.length
+
+  // 🆕 FEES BY ASSET - Raggruppamento per asset
+  const feesByAsset = networkFees.reduce((acc: any, fee: any) => {
+    const symbol = fee.asset?.symbol || 'UNKNOWN'
+    if (!acc[symbol]) {
+      acc[symbol] = {
+        quantity: 0,
+        eurValue: 0,
+        count: 0,
+        asset: fee.asset
+      }
+    }
+    acc[symbol].quantity += fee.quantity || 0
+    acc[symbol].eurValue += fee.eurValue || 0
+    acc[symbol].count += 1
+    return acc
+  }, {})
+  
   const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
-  const realizedProfit = Math.max(0, capitalRecovered - totalInvested)
+  const realizedProfit = Math.max(0, capitalRecovered - totalInvested) + stakeRewards
 
   return {
     totalInvested,
     capitalRecovered,
     effectiveInvestment,
     realizedProfit,
+    stakeRewards,
     isFullyRecovered: capitalRecovered >= totalInvested,
     transactionCount: transactions.length,
     buyCount: buyTransactions.length,
-    sellCount: sellTransactions.length
+    sellCount: sellTransactions.length,
+    stakeRewardCount: stakeRewardTransactions.length,
+    // 🆕 NETWORK FEES STATS
+    totalFeesEur,
+    networkFeesCount,
+    feesByAsset
   }
 }
 
@@ -93,6 +123,10 @@ export async function GET(
         transactions: {
           include: { asset: true },
           orderBy: { date: 'desc' }
+        },
+        networkFees: {
+          include: { asset: true },
+          orderBy: { date: 'desc' }
         }
       }
     })
@@ -101,41 +135,57 @@ export async function GET(
       return NextResponse.json({ error: 'Portfolio non trovato' }, { status: 404 })
     }
 
-    // 🎯 Applica Enhanced Statistics
-    const enhancedStats = calculateEnhancedStats(portfolio.transactions)
+    // 🎯 Applica Enhanced Statistics (con network fees)
+    const enhancedStats = calculateEnhancedStats(portfolio.transactions, portfolio.networkFees)
 
     // 🆕 Fetch prezzi correnti per holdings
     const symbols = portfolio.holdings.map(h => h.asset.symbol.toUpperCase())
     const currentPrices = await fetchCurrentPrices(symbols)
 
-    // 🆕 Calcola valore attuale e unrealized gains
+    // 🆕 Valore totale calcolato successivamente dai holdings aggiornati (con fees detratte)
     let totalValueEur = 0
-    portfolio.holdings.forEach(holding => {
+
+    // 🆕 Aggiorna i holdings con i prezzi correnti e network fees
+    const holdingsWithCurrentPrices = portfolio.holdings.map(holding => {
       const currentPrice = currentPrices[holding.asset.symbol] || holding.currentPrice || holding.avgPrice
-      totalValueEur += holding.quantity * currentPrice
+      
+      // 🆕 Calcola fees per questo asset
+      const assetFees = enhancedStats.feesByAsset[holding.asset.symbol]
+      const feesQuantity = assetFees ? assetFees.quantity : 0
+      const feesEurValue = assetFees ? assetFees.eurValue : 0
+      
+      // 🆕 Quantità netta (holdings - fees)
+      const netQuantity = Math.max(0, holding.quantity - feesQuantity)
+      const netValueEur = netQuantity * currentPrice
+      
+      return {
+        ...holding,
+        currentPrice,
+        valueEur: netValueEur,
+        netQuantity, // 🆕 Quantità dopo fees
+        feesQuantity, // 🆕 Fees in questo asset
+        feesEurValue, // 🆕 Valore EUR fees
+        lastUpdated: new Date().toISOString()
+      }
     })
 
-    const unrealizedGains = totalValueEur - enhancedStats.effectiveInvestment
-    const totalROI = enhancedStats.totalInvested > 0 ?
-      ((enhancedStats.realizedProfit + unrealizedGains) / enhancedStats.totalInvested) * 100 : 0
-
-    // 🆕 Aggiorna i holdings con i prezzi correnti ottenuti
-    const holdingsWithCurrentPrices = portfolio.holdings.map(holding => ({
-      ...holding,
-      currentPrice: currentPrices[holding.asset.symbol] || holding.currentPrice || holding.avgPrice,
-      valueEur: holding.quantity * (currentPrices[holding.asset.symbol] || holding.currentPrice || holding.avgPrice),
-      lastUpdated: new Date().toISOString()
-    }))
+    // 🆕 Calcola il valore totale EUR dai holdings aggiornati (con fees detratte)
+    totalValueEur = holdingsWithCurrentPrices.reduce((sum, holding) => sum + holding.valueEur, 0)
+    
+    // 🆕 Ricalcola unrealized gains e ROI con valore netto
+    const unrealizedGainsNet = totalValueEur - enhancedStats.effectiveInvestment
+    const totalROINet = enhancedStats.totalInvested > 0 ?
+      ((enhancedStats.realizedProfit + unrealizedGainsNet) / enhancedStats.totalInvested) * 100 : 0
 
     const portfolioWithStats = {
       ...portfolio,
       holdings: holdingsWithCurrentPrices,
       stats: {
         ...enhancedStats,
-        // 🆕 VALORE ATTUALE CORRETTO con prezzi live
+        // 🆕 VALORE ATTUALE CORRETTO con prezzi live (netto di fees)
         totalValueEur,
-        unrealizedGains,
-        totalROI,
+        unrealizedGains: unrealizedGainsNet,
+        totalROI: totalROINet,
         holdingsCount: portfolio.holdings.length,
         // 🆕 Aggiungi info sui prezzi
         pricesUpdated: currentPrices && Object.keys(currentPrices).length > 0,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
@@ -17,13 +17,14 @@ interface Asset {
 
 interface Transaction {
   id: number
-  type: 'buy' | 'sell'
+  type: 'buy' | 'sell' | 'stake_reward' | 'swap_in' | 'swap_out'
   assetId: number
   quantity: number
   eurValue: number
   pricePerUnit: number
   date: string
   notes?: string
+  swapPairId?: number
   asset: Asset
 }
 
@@ -58,6 +59,7 @@ interface CryptoPortfolio {
     capitalRecovered: number
     effectiveInvestment: number
     realizedProfit: number
+    stakeRewards: number
     isFullyRecovered: boolean
     totalValueEur: number
     totalROI: number
@@ -65,6 +67,7 @@ interface CryptoPortfolio {
     transactionCount: number
     buyCount: number
     sellCount: number
+    stakeRewardCount: number
     holdingsCount: number
   }
   holdings: Holding[]
@@ -86,12 +89,17 @@ export default function CryptoPortfolioDetailPage() {
   const [showAddTransaction, setShowAddTransaction] = useState(false)
   const [showEditTransaction, setShowEditTransaction] = useState(false)
   const [showEditPortfolio, setShowEditPortfolio] = useState(false)
+  const [showSwap, setShowSwap] = useState(false)
+  const [showNetworkFees, setShowNetworkFees] = useState(false)
+  const [showAddFee, setShowAddFee] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [editingFee, setEditingFee] = useState<any | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
+  const [expandedSwaps, setExpandedSwaps] = useState<Set<string>>(new Set())
 
   // 🔧 FORM TRANSAZIONE
   const [transactionForm, setTransactionForm] = useState({
-    type: 'buy' as 'buy' | 'sell',
+    type: 'buy' as 'buy' | 'sell' | 'stake_reward',
     ticker: '',
     quantity: '',
     eurValue: '',
@@ -110,6 +118,29 @@ export default function CryptoPortfolioDetailPage() {
     description: ''
   })
 
+  // 🔧 FORM SWAP
+  const [swapForm, setSwapForm] = useState({
+    fromAsset: '',
+    toAsset: '',
+    fromQuantity: '',
+    toQuantity: '',
+    date: new Date().toISOString().split('T')[0],
+    notes: ''
+  })
+
+  // 🔧 FORM NETWORK FEE
+  const [feeForm, setFeeForm] = useState({
+    assetId: '',
+    quantity: '',
+    eurValue: '',
+    date: new Date().toISOString().split('T')[0],
+    description: ''
+  })
+
+  // 🔧 STATO NETWORK FEES
+  const [networkFees, setNetworkFees] = useState<any[]>([])
+  const [feesLoading, setFeesLoading] = useState(false)
+
   // Format functions
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
@@ -122,6 +153,237 @@ export default function CryptoPortfolioDetailPage() {
       minimumFractionDigits: Math.min(decimals, 8),
       maximumFractionDigits: Math.min(decimals, 8)
     }).format(amount)
+
+  // 🔄 FUNZIONE HELPER PER RAGGRUPPARE SWAP
+  const groupTransactions = (transactions: Transaction[]) => {
+    const groupedItems: (Transaction | {
+      id: string
+      type: 'swap_group'
+      swapOut: Transaction
+      swapIn: Transaction
+      date: string
+      isExpanded?: boolean
+    })[] = []
+    
+    const processedSwapIds = new Set<number>()
+    
+    for (const transaction of transactions) {
+      // Se è una transazione swap e non l'abbiamo già processata
+      if ((transaction.type === 'swap_out' || transaction.type === 'swap_in') && 
+          transaction.swapPairId && 
+          !processedSwapIds.has(transaction.id)) {
+        
+        // Trova la transazione collegata
+        const pairedTransaction = transactions.find(t => 
+          t.id === transaction.swapPairId || 
+          (t.swapPairId === transaction.id)
+        )
+        
+        if (pairedTransaction) {
+          // Determina quale è swap_out e quale è swap_in
+          const swapOut = transaction.type === 'swap_out' ? transaction : pairedTransaction
+          const swapIn = transaction.type === 'swap_in' ? transaction : pairedTransaction
+          
+          // Crea gruppo swap
+          groupedItems.push({
+            id: `swap-${swapOut.id}-${swapIn.id}`,
+            type: 'swap_group',
+            swapOut,
+            swapIn,
+            date: transaction.date,
+            isExpanded: false
+          })
+          
+          // Marca entrambe come processate
+          processedSwapIds.add(transaction.id)
+          processedSwapIds.add(pairedTransaction.id)
+        } else {
+          // Se non trova la coppia, mostra come transazione singola
+          groupedItems.push(transaction)
+        }
+      } else if (!processedSwapIds.has(transaction.id)) {
+        // Transazione normale
+        groupedItems.push(transaction)
+      }
+    }
+    
+    return groupedItems
+  }
+
+  // 🔄 FUNZIONI SWAP (spostate qui per hoisting)
+  const resetSwapForm = () => {
+    setSwapForm({
+      fromAsset: '',
+      toAsset: '',
+      fromQuantity: '',
+      toQuantity: '',
+      date: new Date().toISOString().split('T')[0],
+      notes: ''
+    })
+  }
+
+  async function handleSwap(e: React.FormEvent) {
+    e.preventDefault()
+
+    if (!swapForm.fromAsset || !swapForm.toAsset || !swapForm.fromQuantity || !swapForm.toQuantity) {
+      alert('Compila tutti i campi obbligatori')
+      return
+    }
+
+    if (swapForm.fromAsset === swapForm.toAsset) {
+      alert('Non puoi fare swap dello stesso asset')
+      return
+    }
+
+    setSubmitLoading(true)
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/swap`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromAsset: swapForm.fromAsset,
+          toAsset: swapForm.toAsset,
+          fromQuantity: parseFloat(swapForm.fromQuantity),
+          toQuantity: parseFloat(swapForm.toQuantity),
+          date: swapForm.date,
+          notes: swapForm.notes || null
+        })
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        setShowSwap(false)
+        resetSwapForm()
+        alert('Swap completato con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Swap fallito'}`)
+      }
+    } catch (error) {
+      console.error('Error creating swap:', error)
+      alert('Errore durante il swap')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  // 🔄 FUNZIONI GESTIONE SWAP UNIFICATO
+  function handleEditSwap(swapGroup: any) {
+    // TODO: Implementare modal modifica swap dedicato
+    alert('Modifica swap - Da implementare nel prossimo step')
+  }
+
+  async function handleDeleteSwap(swapGroup: any) {
+    if (!confirm(`Sei sicuro di voler eliminare questo swap ${swapGroup.swapOut.asset.symbol} → ${swapGroup.swapIn.asset.symbol}?`)) {
+      return
+    }
+
+    setSubmitLoading(true)
+    try {
+      // 🆕 USA IL NUOVO ENDPOINT CHE ELIMINA E RICALCOLA AUTOMATICAMENTE
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/swap/${swapGroup.swapOut.id}`, {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        await fetchPortfolio()
+        // Rimuovi dall'espansione se era espanso
+        const newExpanded = new Set(expandedSwaps)
+        newExpanded.delete(swapGroup.id)
+        setExpandedSwaps(newExpanded)
+        alert(`Swap eliminato con successo! Holdings ricalcolati automaticamente.`)
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Eliminazione swap fallita'}`)
+      }
+    } catch (error) {
+      console.error('Error deleting swap:', error)
+      alert('Errore durante l\'eliminazione dello swap')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  // 🔧 NETWORK FEES MANAGEMENT
+  const fetchNetworkFees = async () => {
+    setFeesLoading(true)
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/network-fees`)
+      if (response.ok) {
+        const data = await response.json()
+        setNetworkFees(data.fees || [])
+      }
+    } catch (error) {
+      console.error('Error fetching network fees:', error)
+    } finally {
+      setFeesLoading(false)
+    }
+  }
+
+  const resetFeeForm = () => {
+    setFeeForm({
+      assetId: '',
+      quantity: '',
+      eurValue: '',
+      date: new Date().toISOString().split('T')[0],
+      description: ''
+    })
+  }
+
+  const handleAddFee = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitLoading(true)
+
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/network-fees`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(feeForm)
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        await fetchNetworkFees()
+        setShowAddFee(false)
+        resetFeeForm()
+        alert('Network fee aggiunta con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Creazione fee fallita'}`)
+      }
+    } catch (error) {
+      console.error('Error adding network fee:', error)
+      alert('Errore durante l\'aggiunta della network fee')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  const handleDeleteFee = async (feeId: number) => {
+    if (!confirm('Sei sicuro di voler eliminare questa network fee?')) return
+
+    setSubmitLoading(true)
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/network-fees/${feeId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        await fetchPortfolio()
+        await fetchNetworkFees()
+        alert('Network fee eliminata con successo!')
+      } else {
+        const error = await response.json()
+        alert(`Errore: ${error.error || 'Eliminazione fee fallita'}`)
+      }
+    } catch (error) {
+      console.error('Error deleting network fee:', error)
+      alert('Errore durante l\'eliminazione della network fee')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
 
   // 🔧 CARICAMENTO DATI
   const fetchPortfolio = async () => {
@@ -146,6 +408,7 @@ export default function CryptoPortfolioDetailPage() {
 
   useEffect(() => {
     fetchPortfolio()
+    fetchNetworkFees()
   }, [portfolioId])
 
   // 🔧 FETCH PREZZI LIVE per tutti gli holding
@@ -450,13 +713,21 @@ export default function CryptoPortfolioDetailPage() {
         </div>
         
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
             <div className="text-center">
               <div className="text-sm text-adaptive-500 mb-1">Profitti Realizzati</div>
               <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(portfolio.stats.realizedProfit)}
+                {formatCurrency(portfolio.stats.realizedProfit - (portfolio.stats.stakeRewards || 0))}
               </div>
               <div className="text-xs text-adaptive-600 mt-1">Da vendite</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-sm text-adaptive-500 mb-1">🏆 Staking Rewards</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {formatCurrency(portfolio.stats.stakeRewards || 0)}
+              </div>
+              <div className="text-xs text-adaptive-600 mt-1">{portfolio.stats.stakeRewardCount || 0} reward</div>
             </div>
             
             <div className="text-center">
@@ -480,13 +751,29 @@ export default function CryptoPortfolioDetailPage() {
           <div className="mt-6">
             <h3 className="text-sm font-medium text-adaptive-500 mb-4">📈 Performance per Asset</h3>
             <div className="space-y-3">
-              {portfolio.holdings.map(holding => {
+              {portfolio.holdings
+                .filter(holding => (holding.netQuantity || holding.quantity) > 0.0000001)
+                .sort((a, b) => {
+                  const aLivePrice = livePrices[a.asset.symbol]
+                  const aCurrentPrice = aLivePrice || a.currentPrice || a.avgPrice
+                  const aNetQuantity = a.netQuantity || a.quantity
+                  const aValue = aLivePrice ? aNetQuantity * aLivePrice : aNetQuantity * (a.currentPrice || a.avgPrice)
+                  
+                  const bLivePrice = livePrices[b.asset.symbol]
+                  const bCurrentPrice = bLivePrice || b.currentPrice || b.avgPrice
+                  const bNetQuantity = b.netQuantity || b.quantity
+                  const bValue = bLivePrice ? bNetQuantity * bLivePrice : bNetQuantity * (b.currentPrice || b.avgPrice)
+                  
+                  return bValue - aValue // Ordine decrescente (maggior valore prima)
+                })
+                .map(holding => {
                 const livePrice = livePrices[holding.asset.symbol]
                 const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                const netQuantity = holding.netQuantity || holding.quantity
                 const currentValue = livePrice 
-                  ? holding.quantity * livePrice 
-                  : holding.quantity * (holding.currentPrice || holding.avgPrice)
-                const investedValue = holding.quantity * holding.avgPrice
+                  ? netQuantity * livePrice 
+                  : netQuantity * (holding.currentPrice || holding.avgPrice)
+                const investedValue = netQuantity * holding.avgPrice
                 const assetPnL = currentValue - investedValue
                 const assetROI = investedValue > 0 ? ((assetPnL / investedValue) * 100) : 0
                 const portfolioWeight = portfolio.stats.totalValueEur > 0 ? ((currentValue / portfolio.stats.totalValueEur) * 100) : 0
@@ -549,14 +836,150 @@ export default function CryptoPortfolioDetailPage() {
         </div>
         
         <div className="p-6">
-          {portfolio.holdings.length === 0 ? (
+          {portfolio.holdings.filter(holding => (holding.netQuantity || holding.quantity) > 0.0000001).length === 0 ? (
             <div className="text-center py-8">
               <div className="text-4xl mb-4">🪙</div>
               <h3 className="text-lg font-medium text-adaptive-900 mb-2">Nessun Asset</h3>
               <p className="text-adaptive-600">I tuoi asset appariranno qui dopo la prima transazione</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="space-y-6">
+              {/* 🆕 Grafico a Torta Holdings */}
+              <div className="flex flex-col lg:flex-row gap-6">
+                <div className="lg:w-1/3">
+                  <div className="bg-adaptive-50 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-adaptive-900 mb-4">📊 Distribuzione Portfolio</h3>
+                    <div className="relative">
+                      <svg viewBox="0 0 200 200" className="w-48 h-48 mx-auto">
+                        {(() => {
+                          const filteredHoldings = portfolio.holdings.filter(holding => (holding.netQuantity || holding.quantity) > 0.0000001)
+                          const totalValue = filteredHoldings.reduce((sum, holding) => {
+                            const livePrice = livePrices[holding.asset.symbol]
+                            const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                            const netQuantity = holding.netQuantity || holding.quantity
+                            const currentValue = livePrice 
+                              ? netQuantity * livePrice 
+                              : netQuantity * (holding.currentPrice || holding.avgPrice)
+                            return sum + currentValue
+                          }, 0)
+                          
+                          let currentAngle = 0
+                          const colors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#6B7280']
+                          
+                          return filteredHoldings
+                            .sort((a, b) => {
+                              const aLivePrice = livePrices[a.asset.symbol]
+                              const aNetQuantity = a.netQuantity || a.quantity
+                              const aValue = aLivePrice ? aNetQuantity * aLivePrice : aNetQuantity * (a.currentPrice || a.avgPrice)
+                              
+                              const bLivePrice = livePrices[b.asset.symbol]
+                              const bNetQuantity = b.netQuantity || b.quantity
+                              const bValue = bLivePrice ? bNetQuantity * bLivePrice : bNetQuantity * (b.currentPrice || b.avgPrice)
+                              
+                              return bValue - aValue // Ordine decrescente
+                            })
+                            .map((holding, index) => {
+                            const livePrice = livePrices[holding.asset.symbol]
+                            const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                            const netQuantity = holding.netQuantity || holding.quantity
+                            const currentValue = livePrice 
+                              ? netQuantity * livePrice 
+                              : netQuantity * (holding.currentPrice || holding.avgPrice)
+                            const percentage = (currentValue / totalValue) * 100
+                            const angle = (percentage / 100) * 360
+                            
+                            const startAngle = currentAngle
+                            const endAngle = currentAngle + angle
+                            currentAngle = endAngle
+                            
+                            const startAngleRad = (startAngle * Math.PI) / 180
+                            const endAngleRad = (endAngle * Math.PI) / 180
+                            
+                            const x1 = 100 + 80 * Math.cos(startAngleRad)
+                            const y1 = 100 + 80 * Math.sin(startAngleRad)
+                            const x2 = 100 + 80 * Math.cos(endAngleRad)
+                            const y2 = 100 + 80 * Math.sin(endAngleRad)
+                            
+                            const largeArcFlag = angle > 180 ? 1 : 0
+                            
+                            const pathData = [
+                              'M', 100, 100,
+                              'L', x1, y1,
+                              'A', 80, 80, 0, largeArcFlag, 1, x2, y2,
+                              'Z'
+                            ].join(' ')
+                            
+                            return (
+                              <path
+                                key={holding.asset.symbol}
+                                d={pathData}
+                                fill={colors[index % colors.length]}
+                                stroke="white"
+                                strokeWidth="2"
+                              />
+                            )
+                          })
+                        })()}
+                      </svg>
+                    </div>
+                    
+                    {/* Legenda */}
+                    <div className="mt-4 space-y-2">
+                      {(() => {
+                        const filteredHoldings = portfolio.holdings.filter(holding => (holding.netQuantity || holding.quantity) > 0.0000001)
+                        const totalValue = filteredHoldings.reduce((sum, holding) => {
+                          const livePrice = livePrices[holding.asset.symbol]
+                          const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                          const netQuantity = holding.netQuantity || holding.quantity
+                          const currentValue = livePrice 
+                            ? netQuantity * livePrice 
+                            : netQuantity * (holding.currentPrice || holding.avgPrice)
+                          return sum + currentValue
+                        }, 0)
+                        
+                        const colors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#6B7280']
+                        
+                        return filteredHoldings
+                          .sort((a, b) => {
+                            const aLivePrice = livePrices[a.asset.symbol]
+                            const aNetQuantity = a.netQuantity || a.quantity
+                            const aValue = aLivePrice ? aNetQuantity * aLivePrice : aNetQuantity * (a.currentPrice || a.avgPrice)
+                            
+                            const bLivePrice = livePrices[b.asset.symbol]
+                            const bNetQuantity = b.netQuantity || b.quantity
+                            const bValue = bLivePrice ? bNetQuantity * bLivePrice : bNetQuantity * (b.currentPrice || b.avgPrice)
+                            
+                            return bValue - aValue // Ordine decrescente
+                          })
+                          .map((holding, index) => {
+                          const livePrice = livePrices[holding.asset.symbol]
+                          const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                          const netQuantity = holding.netQuantity || holding.quantity
+                          const currentValue = livePrice 
+                            ? netQuantity * livePrice 
+                            : netQuantity * (holding.currentPrice || holding.avgPrice)
+                          const percentage = (currentValue / totalValue) * 100
+                          
+                          return (
+                            <div key={holding.asset.symbol} className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full"
+                                style={{ backgroundColor: colors[index % colors.length] }}
+                              />
+                              <span className="text-sm font-medium">{holding.asset.symbol}</span>
+                              <span className="text-sm text-adaptive-600 ml-auto">
+                                {percentage.toFixed(1)}%
+                              </span>
+                            </div>
+                          )
+                        })
+                      })()}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="lg:w-2/3">
+                  <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-adaptive bg-adaptive-50">
@@ -569,13 +992,29 @@ export default function CryptoPortfolioDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {portfolio.holdings.map(holding => {
+                  {portfolio.holdings
+                    .filter(holding => (holding.netQuantity || holding.quantity) > 0.0000001)
+                    .sort((a, b) => {
+                      const aLivePrice = livePrices[a.asset.symbol]
+                      const aCurrentPrice = aLivePrice || a.currentPrice || a.avgPrice
+                      const aNetQuantity = a.netQuantity || a.quantity
+                      const aValue = aLivePrice ? aNetQuantity * aLivePrice : aNetQuantity * (a.currentPrice || a.avgPrice)
+                      
+                      const bLivePrice = livePrices[b.asset.symbol]
+                      const bCurrentPrice = bLivePrice || b.currentPrice || b.avgPrice
+                      const bNetQuantity = b.netQuantity || b.quantity
+                      const bValue = bLivePrice ? bNetQuantity * bLivePrice : bNetQuantity * (b.currentPrice || b.avgPrice)
+                      
+                      return bValue - aValue // Ordine decrescente (maggior valore prima)
+                    })
+                    .map(holding => {
                     const livePrice = livePrices[holding.asset.symbol]
                     const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                    const netQuantity = holding.netQuantity || holding.quantity
                     const currentValue = livePrice 
-                      ? holding.quantity * livePrice 
-                      : holding.quantity * (holding.currentPrice || holding.avgPrice)
-                    const investedValue = holding.quantity * holding.avgPrice
+                      ? netQuantity * livePrice 
+                      : netQuantity * (holding.currentPrice || holding.avgPrice)
+                    const investedValue = netQuantity * holding.avgPrice
                     const unrealizedPnL = currentValue - investedValue
 
                     return (
@@ -589,7 +1028,12 @@ export default function CryptoPortfolioDetailPage() {
                           </div>
                         </td>
                         <td className="py-4 px-4 text-right font-mono">
-                          {formatCrypto(holding.quantity, holding.asset.decimals)}
+                          {formatCrypto(holding.netQuantity || holding.quantity, holding.asset.decimals)}
+                          {holding.feesQuantity > 0 && (
+                            <div className="text-xs text-red-500">
+                              -{formatCrypto(holding.feesQuantity, holding.asset.decimals)} fees
+                            </div>
+                          )}
                         </td>
                         <td className="py-4 px-4 text-right">
                           {formatCurrency(holding.avgPrice)}
@@ -618,22 +1062,139 @@ export default function CryptoPortfolioDetailPage() {
                   })}
                 </tbody>
               </table>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Network Fees Section */}
+      <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-8">
+        <div className="flex items-center justify-between p-6 border-b border-adaptive">
+          <h2 className="text-xl font-bold text-adaptive-900">🌐 Network Fees</h2>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowNetworkFees(!showNetworkFees)}
+              className="flex items-center gap-2 px-3 py-1 text-sm bg-adaptive-100 text-adaptive-700 rounded-md hover:bg-adaptive-200"
+            >
+              {showNetworkFees ? '🔼 Nascondi' : '🔽 Mostra'}
+            </button>
+            <button
+              onClick={() => setShowAddFee(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium"
+            >
+              <PlusIcon className="w-4 h-4" />
+              Aggiungi Fee
+            </button>
+          </div>
+        </div>
+
+        {showNetworkFees && (
+          <div className="p-6">
+            {/* Network Fees Summary */}
+            {portfolio.stats?.feesByAsset && Object.keys(portfolio.stats.feesByAsset).length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-adaptive-900 mb-4">📊 Riepilogo Fees per Asset</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Object.entries(portfolio.stats.feesByAsset).map(([symbol, feeData]: [string, any]) => (
+                    <div key={symbol} className="bg-red-50 rounded-lg p-4 border border-red-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-semibold text-red-900">{symbol}</div>
+                        <div className="text-sm text-red-600">{feeData.count} fees</div>
+                      </div>
+                      <div className="text-sm text-red-700">
+                        <div>Quantità: {formatCrypto(feeData.quantity, feeData.asset?.decimals || 6)}</div>
+                        <div>Valore: {formatCurrency(feeData.eurValue)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Network Fees Table */}
+            {feesLoading ? (
+              <div className="text-center py-8">
+                <div className="text-lg">⏳ Caricamento network fees...</div>
+              </div>
+            ) : networkFees.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-4">🌐</div>
+                <h3 className="text-lg font-medium text-adaptive-900 mb-2">Nessuna Network Fee</h3>
+                <p className="text-adaptive-600">Le tue network fees appariranno qui</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-adaptive bg-adaptive-50">
+                      <th className="text-left py-3 px-4 font-medium text-adaptive-700">Data</th>
+                      <th className="text-left py-3 px-4 font-medium text-adaptive-700">Asset</th>
+                      <th className="text-right py-3 px-4 font-medium text-adaptive-700">Quantità</th>
+                      <th className="text-right py-3 px-4 font-medium text-adaptive-700">Valore EUR</th>
+                      <th className="text-left py-3 px-4 font-medium text-adaptive-700">Descrizione</th>
+                      <th className="text-center py-3 px-4 font-medium text-adaptive-700">Azioni</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {networkFees.map(fee => (
+                      <tr key={fee.id} className="border-b border-adaptive hover:bg-adaptive-50">
+                        <td className="py-3 px-4 text-sm">
+                          {new Date(fee.date).toLocaleDateString('it-IT')}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-red-600">{fee.asset?.symbol}</div>
+                          <div className="text-xs text-adaptive-600">{fee.asset?.name}</div>
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-red-600">
+                          -{formatCrypto(fee.quantity, fee.asset?.decimals || 6)}
+                        </td>
+                        <td className="py-3 px-4 text-right text-red-600">
+                          {fee.eurValue ? formatCurrency(fee.eurValue) : '-'}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {fee.description || '-'}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            onClick={() => handleDeleteFee(fee.id)}
+                            className="text-red-600 hover:text-red-800 p-1"
+                            title="Elimina fee"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Transactions Table */}
       <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
         <div className="flex items-center justify-between p-6 border-b border-adaptive">
           <h2 className="text-xl font-bold text-adaptive-900">📊 Transazioni ({portfolio.transactions.length})</h2>
-          <button
-            onClick={() => setShowAddTransaction(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
-          >
-            <PlusIcon className="w-4 h-4" />
-            Aggiungi
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowSwap(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 font-medium"
+            >
+              🔄 Swap
+            </button>
+            <button
+              onClick={() => setShowAddTransaction(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+            >
+              <PlusIcon className="w-4 h-4" />
+              Aggiungi
+            </button>
+          </div>
         </div>
         
         <div className="p-6">
@@ -658,8 +1219,136 @@ export default function CryptoPortfolioDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {portfolio.transactions.map(transaction => (
-                    <tr key={transaction.id} className="border-b border-adaptive hover:bg-adaptive-50">
+                  {groupTransactions(portfolio.transactions).map(item => {
+                    // Se è un gruppo swap
+                    if ('swapOut' in item) {
+                      const isExpanded = expandedSwaps.has(item.id)
+                      return (
+                        <React.Fragment key={item.id}>
+                          {/* Riga principale swap unificata */}
+                          <tr className="border-b border-adaptive hover:bg-adaptive-50">
+                            <td className="py-4 px-4 text-sm">
+                              {new Date(item.date).toLocaleDateString('it-IT')}
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="font-semibold">
+                                {item.swapOut.asset.symbol} → {item.swapIn.asset.symbol}
+                              </div>
+                              <div className="text-xs text-adaptive-600">Swap crypto</div>
+                            </td>
+                            <td className="py-4 px-4 text-center">
+                              <span className="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">
+                                🔄 Swap
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-right font-mono">
+                              <div>{formatCrypto(item.swapOut.quantity, item.swapOut.asset.decimals)} → {formatCrypto(item.swapIn.quantity, item.swapIn.asset.decimals)}</div>
+                            </td>
+                            <td className="py-4 px-4 text-right font-semibold">
+                              {formatCurrency(item.swapOut.eurValue)}
+                            </td>
+                            <td className="py-4 px-4 text-right">
+                              -
+                            </td>
+                            <td className="py-4 px-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    const newExpanded = new Set(expandedSwaps)
+                                    if (isExpanded) {
+                                      newExpanded.delete(item.id)
+                                    } else {
+                                      newExpanded.add(item.id)
+                                    }
+                                    setExpandedSwaps(newExpanded)
+                                  }}
+                                  className="p-1 text-gray-600 hover:bg-gray-100 rounded"
+                                  title={isExpanded ? "Nascondi dettagli" : "Mostra dettagli"}
+                                >
+                                  {isExpanded ? '▼' : '▶'}
+                                </button>
+                                <button
+                                  onClick={() => handleEditSwap(item)}
+                                  className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+                                  title="Modifica Swap"
+                                >
+                                  <PencilIcon className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteSwap(item)}
+                                  className="p-1 text-red-600 hover:bg-red-100 rounded"
+                                  title="Elimina Swap"
+                                >
+                                  <TrashIcon className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          
+                          {/* Righe dettaglio se espanse */}
+                          {isExpanded && (
+                            <>
+                              <tr className="bg-gray-100 border-b border-adaptive">
+                                <td className="py-2 px-8 text-xs text-gray-700">
+                                  {new Date(item.swapOut.date).toLocaleDateString('it-IT')}
+                                </td>
+                                <td className="py-2 px-8">
+                                  <div className="text-sm font-semibold text-gray-900">{item.swapOut.asset.symbol}</div>
+                                  <div className="text-xs text-gray-600">{item.swapOut.asset.name}</div>
+                                </td>
+                                <td className="py-2 px-8 text-center">
+                                  <span className="px-2 py-1 rounded text-xs font-medium bg-red-200 text-red-800">
+                                    Swap Out
+                                  </span>
+                                </td>
+                                <td className="py-2 px-8 text-right font-mono text-sm text-gray-900">
+                                  -{formatCrypto(item.swapOut.quantity, item.swapOut.asset.decimals)}
+                                </td>
+                                <td className="py-2 px-8 text-right text-sm font-medium text-gray-900">
+                                  {formatCurrency(item.swapOut.eurValue)}
+                                </td>
+                                <td className="py-2 px-8 text-right text-sm text-gray-800">
+                                  {formatCurrency(item.swapOut.pricePerUnit)}
+                                </td>
+                                <td className="py-2 px-8 text-center">
+                                  <span className="text-xs text-gray-500">Parte del Swap</span>
+                                </td>
+                              </tr>
+                              <tr className="bg-gray-100 border-b border-adaptive">
+                                <td className="py-2 px-8 text-xs text-gray-700">
+                                  {new Date(item.swapIn.date).toLocaleDateString('it-IT')}
+                                </td>
+                                <td className="py-2 px-8">
+                                  <div className="text-sm font-semibold text-gray-900">{item.swapIn.asset.symbol}</div>
+                                  <div className="text-xs text-gray-600">{item.swapIn.asset.name}</div>
+                                </td>
+                                <td className="py-2 px-8 text-center">
+                                  <span className="px-2 py-1 rounded text-xs font-medium bg-green-200 text-green-800">
+                                    Swap In
+                                  </span>
+                                </td>
+                                <td className="py-2 px-8 text-right font-mono text-sm text-gray-900">
+                                  +{formatCrypto(item.swapIn.quantity, item.swapIn.asset.decimals)}
+                                </td>
+                                <td className="py-2 px-8 text-right text-sm font-medium text-gray-900">
+                                  {formatCurrency(item.swapIn.eurValue)}
+                                </td>
+                                <td className="py-2 px-8 text-right text-sm text-gray-800">
+                                  {formatCurrency(item.swapIn.pricePerUnit)}
+                                </td>
+                                <td className="py-2 px-8 text-center">
+                                  <span className="text-xs text-gray-500">Parte del Swap</span>
+                                </td>
+                              </tr>
+                            </>
+                          )}
+                        </React.Fragment>
+                      )
+                    } else {
+                      // Transazione normale
+                      const transaction = item as Transaction
+                      return (
+                        <tr key={transaction.id} className="border-b border-adaptive hover:bg-adaptive-50">
                       <td className="py-4 px-4 text-sm">
                         {new Date(transaction.date).toLocaleDateString('it-IT')}
                       </td>
@@ -671,9 +1360,20 @@ export default function CryptoPortfolioDetailPage() {
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           transaction.type === 'buy' 
                             ? 'bg-green-100 text-green-600' 
-                            : 'bg-red-100 text-red-600'
+                            : transaction.type === 'sell'
+                            ? 'bg-red-100 text-red-600'
+                            : transaction.type === 'stake_reward'
+                            ? 'bg-blue-100 text-blue-600'
+                            : (transaction.type === 'swap_in' || transaction.type === 'swap_out')
+                            ? 'bg-orange-100 text-orange-600'
+                            : 'bg-gray-100 text-gray-600'
                         }`}>
-                          {transaction.type === 'buy' ? 'Buy' : 'Sell'}
+                          {transaction.type === 'buy' ? 'Buy' 
+                           : transaction.type === 'sell' ? 'Sell'
+                           : transaction.type === 'stake_reward' ? 'Stake'
+                           : transaction.type === 'swap_in' ? 'Swap In'
+                           : transaction.type === 'swap_out' ? 'Swap Out'
+                           : transaction.type}
                         </span>
                       </td>
                       <td className="py-4 px-4 text-right font-mono">
@@ -704,7 +1404,9 @@ export default function CryptoPortfolioDetailPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                      )
+                    }
+                  })}
                 </tbody>
               </table>
             </div>
@@ -732,7 +1434,7 @@ export default function CryptoPortfolioDetailPage() {
             <form onSubmit={handleAddTransaction} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setTransactionForm(prev => ({ ...prev, type: 'buy' }))}
@@ -754,6 +1456,17 @@ export default function CryptoPortfolioDetailPage() {
                     }`}
                   >
                     💸 Sell
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTransactionForm(prev => ({ ...prev, type: 'stake_reward' }))}
+                    className={`flex-1 px-3 py-2 border rounded-md text-sm font-medium ${
+                      transactionForm.type === 'stake_reward'
+                        ? 'bg-blue-100 border-blue-500 text-blue-700'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    🏆 Stake
                   </button>
                 </div>
               </div>
@@ -893,7 +1606,7 @@ export default function CryptoPortfolioDetailPage() {
             <form onSubmit={handleEditTransaction} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setTransactionForm(prev => ({ ...prev, type: 'buy' }))}
@@ -915,6 +1628,17 @@ export default function CryptoPortfolioDetailPage() {
                     }`}
                   >
                     💸 Sell
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTransactionForm(prev => ({ ...prev, type: 'stake_reward' }))}
+                    className={`flex-1 px-3 py-2 border rounded-md text-sm font-medium ${
+                      transactionForm.type === 'stake_reward'
+                        ? 'bg-blue-100 border-blue-500 text-blue-700'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    🏆 Stake
                   </button>
                 </div>
               </div>
@@ -1092,6 +1816,235 @@ export default function CryptoPortfolioDetailPage() {
           </div>
         </div>
       )}
+
+      {/* 🔄 MODAL SWAP */}
+      {showSwap && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">🔄 Swap Crypto</h3>
+              <button
+                onClick={() => {
+                  setShowSwap(false)
+                  resetSwapForm()
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSwap} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Da Asset</label>
+                <select
+                  value={swapForm.fromAsset}
+                  onChange={(e) => setSwapForm(prev => ({ ...prev, fromAsset: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Seleziona asset...</option>
+                  {portfolio.holdings.map(holding => (
+                    <option key={holding.asset.symbol} value={holding.asset.symbol}>
+                      {holding.asset.symbol} - {formatCrypto(holding.quantity)} disponibili
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantità da vendere</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={swapForm.fromQuantity}
+                  onChange={(e) => setSwapForm(prev => ({ ...prev, fromQuantity: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="es. 1.5"
+                  required
+                />
+              </div>
+
+              <div className="text-center text-gray-500 py-2">
+                ⬇️ SWAP ⬇️
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">A Asset</label>
+                <input
+                  type="text"
+                  value={swapForm.toAsset}
+                  onChange={(e) => setSwapForm(prev => ({ ...prev, toAsset: e.target.value.toUpperCase() }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="es. BTC, ETH, SOL"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantità ricevuta</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={swapForm.toQuantity}
+                  onChange={(e) => setSwapForm(prev => ({ ...prev, toQuantity: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="es. 0.002"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                <input
+                  type="date"
+                  value={swapForm.date}
+                  onChange={(e) => setSwapForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note (opzionale)</label>
+                <input
+                  type="text"
+                  value={swapForm.notes}
+                  onChange={(e) => setSwapForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="es. Swap su DEX"
+                />
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="submit"
+                  disabled={submitLoading}
+                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 font-medium"
+                >
+                  {submitLoading ? 'Swap...' : '🔄 Conferma Swap'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSwap(false)
+                    resetSwapForm()
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 font-medium"
+                >
+                  Annulla
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 MODAL AGGIUNGI NETWORK FEE */}
+      {showAddFee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-xl font-bold text-gray-900">🌐 Aggiungi Network Fee</h2>
+              <button
+                onClick={() => {
+                  setShowAddFee(false)
+                  resetFeeForm()
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddFee} className="space-y-4 p-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Asset</label>
+                <select
+                  value={feeForm.assetId}
+                  onChange={(e) => setFeeForm(prev => ({ ...prev, assetId: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  required
+                >
+                  <option value="">Seleziona asset...</option>
+                  {portfolio.holdings.map(holding => (
+                    <option key={holding.asset.id} value={holding.asset.id}>
+                      {holding.asset.symbol} - {holding.asset.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantità Fee</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={feeForm.quantity}
+                  onChange={(e) => setFeeForm(prev => ({ ...prev, quantity: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="es. 0.001"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Valore EUR (opzionale)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={feeForm.eurValue}
+                  onChange={(e) => setFeeForm(prev => ({ ...prev, eurValue: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="es. 5.50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                <input
+                  type="date"
+                  value={feeForm.date}
+                  onChange={(e) => setFeeForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descrizione</label>
+                <input
+                  type="text"
+                  value={feeForm.description}
+                  onChange={(e) => setFeeForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="es. Transfer to cold wallet"
+                />
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="submit"
+                  disabled={submitLoading}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 font-medium"
+                >
+                  {submitLoading ? 'Aggiunta...' : '🌐 Aggiungi Fee'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddFee(false)
+                    resetFeeForm()
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 font-medium"
+                >
+                  Annulla
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -1234,4 +2187,6 @@ export default function CryptoPortfolioDetailPage() {
       alert('Errore durante l\'eliminazione della transazione')
     }
   }
+
+
 }

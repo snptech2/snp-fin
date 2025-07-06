@@ -29,6 +29,7 @@ interface Portfolio {
     capitalRecovered?: number;
     effectiveInvestment?: number;
     realizedProfit?: number;
+    stakeRewards?: number;
     isFullyRecovered?: boolean;
     totalValueEur?: number;
     netBTC?: number;

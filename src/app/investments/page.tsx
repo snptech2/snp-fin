@@ -23,6 +23,7 @@ interface Portfolio {
     capitalRecovered: number
     effectiveInvestment: number
     realizedProfit: number
+    stakeRewards?: number
     isFullyRecovered: boolean
     
     // Portfolio-specific fields
@@ -36,6 +37,7 @@ interface Portfolio {
     transactionCount: number
     buyCount: number
     sellCount?: number
+    stakeRewardCount?: number // Per crypto portfolios
     holdingsCount?: number // Per crypto portfolios
     
     // Legacy fields (backwards compatibility)

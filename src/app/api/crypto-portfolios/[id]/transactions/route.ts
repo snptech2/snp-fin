@@ -62,7 +62,7 @@ export async function POST(
     const body = await request.json()
 
     const {
-      type, // "buy" | "sell"
+      type, // "buy" | "sell" | "stake_reward"
       assetSymbol,
       quantity,
       eurValue,
@@ -73,7 +73,7 @@ export async function POST(
     } = body
 
     // Validazioni
-    if (!type || !['buy', 'sell'].includes(type)) {
+    if (!type || !['buy', 'sell', 'stake_reward'].includes(type)) {
       return NextResponse.json({ error: 'Tipo transazione non valido' }, { status: 400 })
     }
 
@@ -156,6 +156,16 @@ export async function POST(
           }
         }
       })
+    } else if (type === 'stake_reward') {
+      // Staking rewards aumentano il saldo (guadagno senza costo)
+      await prisma.account.update({
+        where: { id: portfolio.account.id },
+        data: {
+          balance: {
+            increment: finalEurValue
+          }
+        }
+      })
     }
 
     // 🆕 RICALCOLA HOLDINGS
@@ -182,10 +192,10 @@ async function updateHoldings(portfolioId: number, assetId: number) {
     let realizedGains = 0
 
     for (const tx of transactions) {
-      if (tx.type === 'buy') {
+      if (tx.type === 'buy' || tx.type === 'swap_in') {
         totalQuantity += tx.quantity
         totalInvested += tx.eurValue
-      } else if (tx.type === 'sell') {
+      } else if (tx.type === 'sell' || tx.type === 'swap_out') {
         const sellQuantity = tx.quantity
         const avgPrice = totalQuantity > 0 ? totalInvested / totalQuantity : 0
         const costBasis = sellQuantity * avgPrice
@@ -193,13 +203,19 @@ async function updateHoldings(portfolioId: number, assetId: number) {
         totalQuantity -= sellQuantity
         totalInvested -= costBasis
         realizedGains += (tx.eurValue - costBasis)
+      } else if (tx.type === 'stake_reward') {
+        // Staking rewards aumentano la quantità senza costo
+        totalQuantity += tx.quantity
+        // Non aumentano totalInvested (reward gratuito)
+        // I reward sono contabilizzati come realizedGains
+        realizedGains += tx.eurValue
       }
     }
 
     const avgPrice = totalQuantity > 0 ? totalInvested / totalQuantity : 0
 
     // Upsert holding
-    if (totalQuantity > 0) {
+    if (totalQuantity > 0.0000001) {
       await prisma.cryptoPortfolioHolding.upsert({
         where: {
           portfolioId_assetId: {

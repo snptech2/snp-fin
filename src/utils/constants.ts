@@ -109,6 +109,15 @@ export const TRANSACTION_TYPES = {
   EXPENSE: 'expense'
 } as const
 
+// ========== TIPI TRANSAZIONE CRYPTO ==========
+export const CRYPTO_TRANSACTION_TYPES = {
+  BUY: 'buy',
+  SELL: 'sell',
+  SWAP_IN: 'swap_in',
+  SWAP_OUT: 'swap_out',
+  STAKE_REWARD: 'stake_reward'
+} as const
+
 // ========== TIPI BUDGET ==========
 export const BUDGET_TYPES = {
   FIXED: 'fixed',
@@ -143,4 +152,5 @@ export const DEFAULTS = {
 // Type helpers per TypeScript
 export type PortfolioType = typeof PORTFOLIO_TYPES[keyof typeof PORTFOLIO_TYPES]
 export type TransactionType = typeof TRANSACTION_TYPES[keyof typeof TRANSACTION_TYPES]  
+export type CryptoTransactionType = typeof CRYPTO_TRANSACTION_TYPES[keyof typeof CRYPTO_TRANSACTION_TYPES]
 export type BudgetType = typeof BUDGET_TYPES[keyof typeof BUDGET_TYPES]

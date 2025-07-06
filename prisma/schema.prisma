@@ -163,14 +163,25 @@ model DCATransaction {
 
 model NetworkFee {
   id          Int      @id @default(autoincrement())
-  sats        Int      // 2000 sats fee di rete
+  sats        Int?     // 2000 sats fee di rete (per DCA/Bitcoin) - ora opzionale
+  quantity    Float?   // Quantità fee in asset nativo (per crypto multi-asset)
+  eurValue    Float?   // Valore EUR della fee (calcolato o inserito manualmente)
   date        DateTime @default(now())
-  description String?  // "Transfer to cold wallet"
+  description String?  // "Transfer to cold wallet", "On-chain transfer", etc.
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  portfolioId Int
-  portfolio   DCAPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  // DCA Portfolio (compatibilità esistente)
+  portfolioId Int?
+  portfolio   DCAPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  
+  // 🆕 CRYPTO Portfolio (nuovo supporto multi-asset)
+  cryptoPortfolioId Int?
+  cryptoPortfolio   CryptoPortfolio? @relation(fields: [cryptoPortfolioId], references: [id], onDelete: Cascade)
+  
+  // 🆕 Asset della fee (BTC, ETH, SOL, etc.)
+  assetId     Int?
+  asset       CryptoPortfolioAsset? @relation(fields: [assetId], references: [id])
 }
 
 // 🚀 CRYPTO PORTFOLIO - Wallet multi-asset semplice
@@ -191,6 +202,7 @@ model CryptoPortfolio {
   // Relazioni
   transactions CryptoPortfolioTransaction[]
   holdings     CryptoPortfolioHolding[]
+  networkFees  NetworkFee[]
 }
 
 // Asset disponibili (aggiungibili manualmente)
@@ -205,13 +217,14 @@ model CryptoPortfolioAsset {
   
   transactions CryptoPortfolioTransaction[]
   holdings     CryptoPortfolioHolding[]
+  networkFees  NetworkFee[]
 }
 
 // Transazioni: Buy, Sell, Swap
 model CryptoPortfolioTransaction {
   id           Int      @id @default(autoincrement())
   date         DateTime @default(now())
-  type         String   // "buy" | "sell" | "swap_in" | "swap_out"
+  type         String   // "buy" | "sell" | "swap_in" | "swap_out" | "stake_reward"
   quantity     Float    // Quantità asset
   eurValue     Float    // Valore EUR
   pricePerUnit Float    // Prezzo unitario

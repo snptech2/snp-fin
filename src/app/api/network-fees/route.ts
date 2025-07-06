@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const portfolioId = searchParams.get('portfolioId')
+    const cryptoPortfolioId = searchParams.get('cryptoPortfolioId')
 
     const whereClause: any = {}
     
@@ -22,6 +23,13 @@ export async function GET(request: NextRequest) {
       const id = parseInt(portfolioId)
       if (!isNaN(id)) {
         whereClause.portfolioId = id
+      }
+    }
+
+    if (cryptoPortfolioId) {
+      const id = parseInt(cryptoPortfolioId)
+      if (!isNaN(id)) {
+        whereClause.cryptoPortfolioId = id
       }
     }
 
@@ -34,21 +42,47 @@ export async function GET(request: NextRequest) {
             name: true,
             userId: true
           }
+        },
+        cryptoPortfolio: {
+          select: {
+            id: true,
+            name: true,
+            userId: true
+          }
+        },
+        asset: {
+          select: {
+            id: true,
+            symbol: true,
+            name: true,
+            decimals: true
+          }
         }
       },
       orderBy: { date: 'desc' }
     })
 
-    // Filtra per user se necessario
-    const userFees = fees.filter(fee => fee.portfolio.userId === userId) // 🔄 Sostituito: userId === 1 → userId === userId
+    // Filtra per user (supporta sia DCA che Crypto portfolios)
+    const userFees = fees.filter(fee => {
+      if (fee.portfolio) {
+        return fee.portfolio.userId === userId
+      }
+      if (fee.cryptoPortfolio) {
+        return fee.cryptoPortfolio.userId === userId
+      }
+      return false
+    })
 
-    // Aggiungi conversione in BTC
-    const feesWithBTC = userFees.map(fee => ({
+    // Aggiungi conversioni appropriate
+    const feesWithConversions = userFees.map(fee => ({
       ...fee,
-      btcAmount: fee.sats / 100000000
+      // Per DCA (Bitcoin) - conversione sats a BTC
+      btcAmount: fee.sats ? fee.sats / 100000000 : null,
+      // Per Crypto - mantieni quantity nativa
+      portfolioType: fee.portfolio ? 'dca' : 'crypto'
     }))
 
-    return NextResponse.json(feesWithBTC)
+    return NextResponse.json(feesWithConversions)
   } catch (error) {
     console.error('Errore nel recupero fee di rete:', error)
     return NextResponse.json(
@@ -67,59 +101,130 @@ export async function POST(request: NextRequest) {
     const { userId } = authResult
 
     const body = await request.json()
-    const { portfolioId, sats, date, description } = body
+    const { 
+      portfolioId, cryptoPortfolioId, assetId,
+      sats, quantity, eurValue, 
+      date, description 
+    } = body
 
-    // Validazioni
-    if (!portfolioId || !sats) {
+    // Validazioni: deve essere specificato un tipo di portfolio
+    if (!portfolioId && !cryptoPortfolioId) {
       return NextResponse.json(
-        { error: 'Campi obbligatori: portfolioId, sats' },
+        { error: 'Specificare portfolioId (DCA) o cryptoPortfolioId (Crypto)' },
         { status: 400 }
       )
     }
 
-    if (sats <= 0) {
-      return NextResponse.json(
-        { error: 'Fee in sats deve essere maggiore di zero' },
-        { status: 400 }
-      )
+    // Validazioni specifiche per tipo
+    if (portfolioId) {
+      // DCA Portfolio - richiede sats
+      if (!sats || sats <= 0) {
+        return NextResponse.json(
+          { error: 'Fee in sats richiesta per DCA portfolio' },
+          { status: 400 }
+        )
+      }
+    } else if (cryptoPortfolioId) {
+      // Crypto Portfolio - richiede assetId e quantity
+      if (!assetId || !quantity || quantity <= 0) {
+        return NextResponse.json(
+          { error: 'Asset e quantità richiesti per Crypto portfolio' },
+          { status: 400 }
+        )
+      }
     }
 
-    // Verifica che il portfolio esista e appartenga all'utente
-    const portfolio = await prisma.dCAPortfolio.findFirst({
-      where: { id: parseInt(portfolioId), userId } // 🔄 Sostituito: userId: 1 → userId
-    })
+    // Verifica ownership del portfolio
+    let portfolioExists = false
+    let assetExists = false
 
-    if (!portfolio) {
+    if (portfolioId) {
+      // Verifica DCA Portfolio
+      const dcaPortfolio = await prisma.dCAPortfolio.findFirst({
+        where: { id: parseInt(portfolioId), userId }
+      })
+      portfolioExists = !!dcaPortfolio
+    } else if (cryptoPortfolioId) {
+      // Verifica Crypto Portfolio
+      const cryptoPortfolio = await prisma.cryptoPortfolio.findFirst({
+        where: { id: parseInt(cryptoPortfolioId), userId }
+      })
+      portfolioExists = !!cryptoPortfolio
+
+      // Verifica Asset esiste
+      if (portfolioExists && assetId) {
+        const asset = await prisma.cryptoPortfolioAsset.findFirst({
+          where: { id: parseInt(assetId) }
+        })
+        assetExists = !!asset
+      }
+    }
+
+    if (!portfolioExists) {
       return NextResponse.json(
-        { error: 'Portafoglio non trovato' },
+        { error: 'Portfolio non trovato' },
         { status: 404 }
       )
     }
 
+    if (cryptoPortfolioId && !assetExists) {
+      return NextResponse.json(
+        { error: 'Asset non trovato' },
+        { status: 404 }
+      )
+    }
+
+    // Prepara dati per creazione
+    const feeData: any = {
+      date: date ? new Date(date) : new Date(),
+      description: description?.trim() || null
+    }
+
+    // Aggiungi campi specifici per tipo portfolio
+    if (portfolioId) {
+      feeData.portfolioId = parseInt(portfolioId)
+      feeData.sats = parseInt(sats)
+    } else if (cryptoPortfolioId) {
+      feeData.cryptoPortfolioId = parseInt(cryptoPortfolioId)
+      feeData.assetId = parseInt(assetId)
+      feeData.quantity = parseFloat(quantity)
+      feeData.eurValue = eurValue ? parseFloat(eurValue) : null
+    }
+
     const fee = await prisma.networkFee.create({
-      data: {
-        portfolioId: parseInt(portfolioId),
-        sats: parseInt(sats),
-        date: date ? new Date(date) : new Date(),
-        description: description?.trim() || null
-      },
+      data: feeData,
       include: {
         portfolio: {
           select: {
             id: true,
             name: true
           }
+        },
+        cryptoPortfolio: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        asset: {
+          select: {
+            id: true,
+            symbol: true,
+            name: true,
+            decimals: true
+          }
         }
       }
     })
 
-    // Aggiungi conversione in BTC
-    const feeWithBTC = {
+    // Aggiungi conversioni appropriate
+    const feeWithConversions = {
       ...fee,
-      btcAmount: fee.sats / 100000000
+      btcAmount: fee.sats ? fee.sats / 100000000 : null,
+      portfolioType: fee.portfolio ? 'dca' : 'crypto'
     }
 
-    return NextResponse.json(feeWithBTC, { status: 201 })
+    return NextResponse.json(feeWithConversions, { status: 201 })
   } catch (error) {
     console.error('Errore nella creazione fee di rete:', error)
     return NextResponse.json(
@@ -151,7 +256,10 @@ export async function DELETE(request: NextRequest) {
     const fees = await prisma.networkFee.findMany({
       where: {
         id: { in: ids.map(id => parseInt(id)) },
-        portfolio: { userId } // 🔄 Sostituito: userId: 1 → userId
+        OR: [
+          { portfolio: { userId } },
+          { cryptoPortfolio: { userId } }
+        ]
       }
     })
 
