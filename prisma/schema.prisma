@@ -29,6 +29,11 @@ model User {
   dcaPortfolios DCAPortfolio[]
   cryptoPortfolios CryptoPortfolio[]
   changelogUpdates Changelog[] // Changelog modificati da questo utente
+  
+  // Partita IVA
+  partitaIVAConfigs PartitaIVAConfig[]
+  partitaIVAIncomes PartitaIVAIncome[]
+  partitaIVATaxPayments PartitaIVATaxPayment[]
 
 }
 
@@ -53,6 +58,10 @@ model Account {
   dcaTransactions DCATransaction[]
   dcaPortfolios   DCAPortfolio[]
   cryptoPortfolios CryptoPortfolio[]
+  
+  // Partita IVA
+  partitaIVAIncomes PartitaIVAIncome[]
+  partitaIVATaxPayments PartitaIVATaxPayment[]
 }
 
 model Category {
@@ -277,4 +286,76 @@ model Changelog {
   user      User     @relation(fields: [updatedBy], references: [id])
   
   @@map("changelog") // Nome tabella nel database
+}
+
+// 🔥 PARTITA IVA - Configurazione percentuali per anno
+model PartitaIVAConfig {
+  id                    Int      @id @default(autoincrement())
+  anno                  Int      // Anno fiscale (2024, 2025, etc.)
+  percentualeImponibile Float    @default(78)    // Percentuale imponibile (default 78%)
+  percentualeImposta    Float    @default(5)     // Percentuale imposta (default 5%)
+  percentualeContributi Float    @default(26.23) // Percentuale contributi (default 26.23%)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  userId                Int
+  user                  User     @relation(fields: [userId], references: [id])
+  
+  // Relazioni
+  partitaIVAIncomes     PartitaIVAIncome[]
+  
+  @@unique([anno, userId])
+  @@map("partita_iva_configs")
+}
+
+// 🔥 PARTITA IVA - Entrate con calcoli automatici
+model PartitaIVAIncome {
+  id              Int      @id @default(autoincrement())
+  dataIncasso     DateTime // Data incasso effettivo
+  dataEmissione   DateTime // Data emissione fattura
+  riferimento     String   // Numero fattura o riferimento
+  entrata         Float    // Importo lordo fatturato
+  
+  // Calcoli automatici (calcolati dal backend)
+  imponibile      Float    // entrata * percentualeImponibile / 100
+  imposta         Float    // imponibile * percentualeImposta / 100
+  contributi      Float    // imponibile * percentualeContributi / 100
+  totaleTasse     Float    // imposta + contributi
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id])
+  
+  // Collegamento alla configurazione dell'anno
+  configId        Int
+  config          PartitaIVAConfig @relation(fields: [configId], references: [id])
+  
+  // Collegamento al conto bancario per l'incasso
+  accountId       Int?
+  account         Account? @relation(fields: [accountId], references: [id])
+  
+  @@map("partita_iva_incomes")
+}
+
+// 🔥 PARTITA IVA - Pagamenti tasse effettuati
+model PartitaIVATaxPayment {
+  id          Int      @id @default(autoincrement())
+  data        DateTime // Data pagamento
+  descrizione String   // Descrizione pagamento (es: "F24 I trimestre 2024")
+  importo     Float    // Importo pagato
+  tipo        String   @default("generico") // Tipo pagamento: "imposta", "contributi", "generico"
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  
+  // Collegamento al conto bancario da cui è stato prelevato
+  accountId   Int?
+  account     Account? @relation(fields: [accountId], references: [id])
+  
+  @@map("partita_iva_tax_payments")
 }

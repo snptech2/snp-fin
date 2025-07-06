@@ -69,6 +69,30 @@ interface DashboardTotals {
   totalPatrimony: number;
 }
 
+interface PartitaIVAGlobalStats {
+  totali: {
+    entrate: number;
+    imponibile: number;
+    imposta: number;
+    contributi: number;
+    tasseDovute: number;
+    tassePagate: number;
+    saldoTasse: number;
+    percentualeTasse: number;
+  };
+  conteggi: {
+    numeroFatture: number;
+    numeroPagamenti: number;
+    anniAttivi: number;
+  };
+  riepilogo: {
+    haEntrate: boolean;
+    haPagamenti: boolean;
+    inRegola: boolean;
+    importoDaRiservare: number;
+  };
+}
+
 interface DashboardData {
   accounts: Account[];
   investments: Portfolio[];
@@ -77,6 +101,7 @@ interface DashboardData {
   transactions: Transaction[];
   enhancedCashFlow: EnhancedCashFlow | null;
   totals: DashboardTotals;
+  partitaIVAStats: PartitaIVAGlobalStats | null;
 }
 
 interface AllocationDataItem {
@@ -97,6 +122,12 @@ interface BudgetBreakdownItem {
 const Dashboard = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null);
+  const [showColorSettings, setShowColorSettings] = useState<boolean>(false);
+  const [chartColors, setChartColors] = useState({
+    fondiDisponibili: '#22D3EE',
+    contiInvestimento: '#A855F7',
+    holdingsInvestimenti: '#F59E0B'
+  });
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     accounts: [],
     investments: [],
@@ -109,7 +140,8 @@ const Dashboard = () => {
       investmentLiquidity: 0,
       holdingsValue: 0,
       totalPatrimony: 0
-    }
+    },
+    partitaIVAStats: null
   });
 
   // Format functions
@@ -187,13 +219,15 @@ const Dashboard = () => {
         dcaRes, 
         cryptoRes, 
         budgetsRes, 
-        transactionsRes
+        transactionsRes,
+        partitaIVARes
       ] = await Promise.all([
         fetch('/api/accounts'),
         fetch('/api/dca-portfolios'),
         fetch('/api/crypto-portfolios'),
         fetch('/api/budgets'),
-        fetch('/api/transactions?limit=5')
+        fetch('/api/transactions?limit=5'),
+        fetch('/api/partita-iva/stats-global')
       ]);
 
       // Parse responses
@@ -203,6 +237,8 @@ const Dashboard = () => {
       const budgetsResponse = budgetsRes.ok ? await budgetsRes.json() : null;
       const transactions: Transaction[] = transactionsRes.ok ? 
         await transactionsRes.json() : [];
+      const partitaIVAStats: PartitaIVAGlobalStats | null = partitaIVARes.ok ? 
+        await partitaIVARes.json() : null;
 
       // ✅ CORREZIONE: L'API budget restituisce un oggetto, non un array diretto
       const budgets: Budget[] = budgetsResponse?.budgets || [];
@@ -270,7 +306,8 @@ const Dashboard = () => {
           investmentLiquidity,
           holdingsValue,
           totalPatrimony
-        }
+        },
+        partitaIVAStats
       });
 
     } catch (error) {
@@ -328,7 +365,7 @@ const Dashboard = () => {
       data.push({
         name: 'Fondi Disponibili',
         value: availableFunds,
-        color: '#6B7280',
+        color: chartColors.fondiDisponibili,
         percentage: totalPatrimony > 0 ? (availableFunds / totalPatrimony) * 100 : 0
       });
     }
@@ -338,7 +375,7 @@ const Dashboard = () => {
       data.push({
         name: 'Conti Investimento',
         value: dashboardData.totals.investmentLiquidity,
-        color: '#8B5CF6',
+        color: chartColors.contiInvestimento,
         percentage: totalPatrimony > 0 ? (dashboardData.totals.investmentLiquidity / totalPatrimony) * 100 : 0
       });
     }
@@ -348,13 +385,14 @@ const Dashboard = () => {
       data.push({
         name: 'Holdings Investimenti',
         value: dashboardData.totals.holdingsValue,
-        color: '#10B981',
+        color: chartColors.holdingsInvestimenti,
         percentage: totalPatrimony > 0 ? (dashboardData.totals.holdingsValue / totalPatrimony) * 100 : 0
       });
     }
     
-    return data;
-  }, [dashboardData, budgetSummary]);
+    // Ordina per importo decrescente
+    return data.sort((a, b) => b.value - a.value);
+  }, [dashboardData, budgetSummary, chartColors]);
 
   // ✅ CORREZIONE: Calculate budget breakdown con campi corretti
   const budgetBreakdown: BudgetBreakdownItem[] = Array.isArray(dashboardData.budgets) ? 
@@ -411,7 +449,7 @@ const Dashboard = () => {
             </div>
           </div>
           {/* Liquidità Overview - Seconda Riga */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Link href="/accounts">
               <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive hover:shadow-md transition-shadow cursor-pointer">
                 <div className="flex items-center justify-between mb-4">
@@ -420,7 +458,7 @@ const Dashboard = () => {
                   </div>
                   <div className="text-blue-600 text-2xl">🏦</div>
                 </div>
-                <h3 className="text-lg font-semibold text-adaptive-900">Liquidità Conti Bancari</h3>
+                <h3 className="text-lg font-semibold text-adaptive-900">Conti Bancari</h3>
                 <p className="text-2xl font-bold text-blue-600">
                   {formatCurrency(dashboardData.totals.bankLiquidity)}
                 </p>
@@ -438,7 +476,7 @@ const Dashboard = () => {
                   </div>
                   <div className="text-purple-600 text-2xl">📈</div>
                 </div>
-                <h3 className="text-lg font-semibold text-adaptive-900">Liquidità Conti Investimento</h3>
+                <h3 className="text-lg font-semibold text-adaptive-900">Conti Investimento</h3>
                 <p className="text-2xl font-bold text-purple-600">
                   {formatCurrency(dashboardData.totals.investmentLiquidity)}
                 </p>
@@ -456,13 +494,36 @@ const Dashboard = () => {
                   </div>
                   <div className="text-green-600 text-2xl">💎</div>
                 </div>
-                <h3 className="text-lg font-semibold text-adaptive-900">Valore Holdings</h3>
+                <h3 className="text-lg font-semibold text-adaptive-900">Assets</h3>
                 <p className="text-2xl font-bold text-green-600">
                   {formatCurrency(dashboardData.totals.holdingsValue)}
                 </p>
                 <p className="text-sm text-adaptive-600">{dashboardData.investments.length} portfolio attivi</p>
               </div>
             </Link>
+
+            {/* Widget Partita IVA */}
+            {dashboardData.partitaIVAStats && dashboardData.partitaIVAStats.riepilogo.haEntrate && (
+              <Link href="/partita-iva">
+                <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive hover:shadow-md transition-shadow cursor-pointer">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`p-2 ${dashboardData.partitaIVAStats.riepilogo.inRegola ? 'bg-green-100' : 'bg-red-100'} rounded-lg`}>
+                      <CurrencyEuroIcon className={`w-6 h-6 ${dashboardData.partitaIVAStats.riepilogo.inRegola ? 'text-green-600' : 'text-red-600'}`} />
+                    </div>
+                    <div className={`text-2xl ${dashboardData.partitaIVAStats.riepilogo.inRegola ? 'text-green-600' : 'text-red-600'}`}>
+                      {dashboardData.partitaIVAStats.riepilogo.inRegola ? '✅' : '⚠️'}
+                    </div>
+                  </div>
+                  <h3 className="text-lg font-semibold text-adaptive-900">Tasse da Pagare</h3>
+                  <p className={`text-2xl font-bold ${dashboardData.partitaIVAStats.riepilogo.inRegola ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(dashboardData.partitaIVAStats.totali.saldoTasse)}
+                  </p>
+                  <p className="text-sm text-adaptive-600">
+                    {dashboardData.partitaIVAStats.riepilogo.inRegola ? 'In regola' : 'Da pagare'} • {dashboardData.partitaIVAStats.conteggi.anniAttivi} anni attivi
+                  </p>
+                </div>
+              </Link>
+            )}
           </div>
           {/* Enhanced Cash Flow - Terza Riga */}
           {dashboardData.enhancedCashFlow && (
@@ -537,7 +598,14 @@ const Dashboard = () => {
             {/* Allocazione Patrimonio */}
             <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-adaptive-900">📊 Allocazione Patrimonio</h3>
+                <h3 className="text-lg font-semibold text-adaptive-900">💰 Liquidità + Assets</h3>
+                <button
+                  onClick={() => setShowColorSettings(true)}
+                  className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                  title="Personalizza colori"
+                >
+                  🎨 Colori
+                </button>
               </div>
               
               <div className="flex items-center gap-6">
@@ -553,6 +621,8 @@ const Dashboard = () => {
                         outerRadius={70}
                         paddingAngle={2}
                         dataKey="value"
+                        startAngle={90}
+                        endAngle={-270}
                       >
                         {allocationData.map((entry: AllocationDataItem, index: number) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
@@ -759,6 +829,128 @@ const Dashboard = () => {
               </Link>
             </div>
           </div>
+
+          {/* Modal Personalizzazione Colori */}
+          {showColorSettings && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg border border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">🎨 Personalizza Colori Grafico</h3>
+                
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  {/* Sezioni fisse del grafico */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                      Fondi Disponibili
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={chartColors.fondiDisponibili}
+                        onChange={(e) => setChartColors(prev => ({ ...prev, fondiDisponibili: e.target.value }))}
+                        className="w-12 h-8 rounded border cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={chartColors.fondiDisponibili}
+                        onChange={(e) => setChartColors(prev => ({ ...prev, fondiDisponibili: e.target.value }))}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white"
+                        placeholder="#22D3EE"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                      Conti Investimento
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={chartColors.contiInvestimento}
+                        onChange={(e) => setChartColors(prev => ({ ...prev, contiInvestimento: e.target.value }))}
+                        className="w-12 h-8 rounded border cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={chartColors.contiInvestimento}
+                        onChange={(e) => setChartColors(prev => ({ ...prev, contiInvestimento: e.target.value }))}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white"
+                        placeholder="#A855F7"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                      Holdings Investimenti
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={chartColors.holdingsInvestimenti}
+                        onChange={(e) => setChartColors(prev => ({ ...prev, holdingsInvestimenti: e.target.value }))}
+                        className="w-12 h-8 rounded border cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={chartColors.holdingsInvestimenti}
+                        onChange={(e) => setChartColors(prev => ({ ...prev, holdingsInvestimenti: e.target.value }))}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white"
+                        placeholder="#F59E0B"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Separatore */}
+                  <div className="border-t border-gray-200 pt-4 mt-4">
+                    <h4 className="text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">Budget Individuali</h4>
+                    <p className="text-xs text-gray-500 mb-3">
+                      I colori dei budget si modificano dalla pagina Budget
+                    </p>
+                    
+                    {/* Lista budget con preview colori */}
+                    <div className="space-y-2">
+                      {dashboardData.budgets.filter(budget => budget.allocatedAmount > 0).map((budget, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="w-4 h-4 rounded-full border" 
+                              style={{ backgroundColor: budget.color || '#3B82F6' }}
+                            />
+                            <span className="text-sm text-gray-700">{budget.name}</span>
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {formatCurrency(budget.allocatedAmount)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-6 border-t border-gray-200 mt-6">
+                  <button
+                    onClick={() => {
+                      setChartColors({
+                        fondiDisponibili: '#22D3EE',
+                        contiInvestimento: '#A855F7',
+                        holdingsInvestimenti: '#F59E0B'
+                      });
+                    }}
+                    className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Reset Default
+                  </button>
+                  <button
+                    onClick={() => setShowColorSettings(false)}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Salva
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </ProtectedRoute>

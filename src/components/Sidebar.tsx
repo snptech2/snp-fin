@@ -11,9 +11,10 @@ const navigation = [
   { name: 'Entrate', href: '/income', icon: '⬆️' },
   { name: 'Uscite', href: '/expenses', icon: '⬇️' },
   { name: 'Budget', href: '/budget', icon: '📊' },
+  { name: 'Partita IVA', href: '/partita-iva', icon: '📋' },
   { name: 'Investimenti', href: '/investments', icon: '📈' },
   { name: 'Altro', href: '/other', icon: '📄' },
-  { name: 'Changelog', href: '/changelog', icon: '📝' }, // NUOVA VOCE AGGIUNTA
+  { name: 'Changelog', href: '/changelog', icon: '📝' },
 ]
 
 export default function Sidebar() {
