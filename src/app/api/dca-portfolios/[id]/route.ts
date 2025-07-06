@@ -5,16 +5,23 @@ import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
-// 🎯 ENHANCED CASH FLOW LOGIC - VERSIONE CORRETTA FASE 1
+// 🎯 ENHANCED CASH FLOW LOGIC - CORRETTA ✅
 function calculateEnhancedStats(transactions: any[]) {
   const buyTransactions = transactions.filter((tx: any) => tx.type === 'buy' || !tx.type)
   const sellTransactions = transactions.filter((tx: any) => tx.type === 'sell')
 
-  // 🔧 FIX FASE 1: Applica esattamente la logica Enhanced definita nei documenti
+  // 🔧 FIX ENHANCED CASH FLOW: Logica finanziaria corretta
   const totalInvested = buyTransactions.reduce((sum: number, tx: any) => sum + tx.eurPaid, 0)
-  const capitalRecovered = sellTransactions.reduce((sum: number, tx: any) => sum + tx.eurPaid, 0)
+  const totalSold = sellTransactions.reduce((sum: number, tx: any) => sum + tx.eurPaid, 0)
+  
+  // ✅ CORREZIONE: capitalRecovered non può mai superare totalInvested
+  const capitalRecovered = Math.min(totalSold, totalInvested)
+  
+  // ✅ CORREZIONE: realizedProfit è solo la parte di vendite che supera l'investimento
+  const realizedProfit = Math.max(0, totalSold - totalInvested)
+  
+  // ✅ CORREZIONE: effectiveInvestment basato sul capitalRecovered corretto
   const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
-  const realizedProfit = Math.max(0, capitalRecovered - totalInvested)
 
   // BTC calculations
   const totalBuyBTC = buyTransactions.reduce((sum: number, tx: any) => sum + Math.abs(tx.btcQuantity), 0)

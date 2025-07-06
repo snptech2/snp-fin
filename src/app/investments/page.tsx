@@ -77,6 +77,20 @@ export default function InvestmentsPage() {
   useEffect(() => {
     fetchData()
     fetchBitcoinPrice()
+    
+    // Check URL params for quick create actions
+    const urlParams = new URLSearchParams(window.location.search)
+    const createDCA = urlParams.get('createDCA')
+    const createCrypto = urlParams.get('createCrypto')
+    const accountId = urlParams.get('accountId')
+    
+    if (createDCA === 'true' && accountId) {
+      setFormData({ name: '', accountId: parseInt(accountId) })
+      setShowCreateDCAModal(true)
+    } else if (createCrypto === 'true' && accountId) {
+      setCryptoFormData({ name: '', description: '', accountId: parseInt(accountId) })
+      setShowCreateCryptoModal(true)
+    }
   }, [])
 
   const fetchData = async () => {
@@ -280,6 +294,21 @@ export default function InvestmentsPage() {
   return (
     <ProtectedRoute>
       <div className="space-y-6">
+        {/* Enhanced Cash Flow Update Notice */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="text-blue-600 text-xl">ℹ️</div>
+            <div>
+              <h3 className="text-sm font-semibold text-blue-900">Aggiornamento Enhanced Cash Flow</h3>
+              <p className="text-xs text-blue-700 mt-1">
+                Abbiamo migliorato il calcolo delle metriche per una maggiore precisione. 
+                "Capitale Recuperato" ora riflette correttamente il capitale effettivamente recuperato, 
+                e i calcoli ROI sono più accurati.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
@@ -368,70 +397,75 @@ export default function InvestmentsPage() {
                 const totalROI = totalInvested > 0 ? ((totalGains / totalInvested) * 100) : 0
 
                 return (
-                  <Link key={portfolio.id} href={`/investments/${portfolio.id}`}>
-                    <div className="p-6 hover:bg-adaptive-50 transition-colors cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-4 mb-3">
-                            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                              <span className="text-2xl">🟠</span>
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-semibold text-adaptive-900">{portfolio.name}</h3>
-                              <p className="text-sm text-adaptive-600">
-                                {portfolio.stats.transactionCount} transazioni • Account: {accounts.find(a => a.id === portfolio.accountId)?.name}
-                              </p>
-                            </div>
+                  <div key={portfolio.id} className="p-6 hover:bg-adaptive-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-4 mb-3">
+                          <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                            <span className="text-2xl">🟠</span>
                           </div>
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <p className="text-adaptive-500">Profitto Realizzato</p>
-                              <p className={`font-semibold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(realizedProfit)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-adaptive-500">Plus/Minus Non Realizzati</p>
-                              <p className={`font-semibold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(unrealizedGains)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-adaptive-500">Totale P&L</p>
-                              <p className={`font-semibold ${totalGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(totalGains)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-adaptive-500">ROI</p>
-                              <p className={`font-semibold ${totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPercentage(totalROI)}
-                              </p>
-                            </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-adaptive-900">{portfolio.name}</h3>
+                            <p className="text-sm text-adaptive-600">
+                              {portfolio.stats.transactionCount} transazioni • Account: {accounts.find(a => a.id === portfolio.accountId)?.name}
+                            </p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-6 ml-6">
-                          {/* Investito */}
-                          <div className="text-center min-w-[100px]">
-                            <p className="text-xs text-adaptive-500">Investito</p>
-                            <p className="font-semibold text-adaptive-900">
-                              {formatCurrency(totalInvested)}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <p className="text-adaptive-500">Profitto Realizzato</p>
+                            <p className={`font-semibold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(realizedProfit)}
                             </p>
                           </div>
-
-                          {/* Valore Attuale */}
-                          <div className="text-center min-w-[100px]">
-                            <p className="text-xs text-adaptive-500">Valore Attuale</p>
-                            <p className="font-semibold text-green-600">
-                              {formatCurrency(currentValue)}
+                          <div>
+                            <p className="text-adaptive-500">Plus/Minus Non Realizzati</p>
+                            <p className={`font-semibold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(unrealizedGains)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-adaptive-500">Totale P&L</p>
+                            <p className={`font-semibold ${totalGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(totalGains)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-adaptive-500">ROI</p>
+                            <p className={`font-semibold ${totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatPercentage(totalROI)}
                             </p>
                           </div>
                         </div>
                       </div>
+
+                      <div className="flex items-center gap-6 ml-6">
+                        {/* Investito */}
+                        <div className="text-center min-w-[100px]">
+                          <p className="text-xs text-adaptive-500">Investito</p>
+                          <p className="font-semibold text-adaptive-900">
+                            {formatCurrency(totalInvested)}
+                          </p>
+                        </div>
+
+                        {/* Valore Attuale */}
+                        <div className="text-center min-w-[100px]">
+                          <p className="text-xs text-adaptive-500">Valore Attuale</p>
+                          <p className="font-semibold text-green-600">
+                            {formatCurrency(currentValue)}
+                          </p>
+                        </div>
+
+                        {/* Pulsante Apri Wallet */}
+                        <Link href={`/investments/${portfolio.id}`}>
+                          <button className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors text-sm font-medium">
+                            🟠 Apri Wallet
+                          </button>
+                        </Link>
+                      </div>
                     </div>
-                  </Link>
+                  </div>
                 )
               })}
             </div>
@@ -459,70 +493,75 @@ export default function InvestmentsPage() {
                 const totalGains = realizedProfit + unrealizedGains
 
                 return (
-                  <Link key={portfolio.id} href={`/investments/crypto-portfolio/${portfolio.id}`}>
-                    <div className="p-6 hover:bg-adaptive-50 transition-colors cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-4 mb-3">
-                            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <span className="text-2xl">🚀</span>
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-semibold text-adaptive-900">{portfolio.name}</h3>
-                              <p className="text-sm text-adaptive-600">
-                                {portfolio.stats.holdingsCount} asset • {portfolio.stats.transactionCount} transazioni
-                              </p>
-                            </div>
+                  <div key={portfolio.id} className="p-6 hover:bg-adaptive-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-4 mb-3">
+                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <span className="text-2xl">🚀</span>
                           </div>
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <p className="text-adaptive-500">Profitto Realizzato</p>
-                              <p className={`font-semibold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(realizedProfit)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-adaptive-500">Plus/Minus Non Realizzati</p>
-                              <p className={`font-semibold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(unrealizedGains)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-adaptive-500">Totale P&L</p>
-                              <p className={`font-semibold ${totalGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(totalGains)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-adaptive-500">ROI</p>
-                              <p className={`font-semibold ${totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPercentage(totalROI)}
-                              </p>
-                            </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-adaptive-900">{portfolio.name}</h3>
+                            <p className="text-sm text-adaptive-600">
+                              {portfolio.stats.holdingsCount} asset • {portfolio.stats.transactionCount} transazioni
+                            </p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-6 ml-6">
-                          {/* Investito */}
-                          <div className="text-center min-w-[100px]">
-                            <p className="text-xs text-adaptive-500">Investito</p>
-                            <p className="font-semibold text-adaptive-900">
-                              {formatCurrency(totalInvested)}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <p className="text-adaptive-500">Profitto Realizzato</p>
+                            <p className={`font-semibold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(realizedProfit)}
                             </p>
                           </div>
-
-                          {/* Valore Attuale */}
-                          <div className="text-center min-w-[100px]">
-                            <p className="text-xs text-adaptive-500">Valore Attuale</p>
-                            <p className="font-semibold text-green-600">
-                              {formatCurrency(currentValue)}
+                          <div>
+                            <p className="text-adaptive-500">Plus/Minus Non Realizzati</p>
+                            <p className={`font-semibold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(unrealizedGains)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-adaptive-500">Totale P&L</p>
+                            <p className={`font-semibold ${totalGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(totalGains)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-adaptive-500">ROI</p>
+                            <p className={`font-semibold ${totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatPercentage(totalROI)}
                             </p>
                           </div>
                         </div>
                       </div>
+
+                      <div className="flex items-center gap-6 ml-6">
+                        {/* Investito */}
+                        <div className="text-center min-w-[100px]">
+                          <p className="text-xs text-adaptive-500">Investito</p>
+                          <p className="font-semibold text-adaptive-900">
+                            {formatCurrency(totalInvested)}
+                          </p>
+                        </div>
+
+                        {/* Valore Attuale */}
+                        <div className="text-center min-w-[100px]">
+                          <p className="text-xs text-adaptive-500">Valore Attuale</p>
+                          <p className="font-semibold text-green-600">
+                            {formatCurrency(currentValue)}
+                          </p>
+                        </div>
+
+                        {/* Pulsante Apri Wallet */}
+                        <Link href={`/investments/crypto-portfolio/${portfolio.id}`}>
+                          <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium">
+                            🚀 Apri Wallet
+                          </button>
+                        </Link>
+                      </div>
                     </div>
-                  </Link>
+                  </div>
                 )
               })}
             </div>

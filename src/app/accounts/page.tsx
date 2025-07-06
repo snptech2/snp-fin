@@ -664,6 +664,24 @@ const handleSetDefaultAccount = async (accountId: number) => {
                         )}
                       </div>
                     )}
+
+                    {/* Quick Actions for Investment Account */}
+                    <div className="flex gap-2 mt-4">
+                      <a
+                        href={`/investments?createDCA=true&accountId=${account.id}`}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors"
+                      >
+                        <span className="text-sm">🟠</span>
+                        Nuovo DCA Bitcoin
+                      </a>
+                      <a
+                        href={`/investments?createCrypto=true&accountId=${account.id}`}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                      >
+                        <span className="text-sm">🚀</span>
+                        Nuovo Crypto Wallet
+                      </a>
+                    </div>
                   </div>
                 )
               })}

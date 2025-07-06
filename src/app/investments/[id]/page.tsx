@@ -477,8 +477,12 @@ const openEditTransaction = (transaction: DCATransaction) => {
   const unrealizedGains = currentValue - effectiveInvestment
   const totalGains = realizedProfit + unrealizedGains
 
-  // Calcolo ROI effettivo basato sull'investimento effettivo
-  const effectiveROI = effectiveInvestment > 0 ? (totalGains / effectiveInvestment) * 100 : 0
+  // Calcolo ROI corretto: usa totalInvested quando effectiveInvestment = 0
+  const effectiveROI = effectiveInvestment > 0 
+    ? (totalGains / effectiveInvestment) * 100 
+    : totalInvested > 0 
+      ? (totalGains / totalInvested) * 100 
+      : 0
 
   return (
     <ProtectedRoute>  {/* ← AGGIUNTO */}
