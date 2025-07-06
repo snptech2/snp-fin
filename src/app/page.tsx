@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { CurrencyEuroIcon, ChartPieIcon, BanknotesIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
@@ -83,9 +83,9 @@ const Dashboard = () => {
     fetchBitcoinPrice(); // ✅ NUOVO: Load Bitcoin price
   }, []);
 
-  // ✅ MODIFICATO: Calcola holdings usando prezzo Bitcoin
+  // ✅ FIX: Ricarica dati quando arriva il prezzo Bitcoin
   useEffect(() => {
-    if (btcPrice && dashboardData.accounts.length > 0) {
+    if (btcPrice) {
       // Recalculate dashboard data with Bitcoin price
       loadDashboardData();
     }
@@ -192,34 +192,6 @@ const Dashboard = () => {
     }
   };
 
-  // ✅ CORREZIONE: Allocation data con holdings calcolato correttamente
-  const allocationData = [
-    { 
-      name: 'Conti Bancari', 
-      value: dashboardData.totals.bankLiquidity, 
-      color: '#3B82F6',
-      percentage: dashboardData.totals.totalPatrimony > 0
-        ? (dashboardData.totals.bankLiquidity / dashboardData.totals.totalPatrimony) * 100 
-        : 0
-    },
-    { 
-      name: 'Conti Investimento', 
-      value: dashboardData.totals.investmentLiquidity, 
-      color: '#8B5CF6',
-      percentage: dashboardData.totals.totalPatrimony > 0
-        ? (dashboardData.totals.investmentLiquidity / dashboardData.totals.totalPatrimony) * 100
-        : 0
-    },
-    { 
-      name: 'Holdings Investimenti', 
-      value: dashboardData.totals.holdingsValue, 
-      color: '#10B981',
-      percentage: dashboardData.totals.totalPatrimony > 0
-        ? (dashboardData.totals.holdingsValue / dashboardData.totals.totalPatrimony) * 100
-        : 0
-    }
-  ];
-
   // ✅ CORREZIONE: Calculate budget summary usando i campi corretti
   const budgetSummary = dashboardData.budgetTotals?.totalAllocated > 0 ? {
     total: dashboardData.budgetTotals.totalLiquidity,
@@ -242,6 +214,60 @@ const Dashboard = () => {
 
   console.log('💰 Budget Summary Final:', budgetSummary);
 
+  // ✅ NUOVO: Allocation data dettagliata con budget individuali
+  const allocationData = useMemo(() => {
+    const data = [];
+    const totalPatrimony = dashboardData.totals.totalPatrimony;
+    
+    // Budget individuali
+    if (Array.isArray(dashboardData.budgets)) {
+      dashboardData.budgets.forEach(budget => {
+        if (budget.allocatedAmount > 0) {
+          data.push({
+            name: budget.name,
+            value: budget.allocatedAmount,
+            color: budget.color || '#3B82F6',
+            percentage: totalPatrimony > 0 ? (budget.allocatedAmount / totalPatrimony) * 100 : 0
+          });
+        }
+      });
+    }
+    
+    // Fondi disponibili (liquidità bancaria non allocata nei budget)
+    const totalBudgetAllocated = budgetSummary.allocated || 0;
+    const availableFunds = Math.max(0, dashboardData.totals.bankLiquidity - totalBudgetAllocated);
+    if (availableFunds > 0) {
+      data.push({
+        name: 'Fondi Disponibili',
+        value: availableFunds,
+        color: '#6B7280',
+        percentage: totalPatrimony > 0 ? (availableFunds / totalPatrimony) * 100 : 0
+      });
+    }
+    
+    // Conti di investimento
+    if (dashboardData.totals.investmentLiquidity > 0) {
+      data.push({
+        name: 'Conti Investimento',
+        value: dashboardData.totals.investmentLiquidity,
+        color: '#8B5CF6',
+        percentage: totalPatrimony > 0 ? (dashboardData.totals.investmentLiquidity / totalPatrimony) * 100 : 0
+      });
+    }
+    
+    // Holdings investimenti
+    if (dashboardData.totals.holdingsValue > 0) {
+      data.push({
+        name: 'Holdings Investimenti',
+        value: dashboardData.totals.holdingsValue,
+        color: '#10B981',
+        percentage: totalPatrimony > 0 ? (dashboardData.totals.holdingsValue / totalPatrimony) * 100 : 0
+      });
+    }
+    
+    return data;
+  }, [dashboardData, budgetSummary]);
+
   // ✅ CORREZIONE: Calculate budget breakdown con campi corretti
   const budgetBreakdown = Array.isArray(dashboardData.budgets) ? 
     dashboardData.budgets.map(budget => {
@@ -255,7 +281,8 @@ const Dashboard = () => {
         name: budget.name,
         allocated: allocated,
         target: target,
-        percentage: target > 0 ? (allocated / target) * 100 : 0
+        percentage: target > 0 ? (allocated / target) * 100 : 0,
+        color: budget.color || '#3B82F6'
       };
     }) : [];
 
@@ -295,54 +322,8 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-
-          {/* ✅ NUOVO: Enhanced Cash Flow Breakdown - Consistente con investments page */}
-          {dashboardData.enhancedCashFlow && (
-            <div className="mb-8">
-              <h2 className="text-xl font-semibold text-adaptive-900 mb-4">🔄 Enhanced Cash Flow</h2>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
-                  <h3 className="text-sm font-medium text-adaptive-500">💰 Totale Investito</h3>
-                  <p className="text-2xl font-bold text-adaptive-900">
-                    {formatCurrency(dashboardData.enhancedCashFlow.totalInvested)}
-                  </p>
-                  <p className="text-sm text-adaptive-600">Storico investimenti</p>
-                </div>
-
-                <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
-                  <h3 className="text-sm font-medium text-adaptive-500">🔄 Capitale Recuperato</h3>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {formatCurrency(dashboardData.enhancedCashFlow.capitalRecovered)}
-                  </p>
-                  <p className="text-sm text-adaptive-600">
-                    {dashboardData.enhancedCashFlow.totalInvested > 0 ? 
-                      `${((dashboardData.enhancedCashFlow.capitalRecovered / dashboardData.enhancedCashFlow.totalInvested) * 100).toFixed(1)}%` : '0%'}
-                  </p>
-                </div>
-
-                <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
-                  <h3 className="text-sm font-medium text-adaptive-500">⚠️ Soldi a Rischio</h3>
-                  <p className="text-2xl font-bold text-orange-600">
-                    {formatCurrency(dashboardData.enhancedCashFlow.effectiveInvestment)}
-                  </p>
-                  <p className="text-sm text-adaptive-600">
-                    {dashboardData.enhancedCashFlow.isFullyRecovered ? '🎉 Investimento gratis!' : 'Non ancora recuperato'}
-                  </p>
-                </div>
-
-                <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
-                  <h3 className="text-sm font-medium text-adaptive-500">🎯 Profitto Realizzato</h3>
-                  <p className={`text-2xl font-bold ${dashboardData.enhancedCashFlow.realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(dashboardData.enhancedCashFlow.realizedProfit)}
-                  </p>
-                  <p className="text-sm text-adaptive-600">Solo vendite realizzate</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          {/* Liquidità Overview - Seconda Riga */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <Link href="/accounts">
               <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive hover:shadow-md transition-shadow cursor-pointer">
                 <div className="flex items-center justify-between mb-4">
@@ -351,11 +332,31 @@ const Dashboard = () => {
                   </div>
                   <div className="text-blue-600 text-2xl">🏦</div>
                 </div>
-                <h3 className="text-lg font-semibold text-adaptive-900">Liquidità</h3>
+                <h3 className="text-lg font-semibold text-adaptive-900">Liquidità Conti Bancari</h3>
                 <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(dashboardData.totals.bankLiquidity + dashboardData.totals.investmentLiquidity)}
+                  {formatCurrency(dashboardData.totals.bankLiquidity)}
                 </p>
-                <p className="text-sm text-adaptive-600">{dashboardData.accounts.length} conti attivi</p>
+                <p className="text-sm text-adaptive-600">
+                  {dashboardData.accounts.filter(acc => acc.type === 'bank').length} conti bancari
+                </p>
+              </div>
+            </Link>
+
+            <Link href="/accounts">
+              <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive hover:shadow-md transition-shadow cursor-pointer">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <ChartPieIcon className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div className="text-purple-600 text-2xl">📈</div>
+                </div>
+                <h3 className="text-lg font-semibold text-adaptive-900">Liquidità Conti Investimento</h3>
+                <p className="text-2xl font-bold text-purple-600">
+                  {formatCurrency(dashboardData.totals.investmentLiquidity)}
+                </p>
+                <p className="text-sm text-adaptive-600">
+                  {dashboardData.accounts.filter(acc => acc.type === 'investment').length} conti investimento
+                </p>
               </div>
             </Link>
 
@@ -363,48 +364,85 @@ const Dashboard = () => {
               <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive hover:shadow-md transition-shadow cursor-pointer">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-2 bg-green-100 rounded-lg">
-                    <ChartPieIcon className="w-6 h-6 text-green-600" />
+                    <ArrowTrendingUpIcon className="w-6 h-6 text-green-600" />
                   </div>
-                  <div className="text-green-600 text-2xl">📈</div>
+                  <div className="text-green-600 text-2xl">💎</div>
                 </div>
-                <h3 className="text-lg font-semibold text-adaptive-900">Holdings</h3>
+                <h3 className="text-lg font-semibold text-adaptive-900">Valore Holdings</h3>
                 <p className="text-2xl font-bold text-green-600">
                   {formatCurrency(dashboardData.totals.holdingsValue)}
                 </p>
                 <p className="text-sm text-adaptive-600">{dashboardData.investments.length} portfolio attivi</p>
               </div>
             </Link>
+          </div>
+          {/* Enhanced Cash Flow - Terza Riga */}
+          {dashboardData.enhancedCashFlow && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-gray-100 rounded-lg">
+                    <CurrencyEuroIcon className="w-6 h-6 text-gray-600" />
+                  </div>
+                  <div className="text-gray-600 text-xl">💰</div>
+                </div>
+                <h3 className="text-lg font-semibold text-adaptive-900">Totale Investito</h3>
+                <p className="text-2xl font-bold text-adaptive-900">
+                  {formatCurrency(dashboardData.enhancedCashFlow.totalInvested)}
+                </p>
+                <p className="text-sm text-adaptive-600">Storico investimenti</p>
+              </div>
 
-            <Link href="/budget">
-              <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive hover:shadow-md transition-shadow cursor-pointer">
+              <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <ArrowTrendingUpIcon className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div className="text-blue-600 text-xl">🔄</div>
+                </div>
+                <h3 className="text-lg font-semibold text-adaptive-900">Capitale Recuperato</h3>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(dashboardData.enhancedCashFlow.capitalRecovered)}
+                </p>
+                <p className="text-sm text-adaptive-600">
+                  {dashboardData.enhancedCashFlow.totalInvested > 0 ? 
+                    `${((dashboardData.enhancedCashFlow.capitalRecovered / dashboardData.enhancedCashFlow.totalInvested) * 100).toFixed(1)}%` : '0%'}
+                </p>
+              </div>
+
+              <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-2 bg-orange-100 rounded-lg">
-                    <CurrencyEuroIcon className="w-6 h-6 text-orange-600" />
+                    <ArrowTrendingUpIcon className="w-6 h-6 text-orange-600" />
                   </div>
-                  <div className="text-orange-600 text-2xl">🎯</div>
+                  <div className="text-orange-600 text-xl">⚠️</div>
                 </div>
-                <h3 className="text-lg font-semibold text-adaptive-900">Budget</h3>
+                <h3 className="text-lg font-semibold text-adaptive-900">Soldi a Rischio</h3>
                 <p className="text-2xl font-bold text-orange-600">
-                  {formatCurrency(budgetSummary.allocated)}
+                  {formatCurrency(dashboardData.enhancedCashFlow.effectiveInvestment)}
                 </p>
-                <p className="text-xs text-adaptive-600">di {formatCurrency(budgetSummary.total)}</p>
+                <p className="text-sm text-adaptive-600">
+                  {dashboardData.enhancedCashFlow.isFullyRecovered ? '🎉 Investimento gratis!' : 'Non ancora recuperato'}
+                </p>
               </div>
-            </Link>
 
-            <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <ArrowTrendingUpIcon className="w-6 h-6 text-purple-600" />
+              <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <ChartPieIcon className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div className="text-green-600 text-xl">🎯</div>
                 </div>
-                <div className="text-purple-600 text-2xl">📊</div>
+                <h3 className="text-lg font-semibold text-adaptive-900">Profitto Realizzato</h3>
+                <p className={`text-2xl font-bold ${dashboardData.enhancedCashFlow.realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(dashboardData.enhancedCashFlow.realizedProfit)}
+                </p>
+                <p className="text-sm text-adaptive-600">Solo vendite realizzate</p>
               </div>
-              <h3 className="text-lg font-semibold text-adaptive-900">Performance</h3>
-              <p className="text-2xl font-bold text-purple-600">
-                {formatCurrency(budgetSummary.allocated)}
-              </p>
-              <p className="text-xs text-adaptive-600">di {formatCurrency(budgetSummary.total)}</p>
             </div>
-          </div>
+          )}
+
+
 
           {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
@@ -475,15 +513,24 @@ const Dashboard = () => {
                   <div key={index} className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-adaptive-900">{budget.name}</span>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: budget.color }}
+                          />
+                          <span className="text-sm font-medium text-adaptive-900">{budget.name}</span>
+                        </div>
                         <span className="text-sm text-adaptive-600">
                           {formatCurrency(budget.allocated)} / {formatCurrency(budget.target)}
                         </span>
                       </div>
                       <div className="w-full bg-adaptive-200 rounded-full h-2">
                         <div 
-                          className="bg-blue-600 h-2 rounded-full" 
-                          style={{ width: `${Math.min(budget.percentage, 100)}%` }}
+                          className="h-2 rounded-full" 
+                          style={{ 
+                            width: `${Math.min(budget.percentage, 100)}%`,
+                            backgroundColor: budget.color 
+                          }}
                         />
                       </div>
                     </div>
