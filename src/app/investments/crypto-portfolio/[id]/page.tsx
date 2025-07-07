@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
   ArrowLeftIcon, PlusIcon, PencilIcon, TrashIcon, 
-  Cog6ToothIcon, XMarkIcon, ChevronDownIcon 
+  Cog6ToothIcon, XMarkIcon, ChevronDownIcon, DocumentArrowUpIcon,
+  CheckIcon
 } from '@heroicons/react/24/outline'
 
 interface Asset {
@@ -140,6 +141,23 @@ export default function CryptoPortfolioDetailPage() {
   // 🔧 STATO NETWORK FEES
   const [networkFees, setNetworkFees] = useState<any[]>([])
   const [feesLoading, setFeesLoading] = useState(false)
+
+  // 🔧 STATI CSV IMPORT
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvData, setCsvData] = useState<any[]>([])
+  const [showPreview, setShowPreview] = useState(false)
+  const [importResult, setImportResult] = useState<any>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
+  const [error, setError] = useState('')
+
+  // 🔧 STATI BULK DELETE
+  const [selectedTransactions, setSelectedTransactions] = useState<number[]>([])
+  const [selectAll, setSelectAll] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0 })
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
 
   // Format functions
   const formatCurrency = (amount: number) =>
@@ -595,6 +613,263 @@ export default function CryptoPortfolioDetailPage() {
     setShowEditTransaction(true)
   }
 
+  // 🔧 CSV IMPORT FUNCTIONS
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setError('Seleziona un file CSV valido')
+      return
+    }
+
+    setCsvFile(file)
+    setError('')
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const csvText = event.target?.result as string
+      try {
+        // Rileva automaticamente il separatore (virgola o punto e virgola)
+        const lines = csvText.split('\n').filter(line => line.trim())
+        let separator = ','
+        
+        if (lines[0] && lines[0].includes(';') && lines[0].split(';').length > lines[0].split(',').length) {
+          separator = ';'
+        }
+        
+        console.log(`🔍 Separatore CSV rilevato: "${separator}"`)
+        console.log(`📄 Prima riga: ${lines[0]}`)
+        
+        // Parser CSV più robusto che gestisce virgolette
+        const parseCSVLine = (line: string) => {
+          const result = []
+          let current = ''
+          let inQuotes = false
+          
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i]
+            const nextChar = line[i + 1]
+            
+            if (char === '"') {
+              if (inQuotes && nextChar === '"') {
+                current += '"'
+                i++ // Skip next quote
+              } else {
+                inQuotes = !inQuotes
+              }
+            } else if (char === separator && !inQuotes) {
+              result.push(current.trim())
+              current = ''
+            } else {
+              current += char
+            }
+          }
+          result.push(current.trim())
+          return result
+        }
+        
+        const headerValues = parseCSVLine(lines[0])
+        const headers = headerValues.map(h => h.toLowerCase().replace(/['"]/g, ''))
+        
+        console.log(`📋 Headers rilevati:`, headers)
+        
+        const expectedHeaders = ['data', 'tipo', 'asset', 'asset_to', 'quantita', 'quantita_to', 'valore_eur', 'prezzo_unitario', 'broker', 'note']
+        
+        const data = lines.slice(1).map((line, index) => {
+          const values = parseCSVLine(line)
+          const row: any = {}
+          
+          console.log(`🔍 Riga ${index + 2} RAW:`, line)
+          console.log(`🔍 Riga ${index + 2} VALUES:`, values)
+          console.log(`🔍 Numero campi trovati: ${values.length}, attesi: ${expectedHeaders.length}`)
+          
+          expectedHeaders.forEach((header, i) => {
+            const value = values[i] || ''
+            row[header] = value.replace(/['"]/g, '').trim()
+          })
+          
+          console.log(`🔍 Riga ${index + 2} PARSED:`, row)
+          
+          // Debug specifico per broker
+          if (!row.broker || row.broker.trim() === '') {
+            console.error(`❌ Riga ${index + 2}: BROKER VUOTO!`, {
+              brokerIndex: expectedHeaders.indexOf('broker'),
+              brokerValue: values[expectedHeaders.indexOf('broker')],
+              allValues: values
+            })
+          }
+          
+          return row
+        }).filter(row => row.data && row.tipo && row.asset)
+
+        if (data.length === 0) {
+          setError('Nessun dato valido trovato nel CSV')
+          return
+        }
+
+        setCsvData(data)
+        setShowPreview(true)
+      } catch (error) {
+        console.error('Error parsing CSV:', error)
+        setError('Errore nel parsing del CSV. Controlla il formato del file.')
+      }
+    }
+
+    reader.readAsText(file)
+  }
+
+  const handleImportCSV = async () => {
+    if (csvData.length === 0) return
+
+    setIsImporting(true)
+    setImportResult(null)
+    setImportProgress({ current: 0, total: csvData.length, currentBatch: 0, totalBatches: 0 })
+
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions/import-csv-stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csvData })
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (!reader) {
+        throw new Error('Response body reader not available')
+      }
+
+      let result = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        
+        if (done) break
+
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              console.log('📊 Crypto SSE Progress:', data)
+              
+              if (data.type === 'progress') {
+                console.log('📈 Updating crypto progress:', data.current, '/', data.total)
+                setImportProgress({
+                  current: data.current,
+                  total: data.total,
+                  currentBatch: data.currentBatch || 0,
+                  totalBatches: data.totalBatches || 0
+                })
+              } else if (data.type === 'complete') {
+                result = data.result
+              } else if (data.type === 'error') {
+                throw new Error(data.error)
+              }
+            } catch (parseError) {
+              console.error('Errore parsing SSE data:', parseError)
+            }
+          }
+        }
+      }
+      
+      const safeResult = {
+        success: result?.success || false,
+        imported: result?.imported || 0,
+        errors: result?.errors || []
+      }
+      
+      setImportResult(safeResult)
+
+      if (safeResult.success && safeResult.imported > 0) {
+        fetchPortfolio()
+      }
+    } catch (error) {
+      console.error('Errore durante import CSV crypto:', error)
+      setImportResult({
+        success: false,
+        imported: 0,
+        errors: [
+          'Errore durante l\'import del CSV crypto.',
+          error instanceof Error ? error.message : 'Errore sconosciuto'
+        ]
+      })
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  const resetImportModal = () => {
+    setShowImportModal(false)
+    setShowPreview(false)
+    setCsvFile(null)
+    setCsvData([])
+    setImportResult(null)
+    setIsImporting(false)
+    setImportProgress({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
+    setError('')
+  }
+
+  // 🔧 BULK DELETE FUNCTIONS
+  const handleSelectTransaction = (transactionId: number) => {
+    setSelectedTransactions(prev => 
+      prev.includes(transactionId)
+        ? prev.filter(id => id !== transactionId)
+        : [...prev, transactionId]
+    )
+  }
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedTransactions([])
+    } else {
+      setSelectedTransactions(portfolio?.transactions.map(t => t.id) || [])
+    }
+    setSelectAll(!selectAll)
+  }
+
+  const handleBulkDelete = () => {
+    if (selectedTransactions.length === 0) return
+    setShowBulkDeleteModal(true)
+  }
+
+  const confirmBulkDelete = async () => {
+    setIsDeleting(true)
+    setDeleteProgress({ current: 0, total: selectedTransactions.length })
+
+    try {
+      for (let i = 0; i < selectedTransactions.length; i++) {
+        const transactionId = selectedTransactions[i]
+        
+        await fetch(`/api/crypto-portfolios/${portfolioId}/transactions/${transactionId}`, {
+          method: 'DELETE'
+        })
+        
+        setDeleteProgress({ current: i + 1, total: selectedTransactions.length })
+        
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+
+      await fetchPortfolio()
+      setSelectedTransactions([])
+      setSelectAll(false)
+      setShowBulkDeleteModal(false)
+    } catch (error) {
+      console.error('Errore durante eliminazione bulk:', error)
+      alert('Errore durante l\'eliminazione delle transazioni')
+    } finally {
+      setIsDeleting(false)
+      setDeleteProgress({ current: 0, total: 0 })
+    }
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -666,6 +941,15 @@ export default function CryptoPortfolioDetailPage() {
           </button>
           
           <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 px-4 py-2 text-green-600 border border-green-300 rounded-md hover:bg-green-50"
+            title="Import CSV Transazioni Crypto"
+          >
+            <DocumentArrowUpIcon className="w-5 h-5" />
+            Import CSV
+          </button>
+          
+          <button
             onClick={() => setShowAddTransaction(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
           >
@@ -686,7 +970,14 @@ export default function CryptoPortfolioDetailPage() {
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">💸 Capitale Recuperato</h3>
           <p className="text-2xl font-bold text-adaptive-900">{formatCurrency(portfolio.stats.capitalRecovered)}</p>
-          <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.sellCount} vendite</p>
+          <p className="text-xs text-adaptive-600 mt-1">
+            {portfolio.stats.sellCount} vendite
+            {portfolio.stats.capitalFromSwaps > 0 && (
+              <span className="block text-orange-600">
+                + {formatCurrency(portfolio.stats.capitalFromSwaps)} da {portfolio.stats.swapCount} swap
+              </span>
+            )}
+          </p>
         </div>
         
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
@@ -727,7 +1018,12 @@ export default function CryptoPortfolioDetailPage() {
               <div className="text-2xl font-bold text-blue-600">
                 {formatCurrency(portfolio.stats.stakeRewards || 0)}
               </div>
-              <div className="text-xs text-adaptive-600 mt-1">{portfolio.stats.stakeRewardCount || 0} reward</div>
+              <div className="text-xs text-adaptive-600 mt-1">
+                {portfolio.stats.stakeRewardCount || 0} reward
+                {portfolio.stats.stakeRewards > 0 && (
+                  <span className="block text-blue-500">Valore corrente</span>
+                )}
+              </div>
             </div>
             
             <div className="text-center">
@@ -1181,6 +1477,16 @@ export default function CryptoPortfolioDetailPage() {
         <div className="flex items-center justify-between p-6 border-b border-adaptive">
           <h2 className="text-xl font-bold text-adaptive-900">📊 Transazioni ({portfolio.transactions.length})</h2>
           <div className="flex gap-3">
+            {selectedTransactions.length > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                disabled={isDeleting}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium disabled:opacity-50"
+              >
+                <TrashIcon className="w-4 h-4" />
+                {isDeleting ? `Eliminando ${deleteProgress.current}/${deleteProgress.total}...` : `Elimina ${selectedTransactions.length}`}
+              </button>
+            )}
             <button
               onClick={() => setShowSwap(true)}
               className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 font-medium"
@@ -1209,6 +1515,14 @@ export default function CryptoPortfolioDetailPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-adaptive bg-adaptive-50">
+                    <th className="text-center py-3 px-4 font-medium text-adaptive-700">
+                      <input
+                        type="checkbox"
+                        checked={selectAll}
+                        onChange={handleSelectAll}
+                        className="rounded"
+                      />
+                    </th>
                     <th className="text-left py-3 px-4 font-medium text-adaptive-700">Data</th>
                     <th className="text-left py-3 px-4 font-medium text-adaptive-700">Asset</th>
                     <th className="text-center py-3 px-4 font-medium text-adaptive-700">Tipo</th>
@@ -1227,6 +1541,10 @@ export default function CryptoPortfolioDetailPage() {
                         <React.Fragment key={item.id}>
                           {/* Riga principale swap unificata */}
                           <tr className="border-b border-adaptive hover:bg-adaptive-50">
+                            <td className="py-4 px-4 text-center">
+                              {/* Swap non selezionabili per bulk delete */}
+                              <span className="text-gray-400">-</span>
+                            </td>
                             <td className="py-4 px-4 text-sm">
                               {new Date(item.date).toLocaleDateString('it-IT')}
                             </td>
@@ -1289,6 +1607,9 @@ export default function CryptoPortfolioDetailPage() {
                           {isExpanded && (
                             <>
                               <tr className="bg-gray-100 border-b border-adaptive">
+                                <td className="py-2 px-8 text-center">
+                                  <span className="text-gray-400">-</span>
+                                </td>
                                 <td className="py-2 px-8 text-xs text-gray-700">
                                   {new Date(item.swapOut.date).toLocaleDateString('it-IT')}
                                 </td>
@@ -1315,6 +1636,9 @@ export default function CryptoPortfolioDetailPage() {
                                 </td>
                               </tr>
                               <tr className="bg-gray-100 border-b border-adaptive">
+                                <td className="py-2 px-8 text-center">
+                                  <span className="text-gray-400">-</span>
+                                </td>
                                 <td className="py-2 px-8 text-xs text-gray-700">
                                   {new Date(item.swapIn.date).toLocaleDateString('it-IT')}
                                 </td>
@@ -1349,6 +1673,14 @@ export default function CryptoPortfolioDetailPage() {
                       const transaction = item as Transaction
                       return (
                         <tr key={transaction.id} className="border-b border-adaptive hover:bg-adaptive-50">
+                      <td className="py-4 px-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedTransactions.includes(transaction.id)}
+                          onChange={() => handleSelectTransaction(transaction.id)}
+                          className="rounded"
+                        />
+                      </td>
                       <td className="py-4 px-4 text-sm">
                         {new Date(transaction.date).toLocaleDateString('it-IT')}
                       </td>
@@ -2042,6 +2374,319 @@ export default function CryptoPortfolioDetailPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 📁 CSV IMPORT MODAL */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-adaptive rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-adaptive">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-adaptive-900">Import CSV Transazioni Crypto</h2>
+              <button
+                onClick={resetImportModal}
+                disabled={isImporting}
+                className={`${isImporting ? 'text-adaptive-300 cursor-not-allowed' : 'text-adaptive-500 hover:text-adaptive-700'}`}
+              >
+                ✕
+              </button>
+            </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-100 border border-red-200 rounded-lg">
+                <p className="text-red-700">{error}</p>
+              </div>
+            )}
+
+            {/* Progress Bar durante l'import */}
+            {isImporting && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-adaptive-900">Import in corso...</h3>
+                
+                <div className="space-y-3">
+                  {/* Progress bar principale */}
+                  <div className="w-full bg-gray-200 rounded-full h-4">
+                    <div 
+                      className="bg-blue-600 h-4 rounded-full transition-all duration-300 ease-out"
+                      style={{ 
+                        width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` 
+                      }}
+                    ></div>
+                  </div>
+                  
+                  {/* Statistiche progresso */}
+                  <div className="flex justify-between text-sm text-adaptive-900 font-medium">
+                    <span>{importProgress.current} / {importProgress.total} righe processate</span>
+                    <span className="font-medium">{importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0}%</span>
+                  </div>
+                  
+                  {/* Info processamento */}
+                  <div className="text-sm text-adaptive-900 text-center">
+                    <span className="font-semibold">Processando transazioni crypto...</span>
+                    {importProgress.totalBatches > 1 && (
+                      <div className="text-xs text-adaptive-600 mt-1">
+                        Batch {importProgress.currentBatch} / {importProgress.totalBatches}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Loading spinner */}
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <span className="text-sm text-adaptive-900 font-semibold">Importazione in corso...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!showPreview && !importResult && !isImporting && (
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-medium text-blue-900 mb-2">📋 Formato CSV Richiesto</h3>
+                  <p className="text-sm text-blue-800 mb-2">Il file CSV deve contenere le seguenti colonne nell'ordine esatto:</p>
+                  <div className="bg-gray-100 rounded border p-2 font-mono text-sm text-gray-900 font-semibold">
+                    data,tipo,asset,asset_to,quantita,quantita_to,valore_eur,prezzo_unitario,broker,note
+                  </div>
+                  <ul className="text-sm text-blue-800 mt-2 space-y-1">
+                    <li>• <strong>data:</strong> formato DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD</li>
+                    <li>• <strong>tipo:</strong> 'buy', 'sell', 'stake_reward', o 'swap'</li>
+                    <li>• <strong>asset:</strong> simbolo asset (es. BTC, ETH, USDT)</li>
+                    <li>• <strong>asset_to:</strong> solo per swap - asset di destinazione (lascia vuoto per buy/sell)</li>
+                    <li>• <strong>quantita:</strong> quantità asset (es. 0.00123456)</li>
+                    <li>• <strong>quantita_to:</strong> solo per swap - quantità asset destinazione (lascia vuoto per buy/sell)</li>
+                    <li>• <strong>valore_eur:</strong> valore totale in Euro (es. 50.00) - per stake_reward può essere 0</li>
+                    <li>• <strong>prezzo_unitario:</strong> prezzo per unità (opzionale, calcolato automaticamente)</li>
+                    <li>• <strong>broker:</strong> nome del broker/exchange (es. Binance, Kraken) - OBBLIGATORIO</li>
+                    <li>• <strong>note:</strong> note opzionali</li>
+                  </ul>
+                  
+                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                    <h4 className="font-semibold text-yellow-800 mb-1">💡 Supporto formati:</h4>
+                    <ul className="text-xs text-yellow-700 space-y-1">
+                      <li>• <strong>Separatori:</strong> virgola (,) o punto e virgola (;) - rilevato automaticamente</li>
+                      <li>• <strong>Virgolette:</strong> gestite automaticamente per campi con separatori</li>
+                      <li>• <strong>Esempio BUY:</strong> 01/01/2024,buy,BTC,,0.001,,50.00,,Binance,DCA</li>
+                      <li>• <strong>Esempio STAKE:</strong> 01/01/2024,stake_reward,ETH,,0.05,,0,,Binance,Reward gratuito</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-adaptive-900 mb-2">
+                      Seleziona file CSV
+                    </label>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleFileUpload}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showPreview && csvData.length > 0 && !importResult && !isImporting && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium">Anteprima Dati ({csvData.length} righe)</h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowPreview(false)}
+                      className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Indietro
+                    </button>
+                    <button
+                      onClick={handleImportCSV}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    >
+                      Conferma Import
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="max-h-96 overflow-auto border rounded-lg">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset To</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantità</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qta To</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">EUR</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Broker</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Note</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {csvData.slice(0, 100).map((row, index) => (
+                        <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-3 py-2 text-sm text-gray-900">{row.data}</td>
+                          <td className="px-3 py-2 text-sm">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              row.tipo.toLowerCase() === 'buy' 
+                                ? 'bg-green-100 text-green-800' 
+                                : row.tipo.toLowerCase() === 'sell'
+                                ? 'bg-red-100 text-red-800'
+                                : row.tipo.toLowerCase() === 'stake_reward'
+                                ? 'bg-blue-100 text-blue-800'
+                                : row.tipo.toLowerCase() === 'swap'
+                                ? 'bg-orange-100 text-orange-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {row.tipo}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-900">{row.asset}</td>
+                          <td className="px-3 py-2 text-sm text-gray-500">{row.asset_to || '-'}</td>
+                          <td className="px-3 py-2 text-sm text-gray-900">{row.quantita}</td>
+                          <td className="px-3 py-2 text-sm text-gray-500">{row.quantita_to || '-'}</td>
+                          <td className="px-3 py-2 text-sm text-gray-900">€{row.valore_eur}</td>
+                          <td className="px-3 py-2 text-sm text-gray-900">{row.broker}</td>
+                          <td className="px-3 py-2 text-sm text-gray-500">{row.note || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {csvData.length > 100 && (
+                    <div className="p-3 bg-gray-50 text-center text-sm text-gray-600">
+                      Mostrando prime 100 righe di {csvData.length} totali
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {importResult && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Risultato Import</h3>
+                
+                <div className={`p-4 rounded-lg ${importResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {importResult.success ? (
+                      <CheckIcon className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <span className="text-red-600">❌</span>
+                    )}
+                    <span className={`font-medium ${importResult.success ? 'text-green-800' : 'text-red-800'}`}>
+                      {importResult.success ? 'Import completato!' : 'Import fallito'}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-1 text-sm">
+                    <p className={`${importResult.success ? 'text-green-800' : 'text-red-800'}`}>• <strong>Transazioni crypto importate:</strong> {importResult.imported}</p>
+                    {importResult.errors?.length > 0 && (
+                      <p className={`${importResult.success ? 'text-green-800' : 'text-red-800'}`}>• <strong>Errori:</strong> {importResult.errors.length}</p>
+                    )}
+                  </div>
+
+                  {importResult.errors?.length > 0 && (
+                    <details className="mt-3">
+                      <summary className={`cursor-pointer font-medium ${importResult.success ? 'text-green-800' : 'text-red-800'}`}>
+                        Errori dettagliati ({importResult.errors.length})
+                      </summary>
+                      <div className="mt-2 p-2 bg-white rounded border max-h-40 overflow-y-auto">
+                        {importResult.errors.map((error, index) => (
+                          <div key={index} className="text-sm text-red-600 py-1 border-b border-gray-100 last:border-b-0">
+                            {error}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      onClick={resetImportModal}
+                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                    >
+                      Chiudi
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 🗑️ BULK DELETE CONFIRMATION MODAL */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-adaptive rounded-lg p-6 w-full max-w-md mx-4 border border-adaptive">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-adaptive-900">🗑️ Conferma Eliminazione</h3>
+              <button
+                onClick={() => setShowBulkDeleteModal(false)}
+                disabled={isDeleting}
+                className="text-adaptive-500 hover:text-adaptive-700 disabled:opacity-50"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {!isDeleting ? (
+              <div className="space-y-4">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-red-600">⚠️</span>
+                    <span className="font-medium text-red-800">Attenzione!</span>
+                  </div>
+                  <p className="text-red-700 text-sm">
+                    Stai per eliminare <strong>{selectedTransactions.length} transazioni</strong>.
+                    Questa azione non può essere annullata.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowBulkDeleteModal(false)}
+                    className="flex-1 px-4 py-2 border border-adaptive-300 text-adaptive-700 rounded-lg hover:bg-adaptive-100"
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    onClick={confirmBulkDelete}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+                  >
+                    Elimina {selectedTransactions.length}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <h4 className="text-lg font-bold text-adaptive-900">Eliminazione in corso...</h4>
+                
+                <div className="space-y-3">
+                  {/* Progress bar */}
+                  <div className="w-full bg-gray-200 rounded-full h-4">
+                    <div 
+                      className="bg-red-600 h-4 rounded-full transition-all duration-300 ease-out"
+                      style={{ 
+                        width: `${deleteProgress.total > 0 ? (deleteProgress.current / deleteProgress.total) * 100 : 0}%` 
+                      }}
+                    ></div>
+                  </div>
+                  
+                  {/* Stats */}
+                  <div className="flex justify-between text-sm text-adaptive-900 font-medium">
+                    <span>{deleteProgress.current} / {deleteProgress.total} transazioni eliminate</span>
+                    <span className="font-medium">{deleteProgress.total > 0 ? Math.round((deleteProgress.current / deleteProgress.total) * 100) : 0}%</span>
+                  </div>
+                  
+                  {/* Loading spinner */}
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
+                    <span className="text-sm text-adaptive-900 font-semibold">Eliminazione in corso...</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

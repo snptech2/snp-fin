@@ -6,15 +6,28 @@ import { requireAuth } from '@/lib/auth-middleware'
 const prisma = new PrismaClient()
 
 // 🎯 ENHANCED CASH FLOW LOGIC - UNIFICATA con DCA logic + STAKING REWARDS + SWAP + NETWORK FEES
-function calculateEnhancedStats(transactions: any[], networkFees: any[] = []) {
-  const buyTransactions = transactions.filter((tx: any) => tx.type === 'buy' || tx.type === 'swap_in' || !tx.type)
-  const sellTransactions = transactions.filter((tx: any) => tx.type === 'sell' || tx.type === 'swap_out')
+function calculateEnhancedStats(transactions: any[], networkFees: any[] = [], currentPrices: Record<string, number> = {}) {
+  const buyTransactions = transactions.filter((tx: any) => tx.type === 'buy' || !tx.type) // 🔧 FIX: Rimuovi swap_in da investimenti
+  const sellTransactions = transactions.filter((tx: any) => tx.type === 'sell') // 🔧 FIX: Solo vendite reali
+  const swapOutTransactions = transactions.filter((tx: any) => tx.type === 'swap_out') // 🆕 Separato dagli swap
   const stakeRewardTransactions = transactions.filter((tx: any) => tx.type === 'stake_reward')
 
   // 🔧 FIX FASE 1: Applica esattamente la logica Enhanced definita nei documenti
   const totalInvested = buyTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
   const capitalRecovered = sellTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
-  const stakeRewards = stakeRewardTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
+  // 🔧 FIX: Calcolo dinamico staking rewards (valore corrente se eurValue = 0)
+  const stakeRewards = stakeRewardTransactions.reduce((sum: number, tx: any) => {
+    if (tx.eurValue > 0) {
+      // Usa valore del CSV se specificato
+      return sum + tx.eurValue
+    } else {
+      // Calcola valore corrente per rewards con eurValue = 0
+      const currentPrice = currentPrices[tx.asset?.symbol] || 0
+      const currentValue = tx.quantity * currentPrice
+      console.log(`💎 Stake reward ${tx.asset?.symbol}: ${tx.quantity} × €${currentPrice} = €${currentValue}`)
+      return sum + currentValue
+    }
+  }, 0)
   
   // 🆕 NETWORK FEES - Calcoli aggregati
   const totalFeesEur = networkFees.reduce((sum: number, fee: any) => sum + (fee.eurValue || 0), 0)
@@ -37,19 +50,24 @@ function calculateEnhancedStats(transactions: any[], networkFees: any[] = []) {
     return acc
   }, {})
   
+  // 🆕 Calcolo capital recovered da swap (per statistiche separate)
+  const capitalFromSwaps = swapOutTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
+  
   const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
   const realizedProfit = Math.max(0, capitalRecovered - totalInvested) + stakeRewards
 
   return {
     totalInvested,
-    capitalRecovered,
+    capitalRecovered, // 🔧 FIX: Solo da vendite reali
+    capitalFromSwaps, // 🆕 Separato: capitale da swap
     effectiveInvestment,
     realizedProfit,
     stakeRewards,
     isFullyRecovered: capitalRecovered >= totalInvested,
     transactionCount: transactions.length,
     buyCount: buyTransactions.length,
-    sellCount: sellTransactions.length,
+    sellCount: sellTransactions.length, // 🔧 FIX: Solo vendite reali
+    swapCount: swapOutTransactions.length, // 🆕 Conteggio swap separato
     stakeRewardCount: stakeRewardTransactions.length,
     // 🆕 NETWORK FEES STATS
     totalFeesEur,
@@ -135,12 +153,16 @@ export async function GET(
       return NextResponse.json({ error: 'Portfolio non trovato' }, { status: 404 })
     }
 
-    // 🎯 Applica Enhanced Statistics (con network fees)
-    const enhancedStats = calculateEnhancedStats(portfolio.transactions, portfolio.networkFees)
+    // 🆕 Fetch prezzi correnti per holdings E per staking rewards
+    const holdingsSymbols = portfolio.holdings.map(h => h.asset.symbol.toUpperCase())
+    const stakeSymbols = portfolio.transactions
+      .filter(tx => tx.type === 'stake_reward')
+      .map(tx => tx.asset.symbol.toUpperCase())
+    const allSymbols = [...new Set([...holdingsSymbols, ...stakeSymbols])]
+    const currentPrices = await fetchCurrentPrices(allSymbols)
 
-    // 🆕 Fetch prezzi correnti per holdings
-    const symbols = portfolio.holdings.map(h => h.asset.symbol.toUpperCase())
-    const currentPrices = await fetchCurrentPrices(symbols)
+    // 🎯 Applica Enhanced Statistics (con network fees E prezzi correnti)
+    const enhancedStats = calculateEnhancedStats(portfolio.transactions, portfolio.networkFees, currentPrices)
 
     // 🆕 Valore totale calcolato successivamente dai holdings aggiornati (con fees detratte)
     let totalValueEur = 0
