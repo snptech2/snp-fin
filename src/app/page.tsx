@@ -67,6 +67,9 @@ interface DashboardTotals {
   investmentLiquidity: number;
   holdingsValue: number;
   totalPatrimony: number;
+  nonCurrentAssets: number;
+  credits: number;
+  liquiditaBancaria: number; // bankLiquidity - riservaTasse
 }
 
 interface PartitaIVAGlobalStats {
@@ -93,6 +96,20 @@ interface PartitaIVAGlobalStats {
   };
 }
 
+interface NonCurrentAsset {
+  id: number;
+  name: string;
+  description?: string;
+  value: number;
+}
+
+interface Credit {
+  id: number;
+  name: string;
+  description?: string;
+  amount: number;
+}
+
 interface DashboardData {
   accounts: Account[];
   investments: Portfolio[];
@@ -102,6 +119,8 @@ interface DashboardData {
   enhancedCashFlow: EnhancedCashFlow | null;
   totals: DashboardTotals;
   partitaIVAStats: PartitaIVAGlobalStats | null;
+  nonCurrentAssets: NonCurrentAsset[];
+  credits: Credit[];
 }
 
 interface AllocationDataItem {
@@ -139,9 +158,14 @@ const Dashboard = () => {
       bankLiquidity: 0,
       investmentLiquidity: 0,
       holdingsValue: 0,
-      totalPatrimony: 0
+      totalPatrimony: 0,
+      nonCurrentAssets: 0,
+      credits: 0,
+      liquiditaBancaria: 0
     },
-    partitaIVAStats: null
+    partitaIVAStats: null,
+    nonCurrentAssets: [],
+    credits: []
   });
 
   // Format functions
@@ -220,14 +244,18 @@ const Dashboard = () => {
         cryptoRes, 
         budgetsRes, 
         transactionsRes,
-        partitaIVARes
+        partitaIVARes,
+        nonCurrentAssetsRes,
+        creditsRes
       ] = await Promise.all([
         fetch('/api/accounts'),
         fetch('/api/dca-portfolios'),
         fetch('/api/crypto-portfolios'),
         fetch('/api/budgets'),
         fetch('/api/transactions?limit=5'),
-        fetch('/api/partita-iva/stats-global')
+        fetch('/api/partita-iva/stats-global'),
+        fetch('/api/non-current-assets'),
+        fetch('/api/credits')
       ]);
 
       // Parse responses
@@ -239,6 +267,10 @@ const Dashboard = () => {
         await transactionsRes.json() : [];
       const partitaIVAStats: PartitaIVAGlobalStats | null = partitaIVARes.ok ? 
         await partitaIVARes.json() : null;
+      const nonCurrentAssets: NonCurrentAsset[] = nonCurrentAssetsRes.ok ? 
+        await nonCurrentAssetsRes.json() : [];
+      const credits: Credit[] = creditsRes.ok ? 
+        await creditsRes.json() : [];
 
       // ✅ CORREZIONE: L'API budget restituisce un oggetto, non un array diretto
       const budgets: Budget[] = budgetsResponse?.budgets || [];
@@ -281,6 +313,18 @@ const Dashboard = () => {
       holdingsValue = cryptoValue + dcaValue;
 
       console.log(`🎯 Total Holdings Value: €${holdingsValue}`);
+      
+      // ✅ NUOVO: Calcola totali beni non correnti e crediti
+      const totalNonCurrentAssets = nonCurrentAssets.reduce((sum, asset) => sum + asset.value, 0);
+      const totalCredits = credits.reduce((sum, credit) => sum + credit.amount, 0);
+      
+      // ✅ NUOVO: Calcola Riserva Tasse dai budget
+      const riservaTasse = budgets.find(budget => 
+        ['RISERVA TASSE', 'Riserva Tasse'].includes(budget.name)
+      )?.allocatedAmount || 0;
+      
+      // ✅ NUOVO: Liquidità bancaria effettiva (senza riserva tasse)
+      const liquiditaBancaria = bankLiquidity - riservaTasse;
 
       // ✅ NUOVO: Calculate Enhanced Cash Flow totals - UNIFICATO
       const allPortfolios: Portfolio[] = [...cryptoPortfolios, ...dcaPortfolios];
@@ -292,7 +336,8 @@ const Dashboard = () => {
         isFullyRecovered: allPortfolios.every((p: Portfolio) => p.stats?.isFullyRecovered || false)
       } : null;
 
-      const totalPatrimony = bankLiquidity + investmentLiquidity + holdingsValue;
+      // ✅ NUOVO: Calcolo patrimonio con 5 componenti
+      const totalPatrimony = liquiditaBancaria + investmentLiquidity + holdingsValue + totalNonCurrentAssets + totalCredits;
 
       setDashboardData({
         accounts,
@@ -305,9 +350,14 @@ const Dashboard = () => {
           bankLiquidity,
           investmentLiquidity,
           holdingsValue,
-          totalPatrimony
+          totalPatrimony,
+          nonCurrentAssets: totalNonCurrentAssets,
+          credits: totalCredits,
+          liquiditaBancaria
         },
-        partitaIVAStats
+        partitaIVAStats,
+        nonCurrentAssets,
+        credits
       });
 
     } catch (error) {
@@ -394,6 +444,65 @@ const Dashboard = () => {
     return data.sort((a, b) => b.value - a.value);
   }, [dashboardData, budgetSummary, chartColors]);
 
+  // ✅ NUOVO: Patrimonio data per grafico
+  const patrimonioData = useMemo(() => {
+    const data = [];
+    const totalPatrimony = dashboardData.totals.totalPatrimony;
+    
+    // Liquidità Bancaria (senza riserva tasse)
+    if (dashboardData.totals.liquiditaBancaria > 0) {
+      data.push({
+        name: 'Liquidità al Netto delle Tasse',
+        value: dashboardData.totals.liquiditaBancaria,
+        color: '#3B82F6', // Blu
+        percentage: totalPatrimony > 0 ? (dashboardData.totals.liquiditaBancaria / totalPatrimony) * 100 : 0
+      });
+    }
+    
+    // Conti Investimento
+    if (dashboardData.totals.investmentLiquidity > 0) {
+      data.push({
+        name: 'Conti Investimento',
+        value: dashboardData.totals.investmentLiquidity,
+        color: '#8B5CF6', // Viola
+        percentage: totalPatrimony > 0 ? (dashboardData.totals.investmentLiquidity / totalPatrimony) * 100 : 0
+      });
+    }
+    
+    // Assets (Holdings Investimenti)
+    if (dashboardData.totals.holdingsValue > 0) {
+      data.push({
+        name: 'Assets',
+        value: dashboardData.totals.holdingsValue,
+        color: '#F59E0B', // Arancione
+        percentage: totalPatrimony > 0 ? (dashboardData.totals.holdingsValue / totalPatrimony) * 100 : 0
+      });
+    }
+    
+    // Beni Non Correnti
+    if (dashboardData.totals.nonCurrentAssets > 0) {
+      data.push({
+        name: 'Beni Non Correnti',
+        value: dashboardData.totals.nonCurrentAssets,
+        color: '#10B981', // Verde
+        percentage: totalPatrimony > 0 ? (dashboardData.totals.nonCurrentAssets / totalPatrimony) * 100 : 0
+      });
+    }
+    
+    // Crediti
+    if (dashboardData.totals.credits > 0) {
+      data.push({
+        name: 'Crediti',
+        value: dashboardData.totals.credits,
+        color: '#EF4444', // Rosso
+        percentage: totalPatrimony > 0 ? (dashboardData.totals.credits / totalPatrimony) * 100 : 0
+      });
+    }
+    
+    // Ordina per valore decrescente
+    return data.sort((a, b) => b.value - a.value);
+  }, [dashboardData]);
+
   // ✅ CORREZIONE: Calculate budget breakdown con campi corretti
   const budgetBreakdown: BudgetBreakdownItem[] = Array.isArray(dashboardData.budgets) ? 
     dashboardData.budgets.map((budget: Budget) => {
@@ -432,19 +541,72 @@ const Dashboard = () => {
             <p className="text-adaptive-600 mt-1">Panoramica completa del tuo patrimonio</p>
           </div>
 
-          {/* Patrimonio Totale */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-8 text-white mb-8 shadow-lg">
-            <div className="flex items-center justify-between">
+          {/* Patrimonio Totale con Grafico */}
+          <div className="rounded-xl p-8 text-white mb-8 shadow-lg" style={{
+            background: 'linear-gradient(to right, oklch(0.35 0.1 265.43), oklch(0.24 0.06 265.97))'
+          }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+              {/* Informazioni Patrimonio */}
               <div>
                 <h2 className="text-xl font-semibold opacity-90">💎 Patrimonio Totale</h2>
                 <p className="text-4xl font-bold mt-2">{formatCurrency(dashboardData.totals.totalPatrimony)}</p>
-                <div className="flex items-center mt-2 text-blue-100">
+                <div className="flex items-center mt-2 text-blue-100 mb-4">
                   <ArrowTrendingUpIcon className="w-5 h-5 mr-2" />
                   <span>Aggiornato in tempo reale</span>
                 </div>
+                
+                {/* Riepilogo componenti */}
+                <div className="space-y-2 text-sm">
+                  {patrimonioData.map((item, index) => (
+                    <div key={index} className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <span className="text-blue-100">{item.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-white font-semibold">{formatCurrency(item.value)}</div>
+                        <div className="text-blue-200 text-xs">{formatPercentage(item.percentage)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="text-6xl opacity-120">
-                💎
+              
+              {/* Grafico Patrimonio */}
+              <div className="flex justify-center">
+                {patrimonioData.length > 0 ? (
+                  <div className="w-64 h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={patrimonioData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={40}
+                          outerRadius={120}
+                          paddingAngle={2}
+                          dataKey="value"
+                          startAngle={90}
+                          endAngle={-270}
+                        >
+                          {patrimonioData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="w-64 h-64 flex items-center justify-center">
+                    <div className="text-center text-blue-100">
+                      <div className="text-6xl mb-4">💎</div>
+                      <div>Nessun dato disponibile</div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -598,7 +760,12 @@ const Dashboard = () => {
             {/* Allocazione Patrimonio */}
             <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-adaptive-900">💰 Liquidità + Assets</h3>
+                <div>
+                  <h3 className="text-lg font-semibold text-adaptive-900">💰 Liquidità + Assets</h3>
+                  <p className="text-sm text-adaptive-600">
+                    Totale: {formatCurrency(allocationData.reduce((sum, item) => sum + item.value, 0))}
+                  </p>
+                </div>
                 <button
                   onClick={() => setShowColorSettings(true)}
                   className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"

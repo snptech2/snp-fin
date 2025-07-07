@@ -34,6 +34,10 @@ model User {
   partitaIVAConfigs PartitaIVAConfig[]
   partitaIVAIncomes PartitaIVAIncome[]
   partitaIVATaxPayments PartitaIVATaxPayment[]
+  
+  // Beni Non Correnti e Crediti
+  nonCurrentAssets NonCurrentAsset[]
+  credits Credit[]
 
 }
 
@@ -358,4 +362,34 @@ model PartitaIVATaxPayment {
   account     Account? @relation(fields: [accountId], references: [id])
   
   @@map("partita_iva_tax_payments")
+}
+
+// 🏠 BENI NON CORRENTI - Casa, auto, terreni, etc.
+model NonCurrentAsset {
+  id          Int      @id @default(autoincrement())
+  name        String   // "Casa", "Auto", "Terreno"
+  description String?  // Descrizione dettagliata
+  value       Float    // Valore stimato in EUR
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  
+  @@map("non_current_assets")
+}
+
+// 💰 CREDITI - Prestiti ad altri, crediti vs aziende, etc.
+model Credit {
+  id          Int      @id @default(autoincrement())
+  name        String   // "Prestito a Mario", "Credito vs Azienda X"
+  description String?  // Descrizione dettagliata
+  amount      Float    // Importo in EUR
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  
+  @@map("credits")
 }
