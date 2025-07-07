@@ -110,7 +110,7 @@ export default function IncomePage() {
   // Stati per paginazione
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
-  const [showCategories, setShowCategories] = useState(true)
+  const [showCategories, setShowCategories] = useState(false)
   
   // Stati per selezione multipla
   const [selectedTransactions, setSelectedTransactions] = useState<number[]>([])
