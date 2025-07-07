@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { 
   PlusIcon, PencilIcon, TrashIcon, 
-  ArrowsRightLeftIcon, CheckIcon, XMarkIcon 
+  ArrowsRightLeftIcon, CheckIcon, XMarkIcon, ArrowPathIcon 
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
 
@@ -269,6 +269,28 @@ const handleSetDefaultAccount = async (accountId: number) => {
     setShowAccountModal(true)
   }
 
+  const handleRecalculateBalance = async (accountId: number, accountName: string) => {
+    if (confirm(`Ricalcolare il saldo per il conto "${accountName}"? Questa operazione aggiornerà il saldo basandosi su tutte le transazioni e trasferimenti.`)) {
+      try {
+        const response = await fetch(`/api/accounts/${accountId}`, {
+          method: 'POST'
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          alert(`Saldo ricalcolato per "${accountName}":\nVecchio saldo: ${formatCurrency(result.oldBalance)}\nNuovo saldo: ${formatCurrency(result.newBalance)}`)
+          await fetchData() // Refresh data
+        } else {
+          const error = await response.json()
+          alert(`Errore nel ricalcolo: ${error.error}`)
+        }
+      } catch (error) {
+        console.error('Error recalculating balance:', error)
+        alert('Errore durante il ricalcolo del saldo')
+      }
+    }
+  }
+
   // Transfer handlers
   const resetTransferForm = () => {
     setTransferForm({ 
@@ -491,6 +513,13 @@ const handleSetDefaultAccount = async (accountId: number) => {
                 <span className="text-sm">{account.isDefault ? '⭐' : '☆'}</span>
               </button>
               <button
+                onClick={() => handleRecalculateBalance(account.id, account.name)}
+                className="p-1 text-adaptive-600 hover:text-green-600"
+                title="Ricalcola saldo"
+              >
+                <ArrowPathIcon className="w-4 h-4" />
+              </button>
+              <button
                 onClick={() => handleEditAccount(account)}
                 className="p-1 text-adaptive-600 hover:text-blue-600"
               >
@@ -611,6 +640,13 @@ const handleSetDefaultAccount = async (accountId: number) => {
                           </p>
                         </div>
                         <div className="flex gap-1">
+                          <button
+                            onClick={() => handleRecalculateBalance(account.id, account.name)}
+                            className="p-1 text-adaptive-600 hover:text-green-600"
+                            title="Ricalcola saldo"
+                          >
+                            <ArrowPathIcon className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => handleEditAccount(account)}
                             className="p-1 text-adaptive-600 hover:text-blue-600"

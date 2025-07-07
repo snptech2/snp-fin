@@ -5,7 +5,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import { 
   PlusIcon, PencilIcon, TrashIcon, TagIcon, CurrencyEuroIcon, 
   FunnelIcon, MagnifyingGlassIcon, ChevronLeftIcon, ChevronRightIcon,
-  CalendarIcon, CheckIcon, ChevronDownIcon
+  CalendarIcon, CheckIcon, ChevronDownIcon, DocumentArrowUpIcon
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { usePathname } from 'next/navigation'
@@ -47,6 +47,16 @@ export default function IncomePage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Stati per import CSV
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvData, setCsvData] = useState<any[]>([])
+  const [showPreview, setShowPreview] = useState(false)
+  const [importResult, setImportResult] = useState<any>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const [useDefaultAccount, setUseDefaultAccount] = useState(true)
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
   
   // Stati per form transazione
   const [showTransactionForm, setShowTransactionForm] = useState(false)
@@ -99,12 +109,16 @@ export default function IncomePage() {
   
   // Stati per paginazione
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(25)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
   const [showCategories, setShowCategories] = useState(true)
   
   // Stati per selezione multipla
   const [selectedTransactions, setSelectedTransactions] = useState<number[]>([])
   const [selectAll, setSelectAll] = useState(false)
+  
+  // Stati per cancellazione bulk con progress
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0 })
   
   // Stati per gestione errori e caricamento
   const [error, setError] = useState('')
@@ -140,11 +154,13 @@ export default function IncomePage() {
       return acc
     }, {})
 
-    return Object.entries(categoryTotals).map(([name, data]) => ({
-      name,
-      value: data.amount,
-      color: data.color
-    }))
+    return Object.entries(categoryTotals)
+      .map(([name, data]) => ({
+        name,
+        value: data.amount,
+        color: data.color
+      }))
+      .sort((a, b) => b.value - a.value)
   }, [getCurrentMonthTransactions])
 
   // Calcola dati per grafico totale
@@ -160,11 +176,13 @@ export default function IncomePage() {
       return acc
     }, {})
 
-    return Object.entries(categoryTotals).map(([name, data]) => ({
-      name,
-      value: data.amount,
-      color: data.color
-    }))
+    return Object.entries(categoryTotals)
+      .map(([name, data]) => ({
+        name,
+        value: data.amount,
+        color: data.color
+      }))
+      .sort((a, b) => b.value - a.value)
   }, [transactions])
 
   // Calcola totali
@@ -213,6 +231,227 @@ export default function IncomePage() {
       setLoading(false)
     }
   }
+
+  // === FUNZIONI IMPORT CSV ===
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setCsvFile(file)
+    
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target?.result as string
+      const lines = text.split('\n').filter(line => line.trim())
+      
+      if (lines.length < 2) {
+        setError('Il file CSV deve contenere almeno una riga di header e una di dati')
+        return
+      }
+
+      // Funzione per parsare CSV considerando le virgolette
+      const parseCSVLine = (line: string) => {
+        const result = []
+        let current = ''
+        let inQuotes = false
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i]
+          
+          if (char === '"') {
+            inQuotes = !inQuotes
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim())
+            current = ''
+          } else {
+            current += char
+          }
+        }
+        result.push(current.trim())
+        return result
+      }
+
+      // Parse headers
+      const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase())
+      const expectedHeaders = ['data', 'descrizione', 'importo', 'categoria', 'conto']
+      
+      // Verifica headers
+      const isValidFormat = expectedHeaders.every(header => 
+        headers.includes(header) || headers.includes(header.replace('à', 'a'))
+      )
+      
+      if (!isValidFormat) {
+        setError(`Formato CSV non valido. Headers richiesti: ${expectedHeaders.join(', ')}`)
+        return
+      }
+
+      // Parse righe
+      const rows = lines.slice(1).map(line => {
+        const values = parseCSVLine(line)
+        return {
+          data: values[headers.indexOf('data')] || '',
+          descrizione: values[headers.indexOf('descrizione')] || '',
+          importo: values[headers.indexOf('importo')] || '',
+          categoria: values[headers.indexOf('categoria')] || '',
+          conto: values[headers.indexOf('conto')] || ''
+        }
+      }).filter(row => row.data && row.importo && row.categoria) // Filtra righe incomplete
+
+      setCsvData(rows)
+      setShowPreview(true)
+      setError('')
+    }
+    reader.readAsText(file)
+  }
+
+  const handleImportCSV = async () => {
+    if (csvData.length === 0) return
+
+    console.log('🚀 Starting CSV import for income page, csvData length:', csvData.length)
+    setIsImporting(true)
+    setImportResult(null)
+    setImportProgress({ current: 0, total: csvData.length, currentBatch: 0, totalBatches: 0 })
+    console.log('📊 Initial progress state set:', { current: 0, total: csvData.length, currentBatch: 0, totalBatches: 0 })
+
+    try {
+      // Usa SSE per progress tracking in tempo reale
+      const response = await fetch('/api/transactions/import-csv-income-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csvData })
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (!reader) {
+        throw new Error('Response body reader not available')
+      }
+
+      let result = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        
+        if (done) break
+
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              console.log('📊 SSE Data received:', data)
+              
+              if (data.type === 'progress') {
+                console.log('📈 Updating progress:', {
+                  current: data.current,
+                  total: data.total,
+                  currentBatch: data.currentBatch,
+                  totalBatches: data.totalBatches
+                })
+                setImportProgress({
+                  current: data.current,
+                  total: data.total,
+                  currentBatch: data.currentBatch,
+                  totalBatches: data.totalBatches
+                })
+              } else if (data.type === 'complete') {
+                console.log('✅ Import complete:', data.result)
+                result = data.result
+              } else if (data.type === 'error') {
+                console.error('❌ Import error:', data.error)
+                throw new Error(data.error)
+              }
+            } catch (parseError) {
+              console.error('Errore parsing SSE data:', parseError)
+            }
+          }
+        }
+      }
+      
+      // Assicurati che il risultato abbia la struttura corretta
+      const safeResult = {
+        success: result?.success || false,
+        imported: result?.imported || 0,
+        errors: result?.errors || [],
+        createdCategories: result?.createdCategories || []
+      }
+      
+      setImportResult(safeResult)
+
+      if (safeResult.success && safeResult.imported > 0) {
+        fetchData() // Refresh data
+        // Non resettare il modal immediatamente - lascia che l'utente veda i risultati
+      }
+    } catch (error) {
+      console.error('Errore durante import CSV:', error)
+      setImportResult({
+        success: false,
+        imported: 0,
+        errors: [
+          'Errore durante l\'import del CSV.',
+          error instanceof Error ? error.message : 'Errore sconosciuto'
+        ],
+        createdCategories: []
+      })
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  const resetImportModal = () => {
+    setShowImportModal(false)
+    setShowPreview(false)
+    setCsvFile(null)
+    setCsvData([])
+    setImportResult(null)
+    setIsImporting(false)
+    setUseDefaultAccount(true)
+    setImportProgress({ current: 0, total: 0, currentBatch: 0, totalBatches: 0 })
+    setError('')
+  }
+
+  // === FUNZIONI BULK DELETE ===
+  const handleBulkDelete = async () => {
+    if (selectedTransactions.length === 0) return
+
+    setIsDeleting(true)
+    setDeleteProgress({ current: 0, total: selectedTransactions.length })
+
+    try {
+      // Elimina transazioni una per una con feedback
+      for (let i = 0; i < selectedTransactions.length; i++) {
+        const transactionId = selectedTransactions[i]
+        
+        await fetch(`/api/transactions/${transactionId}`, {
+          method: 'DELETE'
+        })
+        
+        setDeleteProgress({ current: i + 1, total: selectedTransactions.length })
+        
+        // Piccola pausa per mostrare il progresso
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+
+      // Refresh data e reset selezione
+      await fetchData()
+      setSelectedTransactions([])
+      setSelectAll(false)
+    } catch (error) {
+      console.error('Errore durante eliminazione bulk:', error)
+      setError('Errore durante l\'eliminazione delle transazioni')
+    } finally {
+      setIsDeleting(false)
+      setDeleteProgress({ current: 0, total: 0 })
+    }
+  }
+
 
   // Funzioni di reset form
   const resetTransactionForm = () => {
@@ -427,23 +666,6 @@ export default function IncomePage() {
     setSelectAll(!selectAll)
   }
 
-  // Cancellazione multipla
-  const handleBulkDelete = async () => {
-    if (!confirm(`Sei sicuro di voler cancellare ${selectedTransactions.length} entrate?`)) return
-
-    try {
-      await Promise.all(
-        selectedTransactions.map(id => 
-          fetch(`/api/transactions/${id}`, { method: 'DELETE' })
-        )
-      )
-      setSelectedTransactions([])
-      setSelectAll(false)
-      fetchData()
-    } catch (error) {
-      setError('Errore durante la cancellazione multipla')
-    }
-  }
 
   // Calcoli per statistiche
   const totalIncome = transactions.reduce((sum, transaction) => sum + transaction.amount, 0)
@@ -476,7 +698,7 @@ export default function IncomePage() {
     <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
       <h3 className="text-lg font-medium text-adaptive-900 mb-6">{title}</h3>
       
-      <div className="flex items-center gap-6">
+      <div className="flex items-start gap-6">
         {/* Pie Chart */}
         <div className="w-40 h-40">
           <ResponsiveContainer width="100%" height="100%">
@@ -489,6 +711,8 @@ export default function IncomePage() {
                 outerRadius={70}
                 paddingAngle={2}
                 dataKey="value"
+                startAngle={90}
+                endAngle={-270}
               >
                 {data.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
@@ -564,13 +788,22 @@ export default function IncomePage() {
             <h1 className="text-3xl font-bold text-adaptive-900">Entrate</h1>
             <p className="text-adaptive-600">Gestisci le tue entrate e categorie</p>
           </div>
-          <button
-            onClick={() => setShowTransactionForm(true)}
-            className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2"
-          >
-            <PlusIcon className="w-5 h-5" />
-            Nuova Entrata
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 transition-colors"
+            >
+              <DocumentArrowUpIcon className="w-5 h-5" />
+              Import CSV
+            </button>
+            <button
+              onClick={() => setShowTransactionForm(true)}
+              className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Nuova Entrata
+            </button>
+          </div>
         </div>
 
         {/* Statistiche */}
@@ -600,27 +833,6 @@ export default function IncomePage() {
             </button>
           </div>
         </div>
-
-        {/* === RIEPILOGHI CON GRAFICI === */}
-        {!loading && transactions.length > 0 && (
-          <div className="mb-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Riepilogo Mese Corrente */}
-              {renderPieChart(
-                currentMonthChartData, 
-                `📊 ${pathname === '/income' ? 'Entrate' : 'Uscite'} - ${new Date().toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}`,
-                currentMonthTotal
-              )}
-              
-              {/* Riepilogo Totale */}
-              {renderPieChart(
-                totalChartData, 
-                `📈 Totale ${pathname === '/income' ? 'Entrate' : 'Uscite'}`,
-                grandTotal
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Gestione Categorie */}
         <div className={`card-adaptive rounded-lg p-6 transition-all duration-300 ${
@@ -674,6 +886,28 @@ export default function IncomePage() {
             </div>
           )}
         </div>
+
+        {/* === RIEPILOGHI CON GRAFICI === */}
+        {!loading && transactions.length > 0 && (
+          <div className="mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              {/* Riepilogo Mese Corrente */}
+              {renderPieChart(
+                currentMonthChartData, 
+                `📊 ${pathname === '/income' ? 'Entrate' : 'Uscite'} - ${new Date().toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}`,
+                currentMonthTotal
+              )}
+              
+              {/* Riepilogo Totale */}
+              {renderPieChart(
+                totalChartData, 
+                `📈 Totale ${pathname === '/income' ? 'Entrate' : 'Uscite'}`,
+                grandTotal
+              )}
+            </div>
+          </div>
+        )}
+
 
         {/* Lista Transazioni con Filtri */}
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
@@ -812,6 +1046,8 @@ export default function IncomePage() {
                       <option value={10}>10</option>
                       <option value={25}>25</option>
                       <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={filteredTransactions.length}>Tutte ({filteredTransactions.length})</option>
                     </select>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1116,6 +1352,262 @@ export default function IncomePage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Delete Progress Modal */}
+        {isDeleting && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-adaptive rounded-lg p-6 w-full max-w-md border border-adaptive">
+              <h3 className="text-lg font-bold text-adaptive-900 mb-4">Cancellazione in corso...</h3>
+              
+              <div className="space-y-3">
+                {/* Progress bar */}
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div 
+                    className="bg-red-600 h-3 rounded-full transition-all duration-300 ease-out"
+                    style={{ 
+                      width: `${deleteProgress.total > 0 ? (deleteProgress.current / deleteProgress.total) * 100 : 0}%` 
+                    }}
+                  ></div>
+                </div>
+                
+                {/* Stats */}
+                <div className="flex justify-between text-sm text-adaptive-900 font-medium">
+                  <span>Cancellate: {deleteProgress.current} / {deleteProgress.total}</span>
+                  <span className="font-medium">
+                    {deleteProgress.total > 0 ? Math.round((deleteProgress.current / deleteProgress.total) * 100) : 0}%
+                  </span>
+                </div>
+                
+                {/* Loading indicator */}
+                <div className="flex items-center justify-center space-x-2 pt-2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
+                  <span className="text-sm text-adaptive-900 font-medium">Eliminazione transazioni...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CSV Import Modal */}
+        {showImportModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-adaptive rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-adaptive">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-adaptive-900">Import CSV Entrate</h2>
+                <button
+                  onClick={resetImportModal}
+                  disabled={isImporting}
+                  className={`${isImporting ? 'text-adaptive-300 cursor-not-allowed' : 'text-adaptive-500 hover:text-adaptive-700'}`}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {!showPreview && !importResult && (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="font-medium text-blue-900 mb-2">📋 Formato CSV Richiesto</h3>
+                    <p className="text-sm text-blue-800 mb-2">Il file CSV deve contenere le seguenti colonne nell'ordine esatto:</p>
+                    <div className="bg-gray-100 rounded border p-2 font-mono text-sm text-gray-900 font-semibold">
+                      data,descrizione,importo,categoria,conto
+                    </div>
+                    <ul className="text-sm text-blue-800 mt-2 space-y-1">
+                      <li>• <strong>data:</strong> formato DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD o DD MMM YYYY</li>
+                      <li>• <strong>descrizione:</strong> descrizione della transazione (opzionale)</li>
+                      <li>• <strong>importo:</strong> importo positivo. Se contiene virgole, racchiudere tra virgolette: "€18,000.00", "1.234,56"</li>
+                      <li>• <strong>categoria:</strong> nome categoria (verrà creata automaticamente se non esiste)</li>
+                      <li>• <strong>conto:</strong> nome del conto bancario esistente (opzionale se fallback abilitato)</li>
+                    </ul>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <label className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          checked={useDefaultAccount}
+                          onChange={(e) => setUseDefaultAccount(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">
+                          Usa conto predefinito per righe senza conto specificato
+                        </span>
+                      </label>
+                      {useDefaultAccount && (
+                        <p className="text-xs text-gray-500 mt-1 ml-7">
+                          Verrà usato: {accounts.find(acc => acc.isDefault && acc.type === 'bank')?.name || 
+                                       accounts.find(acc => acc.type === 'bank')?.name || 'Nessun conto disponibile'}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                      <DocumentArrowUpIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-600 mb-4">Seleziona il file CSV da importare</p>
+                      <input
+                        type="file"
+                        accept=".csv"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id="csv-upload"
+                      />
+                      <label 
+                        htmlFor="csv-upload"
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-700 transition-colors"
+                      >
+                        Scegli File CSV
+                      </label>
+                      {csvFile && (
+                        <p className="text-sm text-gray-600 mt-2">
+                          File selezionato: {csvFile.name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Progress Bar durante l'import */}
+              {isImporting && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold text-adaptive-900">Import in corso...</h3>
+                  
+                  <div className="space-y-3">
+                    {/* Progress bar principale */}
+                    <div className="w-full bg-gray-200 rounded-full h-4">
+                      <div 
+                        className="bg-blue-600 h-4 rounded-full transition-all duration-300 ease-out"
+                        style={{ 
+                          width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` 
+                        }}
+                      ></div>
+                    </div>
+                    
+                    {/* Statistiche progresso */}
+                    <div className="flex justify-between text-sm text-adaptive-900 font-medium">
+                      <span>{importProgress.current} / {importProgress.total} righe processate</span>
+                      <span className="font-medium">{importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0}%</span>
+                    </div>
+                    
+                    {/* Batch info */}
+                    {importProgress.totalBatches > 1 && (
+                      <div className="text-sm text-adaptive-900 text-center font-semibold">
+                        Batch {importProgress.currentBatch} / {importProgress.totalBatches}
+                      </div>
+                    )}
+                    
+                    {/* Loading spinner */}
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                      <span className="text-sm text-adaptive-900 font-semibold">Importazione in corso...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {showPreview && csvData.length > 0 && !importResult && !isImporting && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium">Anteprima Dati ({csvData.length} righe)</h3>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowPreview(false)}
+                        className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        Indietro
+                      </button>
+                      <button
+                        onClick={handleImportCSV}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      >
+                        Conferma Import
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="max-h-96 overflow-auto border rounded-lg">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-2 text-left">Data</th>
+                          <th className="px-4 py-2 text-left">Descrizione</th>
+                          <th className="px-4 py-2 text-left">Importo</th>
+                          <th className="px-4 py-2 text-left">Categoria</th>
+                          <th className="px-4 py-2 text-left">Conto</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvData.slice(0, 50).map((row, index) => (
+                          <tr key={index} className="border-t">
+                            <td className="px-4 py-2">{row.data}</td>
+                            <td className="px-4 py-2">{row.descrizione || '-'}</td>
+                            <td className="px-4 py-2">€{row.importo}</td>
+                            <td className="px-4 py-2">{row.categoria}</td>
+                            <td className="px-4 py-2">{row.conto || 'Default'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {csvData.length > 50 && (
+                      <div className="p-4 text-center text-gray-500 bg-gray-50">
+                        ... e altre {csvData.length - 50} righe
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {importResult && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Risultato Import</h3>
+                  
+                  <div className={`p-4 rounded-lg ${importResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {importResult.success ? (
+                        <CheckIcon className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <span className="text-red-600">❌</span>
+                      )}
+                      <span className={`font-medium ${importResult.success ? 'text-green-800' : 'text-red-800'}`}>
+                        {importResult.success ? 'Import completato!' : 'Import fallito'}
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-1 text-sm">
+                      <p className={`${importResult.success ? 'text-green-800' : 'text-red-800'}`}>• <strong>Transazioni importate:</strong> {importResult.imported}</p>
+                      {importResult.createdCategories?.length > 0 && (
+                        <p className={`${importResult.success ? 'text-green-800' : 'text-red-800'}`}>• <strong>Nuove categorie create:</strong> {importResult.createdCategories.join(', ')}</p>
+                      )}
+                      {importResult.errors?.length > 0 && (
+                        <p className={`${importResult.success ? 'text-green-800' : 'text-red-800'}`}>• <strong>Errori:</strong> {importResult.errors.length}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {importResult.errors?.length > 0 && (
+                    <div className="max-h-48 overflow-auto bg-red-50 border border-red-200 rounded-lg p-4">
+                      <h4 className="font-medium text-red-800 mb-2">Errori dettagliati:</h4>
+                      <ul className="text-sm text-red-700 space-y-1">
+                        {importResult.errors.map((error, index) => (
+                          <li key={index}>• {error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={resetImportModal}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Chiudi
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

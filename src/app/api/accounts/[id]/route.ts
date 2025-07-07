@@ -16,7 +16,8 @@ export async function PUT(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
-    const { name, balance } = await request.json()
+    const body = await request.json()
+    const { name, balance } = body
     const accountId = parseInt(params.id)
     
     if (isNaN(accountId)) {
@@ -26,21 +27,110 @@ export async function PUT(
       )
     }
     
+    // Costruisci i dati da aggiornare
+    const updateData: any = { name }
+    
+    // Solo aggiorna il saldo se viene fornito esplicitamente
+    if (balance !== undefined && balance !== null) {
+      updateData.balance = parseFloat(balance) || 0
+    }
+    
     const updatedAccount = await prisma.account.update({
       where: { 
         id: accountId,
         userId 
       },
-      data: {
-        name,
-        balance: parseFloat(balance) || 0
-      }
+      data: updateData
     })
     
     return NextResponse.json(updatedAccount)
   } catch (error) {
     console.error('Errore nell\'aggiornamento conto:', error)
     return NextResponse.json({ error: 'Errore nell\'aggiornamento conto' }, { status: 500 })
+  }
+}
+
+// POST - Ricalcola saldo conto basandosi sulle transazioni
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    // 🔐 Autenticazione
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+    
+    const accountId = parseInt(params.id)
+    
+    if (isNaN(accountId)) {
+      return NextResponse.json(
+        { error: 'ID account non valido' },
+        { status: 400 }
+      )
+    }
+    
+    // Verifica che l'account appartenga all'utente
+    const account = await prisma.account.findFirst({
+      where: { 
+        id: accountId,
+        userId 
+      }
+    })
+    
+    if (!account) {
+      return NextResponse.json(
+        { error: 'Account non trovato' },
+        { status: 404 }
+      )
+    }
+    
+    // Calcola il saldo basandosi sulle transazioni
+    const transactions = await prisma.transaction.findMany({
+      where: { accountId }
+    })
+    
+    let calculatedBalance = 0
+    transactions.forEach(transaction => {
+      if (transaction.type === 'income') {
+        calculatedBalance += transaction.amount
+      } else if (transaction.type === 'expense') {
+        calculatedBalance -= transaction.amount
+      }
+    })
+    
+    // Considera anche i trasferimenti
+    const incomingTransfers = await prisma.transfer.findMany({
+      where: { toAccountId: accountId }
+    })
+    
+    const outgoingTransfers = await prisma.transfer.findMany({
+      where: { fromAccountId: accountId }
+    })
+    
+    incomingTransfers.forEach(transfer => {
+      calculatedBalance += transfer.amount
+    })
+    
+    outgoingTransfers.forEach(transfer => {
+      calculatedBalance -= (transfer.amount + (transfer.fee || 0))
+    })
+    
+    // Aggiorna il saldo
+    const updatedAccount = await prisma.account.update({
+      where: { id: accountId },
+      data: { balance: calculatedBalance }
+    })
+    
+    return NextResponse.json({
+      success: true,
+      oldBalance: account.balance,
+      newBalance: calculatedBalance,
+      account: updatedAccount
+    })
+  } catch (error) {
+    console.error('Errore nel ricalcolo saldo conto:', error)
+    return NextResponse.json({ error: 'Errore nel ricalcolo saldo conto' }, { status: 500 })
   }
 }
 

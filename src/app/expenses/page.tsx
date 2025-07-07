@@ -456,16 +456,37 @@ export default function ExpensesPage() {
         return
       }
 
+      // Funzione per parsare CSV considerando le virgolette
+      const parseCSVLine = (line: string) => {
+        const result = []
+        let current = ''
+        let inQuotes = false
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i]
+          
+          if (char === '"') {
+            inQuotes = !inQuotes
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim())
+            current = ''
+          } else {
+            current += char
+          }
+        }
+        result.push(current.trim())
+        return result
+      }
+
       // Skip header row and parse data
-      const headers = lines[0].split(',').map(h => h.trim())
+      const headers = parseCSVLine(lines[0]).map(h => h.trim())
       console.log('📋 Headers trovati:', headers)
       
       const defaultAccount = accounts.find(acc => acc.isDefault && acc.type === 'bank') || 
                            accounts.find(acc => acc.type === 'bank')
-      
+
       const allParsedRows = lines.slice(1).map((line, index) => {
-        // TEMPORANEO: Rollback a parser semplice per debug
-        const values = line.split(',').map(v => v.trim())
+        const values = parseCSVLine(line)
         const row = {
           originalLine: line,
           lineNumber: index + 2, // +2 perché iniziamo da 1 e saltiamo header
@@ -646,9 +667,7 @@ export default function ExpensesPage() {
 
       if (safeResult.success && safeResult.imported > 0) {
         fetchData() // Refresh data
-        setCsvFile(null)
-        setCsvData([])
-        setShowPreview(false)
+        // Non resettare il modal immediatamente - lascia che l'utente veda i risultati
       }
     } catch (error) {
       console.error('Errore durante import CSV:', error)
