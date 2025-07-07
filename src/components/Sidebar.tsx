@@ -15,7 +15,6 @@ const navigation = [
   { name: 'Beni Non Correnti', href: '/beni-non-correnti', icon: '🏠' },
   { name: 'Crediti', href: '/crediti', icon: '💰' },
   { name: 'Investimenti', href: '/investments', icon: '📈' },
-  { name: 'Altro', href: '/other', icon: '📄' },
   { name: 'Changelog', href: '/changelog', icon: '📝' },
 ]
 

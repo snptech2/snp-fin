@@ -452,7 +452,7 @@ const Dashboard = () => {
     // Liquidità Bancaria (senza riserva tasse)
     if (dashboardData.totals.liquiditaBancaria > 0) {
       data.push({
-        name: 'Liquidità al Netto delle Tasse',
+        name: 'Conti Bancari - Tasse',
         value: dashboardData.totals.liquiditaBancaria,
         color: '#3B82F6', // Blu
         percentage: totalPatrimony > 0 ? (dashboardData.totals.liquiditaBancaria / totalPatrimony) * 100 : 0

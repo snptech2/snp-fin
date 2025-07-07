@@ -16,7 +16,8 @@ export async function GET(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
-    const transactionId = parseInt(params.id)
+    const resolvedParams = await params
+    const transactionId = parseInt(resolvedParams.id)
 
     const transaction = await prisma.transaction.findFirst({
       where: {
@@ -61,7 +62,8 @@ export async function PUT(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
-    const transactionId = parseInt(params.id)
+    const resolvedParams = await params
+    const transactionId = parseInt(resolvedParams.id)
     const body = await request.json()
     const { description, amount, date, accountId, categoryId, type } = body
 
@@ -192,7 +194,8 @@ export async function DELETE(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
-    const transactionId = parseInt(params.id)
+    const resolvedParams = await params
+    const transactionId = parseInt(resolvedParams.id)
 
     // Recupera transazione esistente
     const existingTransaction = await prisma.transaction.findFirst({

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') // 'income' o 'expense'
     const accountId = searchParams.get('accountId')
     const categoryId = searchParams.get('categoryId')
-    const limit = parseInt(searchParams.get('limit') || '50')
+    const limit = parseInt(searchParams.get('limit') || '1000') // Aumentato limite default
 
     // Costruisci filtri
     const where: any = {
