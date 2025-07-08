@@ -36,8 +36,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 3 - Configurazione moduli custom
-    if (moduleSettings && profileId === 'custom') {
+    // Step 3 e 4 - Configurazione moduli custom
+    if (moduleSettings) {
+      console.log('🔧 API ONBOARDING DEBUG - Custom modules:')
+      console.log('- Received moduleSettings:', moduleSettings)
+      console.log('- EnabledModules:', moduleSettings.enabledModules)
+      console.log('- ProfileId:', profileId)
       updateData.moduleSettings = moduleSettings
     }
 

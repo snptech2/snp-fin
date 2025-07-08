@@ -52,8 +52,21 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
       // Step 3: Salva moduli custom
       if (currentStep === 3 && selectedProfile === 'custom') {
+        // 🔧 FIX: Includi sempre i moduli core per il profilo custom
+        const coreModules = Object.keys(APP_MODULES).filter(moduleId => 
+          APP_MODULES[moduleId].category === 'core'
+        )
+        
+        // Combina core modules con i moduli opzionali selezionati
+        const allEnabledModules = Array.from(new Set([...coreModules, ...customModules]))
+        
+        console.log('🔧 ONBOARDING DEBUG:')
+        console.log('- Core modules:', coreModules)
+        console.log('- Custom modules:', customModules)
+        console.log('- All enabled modules:', allEnabledModules)
+        
         const moduleSettings: UserModuleSettings = {
-          enabledModules: customModules,
+          enabledModules: allEnabledModules,
           preferences: {}
         }
         requestData.moduleSettings = moduleSettings
@@ -71,6 +84,8 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         requestData.categoryData = getDefaultCategories(selectedProfile)
       }
 
+      console.log('🚀 Sending to API:', requestData)
+      
       const response = await fetch('/api/user/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

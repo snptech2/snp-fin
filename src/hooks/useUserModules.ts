@@ -63,9 +63,30 @@ export const useUserModules = () => {
     }
 
     const currentModules = moduleSettings.enabledModules
-    const newModules = currentModules.includes(moduleId)
-      ? currentModules.filter(id => id !== moduleId)
-      : [...currentModules, moduleId]
+    
+    let newModules: string[]
+    
+    if (currentModules.includes(moduleId)) {
+      // Disattivazione - rimuovi il modulo
+      newModules = currentModules.filter(id => id !== moduleId)
+    } else {
+      // Attivazione - aggiungi il modulo e le sue dipendenze
+      const { APP_MODULES } = await import('@/utils/modules')
+      const module = APP_MODULES[moduleId]
+      
+      // Aggiungi il modulo stesso
+      newModules = [...currentModules, moduleId]
+      
+      // Aggiungi automaticamente le dipendenze se non ci sono
+      if (module?.dependencies) {
+        module.dependencies.forEach(depId => {
+          if (!newModules.includes(depId)) {
+            newModules.push(depId)
+            console.log(`🔗 Auto-adding dependency: ${depId}`)
+          }
+        })
+      }
+    }
 
     console.log('📦 Current modules:', currentModules)
     console.log('📦 New modules:', newModules)

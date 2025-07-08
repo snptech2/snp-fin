@@ -27,8 +27,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Utente non trovato' }, { status: 404 })
     }
 
+    // 🔧 FIX: Se moduleSettings è null ma l'onboarding è completato, inizializza con il profilo
+    let moduleSettings = user.moduleSettings as UserModuleSettings | null
+    
+    if (!moduleSettings && user.onboardingCompleted && user.appProfile) {
+      console.log('🔧 Initializing missing moduleSettings for profile:', user.appProfile)
+      const { getDefaultModuleSettings } = await import('@/utils/modules')
+      moduleSettings = getDefaultModuleSettings(user.appProfile)
+      
+      // Salva le impostazioni nel database
+      await prisma.user.update({
+        where: { id: userId },
+        data: { moduleSettings: moduleSettings }
+      })
+    }
+
     return NextResponse.json({
-      moduleSettings: user.moduleSettings as UserModuleSettings | null,
+      moduleSettings,
       appProfile: user.appProfile,
       onboardingCompleted: user.onboardingCompleted,
       onboardingStep: user.onboardingStep

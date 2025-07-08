@@ -152,8 +152,19 @@ export type UserModuleSettings = {
 
 export const getDefaultModuleSettings = (profileId: string): UserModuleSettings => {
   const profile = APP_PROFILES[profileId]
+  
+  // 🔧 FIX: I moduli core devono essere sempre inclusi
+  const coreModules = Object.keys(APP_MODULES).filter(moduleId => 
+    APP_MODULES[moduleId].category === 'core'
+  )
+  
+  const profileModules = profile?.modules || []
+  
+  // Combina core modules con i moduli del profilo (senza duplicati)
+  const enabledModules = Array.from(new Set([...coreModules, ...profileModules]))
+  
   return {
-    enabledModules: profile?.modules || [],
+    enabledModules,
     preferences: {}
   }
 }
