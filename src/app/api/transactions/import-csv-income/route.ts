@@ -247,8 +247,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error(`Errore nell'import CSV entrate:`, error)
     return NextResponse.json(
-      { error: 'Errore nell\\'import CSV' },
-      { status: 500 }
+{ error: `Errore nell'import CSV` },      
+{ status: 500 }
     )
   }
 }
