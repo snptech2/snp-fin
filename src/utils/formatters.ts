@@ -107,3 +107,46 @@ export const debounce = <T extends (...args: unknown[]) => void>(
     timeoutId = setTimeout(() => func(...args), delay)
   }
 }
+
+/**
+ * Verifica se una categoria è fiscale (tasse, imposte, contributi)
+ */
+export const isFiscalCategory = (categoryName: string): boolean => {
+  if (!categoryName) return false
+  
+  const fiscalKeywords = [
+    'tasse', 'imposte', 'contributi', 'f24', 'irpef', 'inps', 'irap',
+    'partita iva', 'fiscali', 'pagamenti fiscali', 'pagamenti tasse'
+  ]
+  
+  const normalizedName = categoryName.toLowerCase().trim()
+  
+  return fiscalKeywords.some(keyword => 
+    normalizedName.includes(keyword)
+  )
+}
+
+/**
+ * Verifica se una transazione è fiscale basandosi sulla categoria
+ */
+export const isFiscalTransaction = (transaction: { category: { name: string } }): boolean => {
+  return isFiscalCategory(transaction.category.name)
+}
+
+/**
+ * Filtra le transazioni escludendo quelle fiscali
+ */
+export const filterOutFiscalTransactions = <T extends { category: { name: string } }>(
+  transactions: T[]
+): T[] => {
+  return transactions.filter(transaction => !isFiscalTransaction(transaction))
+}
+
+/**
+ * Filtra solo le transazioni fiscali
+ */
+export const filterFiscalTransactions = <T extends { category: { name: string } }>(
+  transactions: T[]
+): T[] => {
+  return transactions.filter(transaction => isFiscalTransaction(transaction))
+}

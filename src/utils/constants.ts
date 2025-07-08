@@ -124,6 +124,31 @@ export const BUDGET_TYPES = {
   UNLIMITED: 'unlimited'
 } as const
 
+// ========== CATEGORIE FISCALI ==========
+export const TAX_CATEGORIES = {
+  PARTITA_IVA_TAXES: 'Tasse Partita IVA',
+  PARTITA_IVA_INCOME: 'Entrate Partita IVA',
+  TAX_PAYMENTS: 'Pagamenti Fiscali',
+  IRPEF: 'IRPEF',
+  INPS: 'INPS',
+  IRAP: 'IRAP'
+} as const
+
+// Lista nomi di categorie che devono essere escluse dalle statistiche operative
+export const FISCAL_CATEGORY_NAMES = [
+  TAX_CATEGORIES.PARTITA_IVA_TAXES,
+  TAX_CATEGORIES.TAX_PAYMENTS,
+  TAX_CATEGORIES.IRPEF,
+  TAX_CATEGORIES.INPS,
+  TAX_CATEGORIES.IRAP,
+  // Varianti possibili
+  'Tasse',
+  'Imposte',
+  'Contributi',
+  'F24',
+  'Pagamenti Tasse'
+] as const
+
 // ========== STATUS ==========
 export const STATUS_CONFIG = {
   LOADING: 'loading',

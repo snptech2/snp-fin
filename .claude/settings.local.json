@@ -4,7 +4,8 @@
       "Bash(find:*)",
       "Bash(rg:*)",
       "Bash(mkdir:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(claude doctor)"
     ],
     "deny": []
   }

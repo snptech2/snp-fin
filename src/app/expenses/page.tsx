@@ -1,5 +1,9 @@
 'use client'
-import { formatCurrency } from '@/utils/formatters'
+import { 
+  formatCurrency, 
+  filterOutFiscalTransactions, 
+  filterFiscalTransactions 
+} from '@/utils/formatters'
 import { useState, useEffect, useMemo } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { 
@@ -127,67 +131,6 @@ export default function ExpensesPage() {
   // Pathname per i grafici
   const pathname = usePathname()
 
-  // === NUOVE FUNZIONI PER RIEPILOGHI === 
-  // Calcola transazioni del mese corrente
-  const getCurrentMonthTransactions = useMemo(() => {
-    const now = new Date()
-    const currentMonth = now.getMonth()
-    const currentYear = now.getFullYear()
-    
-    return transactions.filter(transaction => {
-      const transactionDate = new Date(transaction.date)
-      return transactionDate.getMonth() === currentMonth && 
-             transactionDate.getFullYear() === currentYear
-    })
-  }, [transactions])
-
-  // Calcola dati per grafico mese corrente  
-  const currentMonthChartData = useMemo(() => {
-    const categoryTotals = getCurrentMonthTransactions.reduce((acc, transaction) => {
-      const categoryName = transaction.category.name
-      const categoryColor = transaction.category.color || '#EF4444'
-      
-      if (!acc[categoryName]) {
-        acc[categoryName] = { amount: 0, color: categoryColor }
-      }
-      acc[categoryName].amount += transaction.amount
-      return acc
-    }, {})
-
-    return Object.entries(categoryTotals)
-      .map(([name, data]) => ({
-        name,
-        value: data.amount,
-        color: data.color
-      }))
-      .sort((a, b) => b.value - a.value)
-  }, [getCurrentMonthTransactions])
-
-  // Calcola dati per grafico totale
-  const totalChartData = useMemo(() => {
-    const categoryTotals = transactions.reduce((acc, transaction) => {
-      const categoryName = transaction.category.name
-      const categoryColor = transaction.category.color || '#EF4444'
-      
-      if (!acc[categoryName]) {
-        acc[categoryName] = { amount: 0, color: categoryColor }
-      }
-      acc[categoryName].amount += transaction.amount
-      return acc
-    }, {})
-
-    return Object.entries(categoryTotals)
-      .map(([name, data]) => ({
-        name,
-        value: data.amount,
-        color: data.color
-      }))
-      .sort((a, b) => b.value - a.value)
-  }, [transactions])
-
-  // Calcola totali
-  const currentMonthTotal = getCurrentMonthTransactions.reduce((sum, t) => sum + t.amount, 0)
-  const grandTotal = transactions.reduce((sum, t) => sum + t.amount, 0)
 
   // Trova conto predefinito
   const getDefaultAccount = () => {
@@ -773,16 +716,25 @@ export default function ExpensesPage() {
     }
   }
 
-  // Calcoli per statistiche
-  const totalExpenses = transactions.reduce((sum, transaction) => sum + transaction.amount, 0)
-  const currentMonthExpenses = transactions
+  // Calcoli per statistiche - ESCLUSE TASSE FISCALI
+  const operationalTransactions = filterOutFiscalTransactions(transactions)
+  const fiscalTransactions = filterFiscalTransactions(transactions)
+  
+  const totalExpenses = operationalTransactions.reduce((sum, transaction) => sum + transaction.amount, 0)
+  const currentMonthExpenses = operationalTransactions
+    .filter(t => new Date(t.date).getMonth() === new Date().getMonth())
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
+  
+  // Calcoli separati per tasse fiscali
+  const totalFiscalExpenses = fiscalTransactions.reduce((sum, transaction) => sum + transaction.amount, 0)
+  const currentMonthFiscalExpenses = fiscalTransactions
     .filter(t => new Date(t.date).getMonth() === new Date().getMonth())
     .reduce((sum, transaction) => sum + transaction.amount, 0)
 
-  // Statistiche per categoria
+  // Statistiche per categoria - SOLO OPERATIVE (senza tasse fiscali)
   const categoryStats = useMemo(() => {
     const stats = categories.map(category => {
-      const categoryTransactions = transactions.filter(t => t.category.id === category.id)
+      const categoryTransactions = operationalTransactions.filter(t => t.category.id === category.id)
       const total = categoryTransactions.reduce((sum, t) => sum + t.amount, 0)
       const percentage = totalExpenses > 0 ? (total / totalExpenses) * 100 : 0
       
@@ -797,7 +749,32 @@ export default function ExpensesPage() {
     }).filter(stat => stat.total > 0)
     
     return stats.sort((a, b) => b.total - a.total)
-  }, [categories, transactions, totalExpenses])
+  }, [categories, operationalTransactions, totalExpenses])
+
+  // Dati per grafici - SOLO SPESE OPERATIVE (senza tasse fiscali)
+  const currentMonthChartData = categoryStats
+    .filter(stat => {
+      const categoryTransactions = operationalTransactions.filter(t => 
+        t.category.id === stat.id && new Date(t.date).getMonth() === new Date().getMonth()
+      )
+      return categoryTransactions.reduce((sum, t) => sum + t.amount, 0) > 0
+    })
+    .map(stat => ({
+      name: stat.name,
+      value: operationalTransactions
+        .filter(t => t.category.id === stat.id && new Date(t.date).getMonth() === new Date().getMonth())
+        .reduce((sum, t) => sum + t.amount, 0),
+      color: stat.color
+    }))
+
+  const totalChartData = categoryStats.map(stat => ({
+    name: stat.name,
+    value: stat.total,
+    color: stat.color
+  }))
+
+  const currentMonthTotal = currentMonthExpenses
+  const grandTotal = totalExpenses
 
   // === COMPONENTE GRAFICO ===
   const renderPieChart = (data, title, total) => (
@@ -911,11 +888,11 @@ export default function ExpensesPage() {
         </div>
 
         {/* Statistiche */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="card-adaptive rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-2">💸 Totale Uscite</h3>
+            <h3 className="text-lg font-semibold text-adaptive-900 mb-2">💸 Spese Operative</h3>
             <p className="text-3xl font-bold text-red-600">{formatCurrency(totalExpenses)}</p>
-            <p className="text-sm text-adaptive-600">{transactions.length} transazioni</p>
+            <p className="text-sm text-adaptive-600">{operationalTransactions.length} transazioni</p>
           </div>
           
           <div className="card-adaptive rounded-lg p-6">
@@ -927,8 +904,16 @@ export default function ExpensesPage() {
           </div>
           
           <div className="card-adaptive rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-adaptive-900 mb-2">💰 Tasse Pagate</h3>
+            <p className="text-3xl font-bold text-purple-600">{formatCurrency(totalFiscalExpenses)}</p>
+            <p className="text-sm text-adaptive-600">
+              {fiscalTransactions.length} pagamenti fiscali
+            </p>
+          </div>
+          
+          <div className="card-adaptive rounded-lg p-6">
             <h3 className="text-lg font-semibold text-adaptive-900 mb-2">🏷️ Categorie</h3>
-            <p className="text-3xl font-bold text-purple-600">{categories.length}</p>
+            <p className="text-3xl font-bold text-blue-600">{categories.length}</p>
             <button 
               onClick={() => setShowCategories(!showCategories)}
               className="text-sm text-blue-600 hover:text-blue-700 mt-1"
@@ -998,16 +983,22 @@ export default function ExpensesPage() {
               {/* Riepilogo Mese Corrente */}
               {renderPieChart(
                 currentMonthChartData, 
-                `📊 Uscite - ${new Date().toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}`,
+                `📊 Spese Operative - ${new Date().toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}`,
                 currentMonthTotal
               )}
               
               {/* Riepilogo Totale */}
               {renderPieChart(
                 totalChartData, 
-                `📈 Totale Uscite`,
+                `📈 Totale Spese Operative`,
                 grandTotal
               )}
+            </div>
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                ℹ️ I grafici mostrano solo <strong>spese operative</strong>. 
+                Le tasse P.IVA e pagamenti fiscali ({formatCurrency(totalFiscalExpenses)}) sono esclusi per una migliore analisi dei pattern di spesa.
+              </p>
             </div>
           </div>
         )}

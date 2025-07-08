@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { formatCurrency } from '@/utils/formatters'
 import { 
   DocumentTextIcon, CurrencyEuroIcon, CalendarIcon, 
-  PlusIcon, PencilIcon, TrashIcon, CogIcon, BanknotesIcon
+  PlusIcon, PencilIcon, TrashIcon, CogIcon, BanknotesIcon,
+  DocumentArrowUpIcon, XMarkIcon, CheckIcon
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
 
@@ -147,6 +148,18 @@ export default function PartitaIVAPage() {
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Stati per selezione multipla
+  const [selectedIncomes, setSelectedIncomes] = useState<Set<number>>(new Set())
+  const [showBulkActions, setShowBulkActions] = useState(false)
+
+  // Stati CSV Import
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvData, setCsvData] = useState<any[]>([])
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 })
+  const [importResult, setImportResult] = useState<any>(null)
+  const [isImporting, setIsImporting] = useState(false)
+
   // Caricamento dati
   useEffect(() => {
     fetchData()
@@ -213,6 +226,10 @@ export default function PartitaIVAPage() {
       if (paymentsRes.ok) setPayments(await paymentsRes.json())
       if (statsRes.ok) setStats(await statsRes.json())
       if (globalStatsRes.ok) setGlobalStats(await globalStatsRes.json())
+      
+      // Reset selezione quando si ricaricano i dati
+      setSelectedIncomes(new Set())
+      setShowBulkActions(false)
     } catch (error) {
       setError('Errore nel caricamento dei dati')
     }
@@ -355,6 +372,70 @@ export default function PartitaIVAPage() {
       }
     } catch (error) {
       alert('Errore di rete nell\'eliminazione')
+    }
+  }
+
+  // Gestione selezione multipla
+  const handleSelectIncome = (incomeId: number) => {
+    const newSelected = new Set(selectedIncomes)
+    if (newSelected.has(incomeId)) {
+      newSelected.delete(incomeId)
+    } else {
+      newSelected.add(incomeId)
+    }
+    setSelectedIncomes(newSelected)
+    setShowBulkActions(newSelected.size > 0)
+  }
+
+  const handleSelectAllIncomes = () => {
+    if (selectedIncomes.size === incomes.length) {
+      setSelectedIncomes(new Set())
+      setShowBulkActions(false)
+    } else {
+      setSelectedIncomes(new Set(incomes.map(income => income.id)))
+      setShowBulkActions(true)
+    }
+  }
+
+  // Eliminazione in blocco
+  const handleBulkDelete = async () => {
+    if (selectedIncomes.size === 0) return
+    
+    if (!confirm(`Sei sicuro di voler eliminare ${selectedIncomes.size} entrate selezionate?`)) return
+
+    setIsSubmitting(true)
+    let successCount = 0
+    let errorCount = 0
+
+    try {
+      for (const incomeId of selectedIncomes) {
+        try {
+          const response = await fetch(`/api/partita-iva/income/${incomeId}`, {
+            method: 'DELETE'
+          })
+          if (response.ok) {
+            successCount++
+          } else {
+            errorCount++
+          }
+        } catch {
+          errorCount++
+        }
+      }
+
+      if (successCount > 0) {
+        await fetchYearData(currentYear)
+        setSelectedIncomes(new Set())
+        setShowBulkActions(false)
+      }
+
+      if (errorCount > 0) {
+        alert(`${successCount} entrate eliminate, ${errorCount} errori`)
+      } else {
+        alert(`${successCount} entrate eliminate con successo`)
+      }
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -539,6 +620,230 @@ export default function PartitaIVAPage() {
     } catch (error) {
       alert('Errore di rete nell\'eliminazione dell\'anno')
     }
+  }
+
+  // Funzioni CSV Import
+  const handleCsvFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setCsvFile(file)
+    
+    // Reset stati precedenti
+    setCsvData([])
+    setImportResult(null)
+    setError('')
+
+    // Leggi e parsa il CSV
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string
+        
+        // Funzione per parsare correttamente le righe CSV con virgolette
+        const parseCSVLine = (line: string, separator: string): string[] => {
+          const result: string[] = []
+          let current = ''
+          let inQuotes = false
+          
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i]
+            const nextChar = line[i + 1]
+            
+            if (char === '"') {
+              // Gestisce virgolette doppie escaped (es: "He said ""Hello""")
+              if (nextChar === '"' && inQuotes) {
+                current += '"'
+                i++ // Salta la prossima virgoletta
+              } else {
+                inQuotes = !inQuotes
+              }
+            } else if (char === separator && !inQuotes) {
+              result.push(current.trim())
+              current = ''
+            } else {
+              current += char
+            }
+          }
+          
+          result.push(current.trim())
+          return result
+        }
+        
+        // Rileva il separatore più comune con parsing intelligente
+        const separators = [',', ';', '\t']
+        let bestSeparator = ','
+        let maxColumns = 0
+        
+        for (const sep of separators) {
+          const firstLine = text.split('\n')[0]
+          // Usa il parser per contare correttamente le colonne
+          const columns = parseCSVLine(firstLine, sep).length
+          if (columns > maxColumns) {
+            maxColumns = columns
+            bestSeparator = sep
+          }
+        }
+        
+        // Se non abbiamo abbastanza colonne, probabilmente è un problema di separatore
+        if (maxColumns < 5) {
+          console.log('⚠️ Poche colonne rilevate, tentativo con separatore punto e virgola')
+          bestSeparator = ';'
+        }
+        
+        // Parsa il CSV con gestione corretta delle virgolette
+        const lines = text.split('\n').filter(line => line.trim())
+        if (lines.length < 2) {
+          setError('Il file CSV deve contenere almeno una riga di intestazione e una di dati')
+          return
+        }
+
+        const headers = parseCSVLine(lines[0], bestSeparator).map(h => h.replace(/^"|"$/g, ''))
+        console.log('📋 Headers rilevati:', headers)
+        
+        // Mapping intelligente delle colonne
+        const columnMapping = {
+          dataIncasso: ['dataincasso', 'data incasso', 'data_incasso', 'incasso'],
+          dataEmissione: ['dataemissione', 'data emissione', 'data_emissione', 'emissione'],
+          riferimento: ['riferimento', 'riferimenti', 'fattura', 'numero', 'ref'],
+          entrata: ['entrata', 'entrate', 'importo', 'amount', 'valore', 'ricavo'],
+          anno: ['anno', 'year', 'annno'],
+          conto: ['conto', 'account', 'banca', 'bank'],
+          descrizione: ['descrizione', 'description', 'desc', 'note']
+        }
+
+        // Trova il mapping corretto per ogni campo richiesto
+        const fieldMapping: Record<string, number> = {}
+        const missingRequiredFields: string[] = []
+        const requiredFields = ['dataIncasso', 'dataEmissione', 'riferimento', 'entrata', 'anno']
+        
+        Object.keys(columnMapping).forEach(field => {
+          const possibleNames = columnMapping[field as keyof typeof columnMapping]
+          const headerIndex = headers.findIndex(header => 
+            possibleNames.some(name => 
+              header.toLowerCase().replace(/[^a-z]/g, '') === name.replace(/[^a-z]/g, '')
+            )
+          )
+          if (headerIndex !== -1) {
+            fieldMapping[field] = headerIndex
+            console.log(`✅ Campo "${field}" mappato a colonna ${headerIndex}: "${headers[headerIndex]}"`)
+          } else {
+            console.log(`❌ Campo "${field}" non trovato negli header`)
+            if (requiredFields.includes(field)) {
+              missingRequiredFields.push(field)
+            }
+          }
+        })
+        
+        // Verifica che tutti i campi obbligatori siano presenti
+        if (missingRequiredFields.length > 0) {
+          setError(`Campi obbligatori mancanti nel CSV: ${missingRequiredFields.join(', ')}. Headers trovati: ${headers.join(', ')}`)
+          return
+        }
+
+        // Validazione consistenza colonne
+        const expectedColumns = headers.length
+        const inconsistentRows: number[] = []
+        
+        const data = lines.slice(1).map((line, index) => {
+          const values = parseCSVLine(line, bestSeparator).map(v => v.replace(/^"|"$/g, ''))
+          
+          // Verifica consistenza numero colonne
+          if (values.length !== expectedColumns) {
+            inconsistentRows.push(index + 2) // +2 perché row 1 è header, row 2 è primo dato
+          }
+          
+          // Crea oggetto con mapping corretto
+          const row: any = {}
+          Object.keys(fieldMapping).forEach(field => {
+            const columnIndex = fieldMapping[field]
+            row[field] = values[columnIndex] || ''
+          })
+          
+          // Debug prima riga
+          if (index === 0) {
+            console.log('🔍 Prima riga valori:', values)
+            console.log('🔍 Prima riga mappata:', row)
+          }
+          
+          return row
+        })
+        
+        // Avvisa se ci sono righe inconsistenti
+        if (inconsistentRows.length > 0) {
+          const maxWarnings = 5
+          const warningRows = inconsistentRows.slice(0, maxWarnings)
+          const moreRows = inconsistentRows.length - maxWarnings
+          
+          let warningMessage = `⚠️ Attenzione: ${inconsistentRows.length} righe hanno un numero di colonne diverso dall'intestazione (${expectedColumns} colonne). `
+          warningMessage += `Righe problematiche: ${warningRows.join(', ')}`
+          if (moreRows > 0) {
+            warningMessage += ` e altre ${moreRows}...`
+          }
+          
+          console.warn(warningMessage)
+          setError(warningMessage)
+          return
+        }
+
+        console.log('📊 CSV parsed:', data.length, 'righe')
+        setCsvData(data)
+      } catch (error) {
+        console.error('Errore parsing CSV:', error)
+        setError('Errore nel parsing del file CSV')
+      }
+    }
+    
+    reader.readAsText(file)
+  }
+
+  const handleCsvImport = async () => {
+    if (!csvData.length) {
+      setError('Nessun dato CSV da importare')
+      return
+    }
+
+    setIsImporting(true)
+    setImportProgress({ current: 0, total: csvData.length })
+    setImportResult(null)
+    setError('')
+
+    try {
+      const response = await fetch('/api/partita-iva/income/import-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csvData })
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        setImportResult(result)
+        setImportProgress({ current: csvData.length, total: csvData.length })
+        
+        // Ricarica i dati se ci sono state importazioni
+        if (result.imported > 0) {
+          await fetchYearData(currentYear)
+        }
+      } else {
+        setError(result.error || 'Errore durante l\'importazione')
+      }
+    } catch (error) {
+      console.error('Errore import CSV:', error)
+      setError('Errore di rete durante l\'importazione')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  const resetCsvImport = () => {
+    setCsvFile(null)
+    setCsvData([])
+    setImportProgress({ current: 0, total: 0 })
+    setImportResult(null)
+    setIsImporting(false)
+    setError('')
+    setShowImportModal(false)
   }
 
   // Calcoli per anteprima entrata
@@ -770,15 +1075,52 @@ export default function PartitaIVAPage() {
               <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
                 <DocumentTextIcon className="w-5 h-5" />
                 Entrate P.IVA ({incomes.length})
+                {selectedIncomes.size > 0 && (
+                  <span className="text-sm text-blue-600 ml-2">
+                    ({selectedIncomes.size} selezionate)
+                  </span>
+                )}
               </h3>
-              <button
-                onClick={() => setShowIncomeForm(true)}
-                className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2"
-              >
-                <PlusIcon className="w-5 h-5" />
-                Nuova Entrata
-              </button>
+              <div className="flex gap-2">
+                {showBulkActions && (
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={isSubmitting}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <TrashIcon className="w-5 h-5" />
+                    Elimina Selezionate ({selectedIncomes.size})
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="btn-secondary px-4 py-2 rounded-lg flex items-center gap-2"
+                >
+                  <DocumentArrowUpIcon className="w-5 h-5" />
+                  Importa CSV
+                </button>
+                <button
+                  onClick={() => setShowIncomeForm(true)}
+                  className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2"
+                >
+                  <PlusIcon className="w-5 h-5" />
+                  Nuova Entrata
+                </button>
+              </div>
             </div>
+            {incomes.length > 0 && (
+              <div className="mt-4 flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedIncomes.size === incomes.length}
+                  onChange={handleSelectAllIncomes}
+                  className="rounded border-gray-300"
+                />
+                <label className="text-adaptive-600">
+                  Seleziona tutto ({incomes.length} entrate)
+                </label>
+              </div>
+            )}
           </div>
           
           <div className="p-6">
@@ -801,42 +1143,50 @@ export default function PartitaIVAPage() {
                 {incomes.map(income => (
                   <div key={income.id} className="border border-gray-200 rounded-lg p-4">
                     <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h4 className="font-semibold text-adaptive-900">{income.riferimento}</h4>
-                          <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">
-                            Entrata
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm text-adaptive-600 mb-3">
-                          <div>
-                            <span className="font-medium">Incasso:</span> {new Date(income.dataIncasso).toLocaleDateString('it-IT')}
+                      <div className="flex items-start gap-3 flex-1">
+                        <input
+                          type="checkbox"
+                          checked={selectedIncomes.has(income.id)}
+                          onChange={() => handleSelectIncome(income.id)}
+                          className="mt-2 rounded border-gray-300"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-semibold text-adaptive-900">{income.riferimento}</h4>
+                            <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">
+                              Entrata
+                            </span>
                           </div>
-                          <div>
-                            <span className="font-medium">Emissione:</span> {new Date(income.dataEmissione).toLocaleDateString('it-IT')}
-                          </div>
-                          {income.account && (
-                            <div className="col-span-2">
-                              <span className="font-medium">Conto:</span> {income.account.name}
+                          <div className="grid grid-cols-2 gap-4 text-sm text-adaptive-600 mb-3">
+                            <div>
+                              <span className="font-medium">Incasso:</span> {new Date(income.dataIncasso).toLocaleDateString('it-IT')}
                             </div>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                          <div className="bg-green-50 p-2 rounded">
-                            <div className="text-xs text-green-600 font-medium">Entrata</div>
-                            <div className="text-green-700 font-semibold">{formatCurrency(income.entrata)}</div>
+                            <div>
+                              <span className="font-medium">Emissione:</span> {new Date(income.dataEmissione).toLocaleDateString('it-IT')}
+                            </div>
+                            {income.account && (
+                              <div className="col-span-2">
+                                <span className="font-medium">Conto:</span> {income.account.name}
+                              </div>
+                            )}
                           </div>
-                          <div className="bg-blue-50 p-2 rounded">
-                            <div className="text-xs text-blue-600 font-medium">Imponibile</div>
-                            <div className="text-blue-700 font-semibold">{formatCurrency(income.imponibile)}</div>
-                          </div>
-                          <div className="bg-orange-50 p-2 rounded">
-                            <div className="text-xs text-orange-600 font-medium">Imposta</div>
-                            <div className="text-orange-700 font-semibold">{formatCurrency(income.imposta)}</div>
-                          </div>
-                          <div className="bg-red-50 p-2 rounded">
-                            <div className="text-xs text-red-600 font-medium">Tot. Tasse</div>
-                            <div className="text-red-700 font-semibold">{formatCurrency(income.totaleTasse)}</div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                            <div className="bg-green-50 p-2 rounded">
+                              <div className="text-xs text-green-600 font-medium">Entrata</div>
+                              <div className="text-green-700 font-semibold">{formatCurrency(income.entrata)}</div>
+                            </div>
+                            <div className="bg-blue-50 p-2 rounded">
+                              <div className="text-xs text-blue-600 font-medium">Imponibile</div>
+                              <div className="text-blue-700 font-semibold">{formatCurrency(income.imponibile)}</div>
+                            </div>
+                            <div className="bg-orange-50 p-2 rounded">
+                              <div className="text-xs text-orange-600 font-medium">Imposta</div>
+                              <div className="text-orange-700 font-semibold">{formatCurrency(income.imposta)}</div>
+                            </div>
+                            <div className="bg-red-50 p-2 rounded">
+                              <div className="text-xs text-red-600 font-medium">Tot. Tasse</div>
+                              <div className="text-red-700 font-semibold">{formatCurrency(income.totaleTasse)}</div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1332,6 +1682,226 @@ export default function PartitaIVAPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Import CSV */}
+        {showImportModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="modal-content rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-adaptive-900">
+                  📊 Importa Entrate CSV
+                </h3>
+                <button
+                  onClick={resetCsvImport}
+                  className="p-2 text-adaptive-500 hover:bg-adaptive-100 rounded-md transition-colors"
+                >
+                  <XMarkIcon className="w-6 h-6" />
+                </button>
+              </div>
+
+              {!csvFile && !importResult && (
+                <div className="space-y-6">
+                  {/* Istruzioni formato CSV */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-medium text-blue-900 mb-3">📋 Formato CSV Richiesto:</h4>
+                    <div className="text-sm text-blue-800 space-y-2">
+                      <div className="font-mono bg-blue-100 p-2 rounded">
+                        dataIncasso,dataEmissione,riferimento,entrata,anno,conto,descrizione
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div><strong>dataIncasso:</strong> Data incasso (DD/MM/YYYY)</div>
+                        <div><strong>dataEmissione:</strong> Data emissione (DD/MM/YYYY)</div>
+                        <div><strong>riferimento:</strong> Numero fattura (FAT001)</div>
+                        <div><strong>entrata:</strong> Importo in EUR (1000.00)</div>
+                        <div><strong>anno:</strong> Anno fiscale (2024)</div>
+                        <div><strong>conto:</strong> Nome conto bancario (opzionale)</div>
+                        <div><strong>descrizione:</strong> Descrizione aggiuntiva (opzionale)</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Upload File */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Seleziona file CSV:
+                      </label>
+                      <input
+                        type="file"
+                        accept=".csv"
+                        onChange={handleCsvFileChange}
+                        className="w-full px-3 py-2 border border-adaptive rounded-md"
+                      />
+                    </div>
+
+                    {error && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                        {error}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Preview dati CSV */}
+              {csvData.length > 0 && !importResult && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-medium text-adaptive-900">
+                      📋 Anteprima Dati ({csvData.length} righe)
+                    </h4>
+                    <button
+                      onClick={() => setCsvFile(null)}
+                      className="text-sm text-adaptive-600 hover:text-adaptive-800"
+                    >
+                      Cambia File
+                    </button>
+                  </div>
+
+                  <div className="border border-adaptive rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto max-h-60">
+                      <table className="w-full text-sm">
+                        <thead className="bg-adaptive-50">
+                          <tr>
+                            <th className="p-2 text-left">Data Incasso</th>
+                            <th className="p-2 text-left">Data Emissione</th>
+                            <th className="p-2 text-left">Riferimento</th>
+                            <th className="p-2 text-left">Entrata</th>
+                            <th className="p-2 text-left">Anno</th>
+                            <th className="p-2 text-left">Conto</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {csvData.slice(0, 10).map((row, index) => (
+                            <tr key={index} className="border-t border-adaptive">
+                              <td className="p-2">{row.dataIncasso}</td>
+                              <td className="p-2">{row.dataEmissione}</td>
+                              <td className="p-2">{row.riferimento}</td>
+                              <td className="p-2">{row.entrata}</td>
+                              <td className="p-2">{row.anno}</td>
+                              <td className="p-2">{row.conto || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {csvData.length > 10 && (
+                      <div className="p-2 bg-adaptive-50 text-xs text-adaptive-600 border-t border-adaptive">
+                        Visualizzando prime 10 righe di {csvData.length}
+                      </div>
+                    )}
+                  </div>
+
+                  {error && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                      {error}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={resetCsvImport}
+                      className="px-4 py-2 text-adaptive-700 bg-adaptive-100 hover:bg-adaptive-200 rounded-lg transition-colors"
+                    >
+                      Annulla
+                    </button>
+                    <button
+                      onClick={handleCsvImport}
+                      disabled={isImporting}
+                      className="flex-1 btn-primary px-4 py-2 rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isImporting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Importando...
+                        </>
+                      ) : (
+                        <>
+                          <DocumentArrowUpIcon className="w-5 h-5" />
+                          Importa {csvData.length} Entrate
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Progress during import */}
+              {isImporting && (
+                <div className="space-y-4">
+                  <h4 className="font-medium text-adaptive-900">⏳ Importazione in corso...</h4>
+                  <div className="bg-adaptive-200 rounded-full h-3">
+                    <div 
+                      className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                      style={{ 
+                        width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` 
+                      }}
+                    ></div>
+                  </div>
+                  <div className="text-sm text-adaptive-600 text-center">
+                    {importProgress.current} / {importProgress.total} entrate processate
+                  </div>
+                </div>
+              )}
+
+              {/* Risultati Import */}
+              {importResult && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <CheckIcon className="w-6 h-6 text-green-600" />
+                    <h4 className="font-medium text-adaptive-900">✅ Import Completato!</h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <div className="text-2xl font-bold text-green-700">{importResult.imported}</div>
+                      <div className="text-sm text-green-600">Entrate importate</div>
+                    </div>
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <div className="text-2xl font-bold text-blue-700">{importResult.createdConfigs?.length || 0}</div>
+                      <div className="text-sm text-blue-600">Configurazioni create</div>
+                    </div>
+                    <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                      <div className="text-2xl font-bold text-red-700">{importResult.errors?.length || 0}</div>
+                      <div className="text-sm text-red-600">Errori</div>
+                    </div>
+                  </div>
+
+                  {importResult.createdConfigs?.length > 0 && (
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <h5 className="font-medium text-blue-900 mb-2">📅 Configurazioni Create:</h5>
+                      <div className="text-sm text-blue-800">
+                        {importResult.createdConfigs.join(', ')}
+                      </div>
+                    </div>
+                  )}
+
+                  {importResult.errors?.length > 0 && (
+                    <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                      <h5 className="font-medium text-red-900 mb-2">❌ Errori:</h5>
+                      <div className="max-h-40 overflow-y-auto">
+                        {importResult.errors.map((error, index) => (
+                          <div key={index} className="text-sm text-red-800 mb-1">
+                            • {error}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={resetCsvImport}
+                      className="flex-1 btn-primary px-4 py-2 rounded-lg"
+                    >
+                      Chiudi
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
