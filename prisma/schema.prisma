@@ -20,6 +20,13 @@ model User {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   
+  // 🎯 SISTEMA MODULARE - Configurazioni personalizzazione
+  moduleSettings       Json?         // Configurazioni moduli attivati/disattivati
+  onboardingStep       Int           @default(0) // Step tutorial completati (0-5)
+  onboardingCompleted  Boolean       @default(false)
+  appProfile           String?       // "personal", "business", "investor", "custom"
+  onboardingCompletedAt DateTime?    // Timestamp completamento setup
+  
   // Relazioni
   accounts     Account[]
   transactions Transaction[]
@@ -28,7 +35,6 @@ model User {
   transfers    Transfer[]
   dcaPortfolios DCAPortfolio[]
   cryptoPortfolios CryptoPortfolio[]
-  changelogUpdates Changelog[] // Changelog modificati da questo utente
   
   // Partita IVA
   partitaIVAConfigs PartitaIVAConfig[]
@@ -279,18 +285,6 @@ model CryptoPortfolioHolding {
   @@unique([portfolioId, assetId])
 }
 
-model Changelog {
-  id        Int      @id @default(autoincrement())
-  content   String   // Contenuto del changelog (può essere molto lungo)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Chi ha fatto l'ultimo aggiornamento
-  updatedBy Int
-  user      User     @relation(fields: [updatedBy], references: [id])
-  
-  @@map("changelog") // Nome tabella nel database
-}
 
 // 🔥 PARTITA IVA - Configurazione percentuali per anno
 model PartitaIVAConfig {

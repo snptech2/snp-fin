@@ -46,13 +46,18 @@ export async function POST(request: NextRequest) {
     // Hash della password
     const hashedPassword = await hashPassword(password)
 
-    // Crea nuovo utente
+    // Crea nuovo utente con valori onboarding di default
     const user = await prisma.user.create({
       data: {
         name: name.trim(),
         email: email.toLowerCase().trim(),
         password: hashedPassword,
-        currency: 'EUR' // Default
+        currency: 'EUR', // Default
+        // 🎯 SISTEMA MODULARE - Valori default per onboarding
+        onboardingStep: 1,
+        onboardingCompleted: false,
+        moduleSettings: null,
+        appProfile: null
       }
     })
 

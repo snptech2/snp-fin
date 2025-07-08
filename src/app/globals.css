@@ -100,6 +100,11 @@ body {
   color: var(--foreground) !important;
 }
 
+.bg-adaptive-50 {
+  background-color: var(--hover-bg) !important;
+  color: var(--foreground) !important;
+}
+
 /* Standardizza tutti i grigi problematici */
 .text-gray-500, .text-gray-400, .text-gray-600 {
   color: var(--foreground) !important;
@@ -168,7 +173,8 @@ select:focus {
 /* ========================================
    🔄 SIDEBAR
 ======================================== */
-.sidebar-adaptive a:hover {
+.sidebar-adaptive a:hover,
+.sidebar-adaptive button:hover {
   background-color: var(--hover-bg) !important;
   color: var(--foreground) !important;
 }

@@ -4,6 +4,8 @@
 import { useAuth } from '@/contexts/AuthContext'
 import { usePathname } from 'next/navigation'
 import Sidebar from './Sidebar'
+import { useOnboarding } from '@/hooks/useOnboarding'
+import OnboardingWizard from './onboarding/OnboardingWizard'
 
 const publicRoutes = ['/login', '/register']
 
@@ -14,11 +16,12 @@ interface AuthenticatedLayoutProps {
 export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const { user, loading } = useAuth()
   const pathname = usePathname()
+  const { needsOnboarding, loading: onboardingLoading, completeOnboarding } = useOnboarding()
   
   const isPublicRoute = publicRoutes.includes(pathname)
 
   // Mostra loading spinner durante la verifica dell'autenticazione
-  if (loading) {
+  if (loading || onboardingLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -39,6 +42,11 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
   // Per le route pubbliche (login/register), mostra solo il contenuto
   if (isPublicRoute) {
     return <>{children}</>
+  }
+
+  // Se l'utente è autenticato ma deve completare l'onboarding
+  if (user && needsOnboarding) {
+    return <OnboardingWizard onComplete={completeOnboarding} />
   }
 
   // Per le route protette, mostra layout completo con sidebar

@@ -507,7 +507,7 @@ const Dashboard = () => {
   if (loading) {
     return (
       <ProtectedRoute>
-        <div className="min-h-screen bg-adaptive-50 flex items-center justify-center">
+        <div className="min-h-screen flex items-center justify-center">
           <div className="flex flex-col items-center space-y-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
             <div className="text-adaptive-600">
@@ -524,7 +524,7 @@ const Dashboard = () => {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-adaptive-50">
+      <div className="min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <div className="mb-8">
@@ -893,7 +893,7 @@ const Dashboard = () => {
               </div>
               <div className="space-y-4">
                 {dashboardData.investments.slice(0, 3).map((portfolio: Portfolio, index: number) => (
-                  <div key={index} className="flex items-center justify-between p-3 rounded-lg border border-adaptive bg-adaptive-50">
+                  <div key={index} className="flex items-center justify-between p-3 rounded-lg border border-adaptive">
                     <div>
                       <p className="text-sm font-medium text-adaptive-900">{portfolio.name}</p>
                       <p className="text-xs text-adaptive-500">
@@ -931,7 +931,7 @@ const Dashboard = () => {
               </div>
               <div className="space-y-4">
                 {dashboardData.transactions.map((transaction: Transaction, index: number) => (
-                  <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-adaptive-50">
+                  <div key={index} className="flex items-center justify-between p-3 rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className={`w-2 h-2 rounded-full ${transaction.type === 'income' ? 'bg-green-500' : 'bg-red-500'}`} />
                       <div>
