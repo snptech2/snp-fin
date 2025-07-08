@@ -78,19 +78,57 @@ export async function GET(request: NextRequest) {
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    // 🚀 OTTIMIZZAZIONE: Query separate invece di include massivo
     const portfolios = await prisma.cryptoPortfolio.findMany({
-      where: { userId }, // 🔄 Sostituito: userId: 1 → userId
-      include: {
+      where: { userId, isActive: true }, // Filtra solo portfolio attivi
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        isActive: true,
+        createdAt: true,
         account: {
           select: { id: true, name: true, balance: true }
         },
         holdings: {
-          include: { asset: true }
-        },
-        transactions: true, // ✅ CRITICO: Include transazioni per Enhanced statistics
+          select: {
+            id: true,
+            quantity: true,
+            avgPrice: true,
+            totalInvested: true,
+            realizedGains: true,
+            asset: {
+              select: { id: true, symbol: true, name: true, decimals: true }
+            }
+          }
+        }
       },
       orderBy: { createdAt: 'desc' }
     })
+
+    // 🚀 OTTIMIZZAZIONE: Fetch transazioni solo per portfolio con holdings
+    const portfolioIds = portfolios.filter(p => p.holdings.length > 0).map(p => p.id)
+    const transactionsByPortfolio = portfolioIds.length > 0 ? await prisma.cryptoPortfolioTransaction.findMany({
+      where: { portfolioId: { in: portfolioIds } },
+      select: {
+        id: true,
+        portfolioId: true,
+        type: true,
+        quantity: true,
+        eurValue: true,
+        pricePerUnit: true,
+        date: true,
+        assetId: true
+      },
+      orderBy: { date: 'desc' }
+    }) : []
+
+    // Raggruppa transazioni per portfolio
+    const transactionGroups = transactionsByPortfolio.reduce((acc, tx) => {
+      if (!acc[tx.portfolioId]) acc[tx.portfolioId] = []
+      acc[tx.portfolioId].push(tx)
+      return acc
+    }, {} as Record<number, typeof transactionsByPortfolio>)
 
     // 🆕 Raccogli tutti i simboli unici per fetch prezzi
     const allSymbols = new Set<string>()
@@ -105,12 +143,13 @@ export async function GET(request: NextRequest) {
 
     // 🎯 FASE 1: Applica Enhanced Statistics + Current Prices
     const portfoliosWithEnhancedStats = portfolios.map(portfolio => {
-      const enhancedStats = calculateEnhancedStats(portfolio.transactions)
+      const portfolioTransactions = transactionGroups[portfolio.id] || []
+      const enhancedStats = calculateEnhancedStats(portfolioTransactions)
 
       // 🆕 Calcola valore attuale usando prezzi correnti
       let totalValueEur = 0
       const holdingsWithCurrentPrices = portfolio.holdings.map(holding => {
-        const currentPrice = currentPrices[holding.asset.symbol] || holding.currentPrice || holding.avgPrice
+        const currentPrice = currentPrices[holding.asset.symbol] || holding.avgPrice
         const valueEur = holding.quantity * currentPrice
         totalValueEur += valueEur
 

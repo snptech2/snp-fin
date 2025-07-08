@@ -140,6 +140,7 @@ interface BudgetBreakdownItem {
 
 const Dashboard = () => {
   const [loading, setLoading] = useState<boolean>(true);
+  const [dataLoading, setDataLoading] = useState<boolean>(false);
   const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null);
   const [showColorSettings, setShowColorSettings] = useState<boolean>(false);
   const [chartColors, setChartColors] = useState({
@@ -237,61 +238,42 @@ const Dashboard = () => {
 
   const loadDashboardData = async (): Promise<void> => {
     try {
-      // Fetch all data in parallel
-      const [
-        accountsRes, 
-        dcaRes, 
-        cryptoRes, 
-        budgetsRes, 
-        transactionsRes,
-        partitaIVARes,
-        nonCurrentAssetsRes,
-        creditsRes
-      ] = await Promise.all([
-        fetch('/api/accounts'),
-        fetch('/api/dca-portfolios'),
-        fetch('/api/crypto-portfolios'),
-        fetch('/api/budgets'),
-        fetch('/api/transactions?limit=5'),
-        fetch('/api/partita-iva/stats-global'),
-        fetch('/api/non-current-assets'),
-        fetch('/api/credits')
-      ]);
+      setDataLoading(true); // Show data loading state
+      
+      // 🚀 PERFORMANCE: Single unified API call instead of 8 separate calls
+      const dashboardRes = await fetch('/api/dashboard');
+      
+      if (!dashboardRes.ok) {
+        const errorText = await dashboardRes.text();
+        console.error('Dashboard API Error:', dashboardRes.status, errorText);
+        throw new Error(`Dashboard API failed: ${dashboardRes.status} - ${errorText}`);
+      }
+      
+      const dashboardData = await dashboardRes.json();
+      
+      // Extract data from unified response
+      const accounts: Account[] = dashboardData.accounts || [];
+      const dcaPortfolios: Portfolio[] = dashboardData.portfolios?.dca || [];
+      const cryptoPortfolios: Portfolio[] = dashboardData.portfolios?.crypto || [];
+      const budgets: Budget[] = dashboardData.budgets || [];
+      const transactions: Transaction[] = dashboardData.transactions || [];
+      const partitaIVAStats: PartitaIVAGlobalStats | null = dashboardData.partitaIVA;
+      const nonCurrentAssets: NonCurrentAsset[] = dashboardData.nonCurrentAssets || [];
+      const credits: Credit[] = dashboardData.credits || [];
 
-      // Parse responses
-      const accounts: Account[] = accountsRes.ok ? await accountsRes.json() : [];
-      const dcaPortfolios: Portfolio[] = dcaRes.ok ? await dcaRes.json() : [];
-      const cryptoPortfolios: Portfolio[] = cryptoRes.ok ? await cryptoRes.json() : [];
-      const budgetsResponse = budgetsRes.ok ? await budgetsRes.json() : null;
-      const transactions: Transaction[] = transactionsRes.ok ? 
-        await transactionsRes.json() : [];
-      const partitaIVAStats: PartitaIVAGlobalStats | null = partitaIVARes.ok ? 
-        await partitaIVARes.json() : null;
-      const nonCurrentAssets: NonCurrentAsset[] = nonCurrentAssetsRes.ok ? 
-        await nonCurrentAssetsRes.json() : [];
-      const credits: Credit[] = creditsRes.ok ? 
-        await creditsRes.json() : [];
-
-      // ✅ CORREZIONE: L'API budget restituisce un oggetto, non un array diretto
-      const budgets: Budget[] = budgetsResponse?.budgets || [];
+      // Use precalculated totals from unified API
       const budgetTotals = {
-        totalLiquidity: budgetsResponse?.totalLiquidity || 0,
-        totalAllocated: budgetsResponse?.totalAllocated || 0
+        totalLiquidity: dashboardData.totals?.bankLiquidity || 0,
+        totalAllocated: dashboardData.totals?.budgetAllocated || 0
       };
 
-      // ✅ DEBUG: Vediamo cosa arriva dall'API budgets
-      console.log('🏦 DEBUG Budgets API Response:', budgetsResponse);
-      console.log('🏦 Budget Totals from API:', budgetTotals);
-      console.log('🏦 Budgets Array Length:', Array.isArray(budgets) ? budgets.length : 'Not an array');
+      // ✅ DEBUG: Dashboard unified response
+      console.log('🚀 Dashboard unified data loaded:', dashboardData.meta?.timestamp);
+      console.log('🏦 Budget Totals:', budgetTotals);
 
-      // Calculate totals
-      const bankLiquidity = accounts
-        .filter((account: Account) => account.type === 'bank')
-        .reduce((sum: number, account: Account) => sum + account.balance, 0);
-
-      const investmentLiquidity = accounts
-        .filter((account: Account) => account.type === 'investment')  
-        .reduce((sum: number, account: Account) => sum + account.balance, 0);
+      // 🚀 PERFORMANCE: Use precalculated totals from unified API
+      const bankLiquidity = dashboardData.totals?.bankLiquidity || 0;
+      const investmentLiquidity = dashboardData.totals?.investmentLiquidity || 0;
 
       // ✅ FIX: Calculate holdings value using same logic as investments page
       let holdingsValue = 0;
@@ -314,9 +296,9 @@ const Dashboard = () => {
 
       console.log(`🎯 Total Holdings Value: €${holdingsValue}`);
       
-      // ✅ NUOVO: Calcola totali beni non correnti e crediti
-      const totalNonCurrentAssets = nonCurrentAssets.reduce((sum, asset) => sum + asset.value, 0);
-      const totalCredits = credits.reduce((sum, credit) => sum + credit.amount, 0);
+      // 🚀 PERFORMANCE: Use precalculated totals from unified API
+      const totalNonCurrentAssets = dashboardData.totals?.totalNonCurrentAssets || 0;
+      const totalCredits = dashboardData.totals?.totalCredits || 0;
       
       // ✅ NUOVO: Calcola Riserva Tasse dai budget
       const riservaTasse = budgets.find(budget => 
@@ -344,7 +326,7 @@ const Dashboard = () => {
         investments: [...cryptoPortfolios, ...dcaPortfolios],
         budgets,
         budgetTotals,
-        transactions: Array.isArray(transactions) ? transactions.slice(0, 5) : [],
+        transactions: transactions.slice(0, 5),
         enhancedCashFlow,
         totals: {
           bankLiquidity,
@@ -364,6 +346,7 @@ const Dashboard = () => {
       console.error('Error loading dashboard data:', error);
     } finally {
       setLoading(false);
+      setDataLoading(false);
     }
   };
 
@@ -525,7 +508,15 @@ const Dashboard = () => {
     return (
       <ProtectedRoute>
         <div className="min-h-screen bg-adaptive-50 flex items-center justify-center">
-          <div className="text-adaptive-600">Caricamento dashboard...</div>
+          <div className="flex flex-col items-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="text-adaptive-600">
+              {dataLoading ? "⚡ Aggiornamento dati..." : "📊 Caricamento dashboard..."}
+            </div>
+            <div className="text-adaptive-500 text-sm">
+              🚀 Ottimizzazioni performance attive
+            </div>
+          </div>
         </div>
       </ProtectedRoute>
     );

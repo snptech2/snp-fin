@@ -17,7 +17,9 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') // 'income' o 'expense'
     const accountId = searchParams.get('accountId')
     const categoryId = searchParams.get('categoryId')
-    const limit = parseInt(searchParams.get('limit') || '1000') // Aumentato limite default
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '50') // Ridotto limite default per performance
+    const offset = (page - 1) * limit
 
     // Costruisci filtri
     const where: any = {
@@ -28,6 +30,9 @@ export async function GET(request: NextRequest) {
     if (accountId) where.accountId = parseInt(accountId)
     if (categoryId) where.categoryId = parseInt(categoryId)
 
+    // Get total count for pagination
+    const totalCount = await prisma.transaction.count({ where })
+    
     const transactions = await prisma.transaction.findMany({
       where,
       include: {
@@ -39,10 +44,21 @@ export async function GET(request: NextRequest) {
         }
       },
       orderBy: { date: 'desc' },
-      take: limit
+      take: limit,
+      skip: offset
     })
 
-    return NextResponse.json(transactions)
+    return NextResponse.json({
+      transactions,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalCount / limit),
+        totalCount,
+        limit,
+        hasNext: page * limit < totalCount,
+        hasPrev: page > 1
+      }
+    })
   } catch (error) {
     console.error('Errore nel recupero transazioni:', error)
     return NextResponse.json(

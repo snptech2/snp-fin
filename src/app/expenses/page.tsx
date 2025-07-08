@@ -167,7 +167,10 @@ export default function ExpensesPage() {
 
       if (accountsRes.ok) setAccounts(await accountsRes.json())
       if (categoriesRes.ok) setCategories(await categoriesRes.json())
-      if (transactionsRes.ok) setTransactions(await transactionsRes.json())
+      if (transactionsRes.ok) {
+      const data = await transactionsRes.json()
+      setTransactions(data.transactions || [])
+    }
     } catch (error) {
       setError('Errore nel caricamento dei dati')
     } finally {

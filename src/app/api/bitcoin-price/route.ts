@@ -9,8 +9,8 @@ let priceCache: {
   timestamp: number
 } | null = null
 
-// FIX: Cache ridotta a 5 secondi invece di 30
-const CACHE_DURATION = 5 * 1000 // 5 secondi
+// PERFORMANCE: Cache estesa a 10 minuti per ridurre chiamate API esterne
+const CACHE_DURATION = 10 * 60 * 1000 // 10 minuti
 
 // GET - Ottieni prezzo Bitcoin in EUR
 export async function GET(request: NextRequest) {
