@@ -57,8 +57,8 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Step 4 e 5 - Crea dati iniziali se forniti
-    if (step === 4 || step === 5) {
+    // Step 5 - Crea dati iniziali se forniti (solo una volta!)
+    if (step === 5) {
       console.log(`🏦 Step ${step} - Creating account data:`, accountData)
       // Crea conto principale se fornito
       if (accountData) {
