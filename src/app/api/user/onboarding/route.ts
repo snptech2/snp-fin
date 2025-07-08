@@ -59,7 +59,17 @@ export async function POST(request: NextRequest) {
       // Crea conto principale se fornito
       if (accountData) {
         const initialBalance = accountData.balance || 0
+        const currency = accountData.currency || 'EUR'
         console.log('💰 Initial balance:', initialBalance)
+        console.log('💱 Currency:', currency)
+        
+        // Aggiorna valuta utente se specificata
+        if (currency) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { currency }
+          })
+        }
         
         // 💰 GESTIONE CORRETTA SALDO INIZIALE
         // Se c'è un saldo iniziale, lo gestiamo correttamente con transazione

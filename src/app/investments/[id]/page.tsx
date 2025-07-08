@@ -15,6 +15,8 @@ import {
   CheckIcon
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'  // ← AGGIUNTO
+import { useAuth } from '@/contexts/AuthContext'
+import { formatCurrency } from '@/utils/formatters'
 
 interface DCAPortfolio {
   id: number
@@ -73,14 +75,16 @@ interface NetworkFee {
 }
 
 interface BitcoinPrice {
-  btcUsd: number
-  btcEur: number
+  btcPrice: number
+  currency: string
   cached: boolean
+  timestamp: string
 }
 
 export default function DCAPortfolioPage() {
   const params = useParams()
   const router = useRouter()
+  const { user } = useAuth()
   const portfolioId = params.id as string
 
   const [portfolio, setPortfolio] = useState<DCAPortfolio | null>(null)
@@ -154,11 +158,8 @@ export default function DCAPortfolioPage() {
   }, [portfolio])
 
   // Format functions
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount)
+  const formatCurrencyWithUserCurrency = (amount: number) => {
+    return formatCurrency(amount, user?.currency || 'EUR')
   }
 
   const formatBTC = (amount: number) => {
@@ -719,7 +720,7 @@ const openEditTransaction = (transaction: DCATransaction) => {
   } = portfolio.stats
 
   // Calcolo valore corrente e gains non realizzati
-  const currentValue = btcPrice ? netBTC * btcPrice.btcEur : 0
+  const currentValue = btcPrice ? netBTC * btcPrice.btcPrice : 0
   const unrealizedGains = currentValue - effectiveInvestment
   const totalGains = realizedProfit + unrealizedGains
 
@@ -771,10 +772,10 @@ const openEditTransaction = (transaction: DCATransaction) => {
               <div>
                 <h3 className="text-sm font-medium text-adaptive-500">Prezzo Bitcoin Corrente</h3>
                 <p className="text-2xl font-bold text-orange-600">
-                  {formatCurrency(btcPrice.btcEur)}
+                  {formatCurrency(btcPrice.btcPrice, user?.currency || 'EUR')}
                 </p>
                 <p className="text-sm text-adaptive-600">
-                  ${btcPrice.btcUsd.toLocaleString()} USD
+                  Valuta: {btcPrice.currency}
                   {btcPrice.cached && <span className="text-orange-500 ml-2">(Cache)</span>}
                 </p>
               </div>
@@ -789,10 +790,10 @@ const openEditTransaction = (transaction: DCATransaction) => {
           <div className="card-adaptive p-4 rounded-lg border-adaptive">
             <h3 className="text-sm font-medium text-adaptive-500 mb-1">Investimento Effettivo</h3>
             <p className="text-2xl font-bold text-blue-600">
-              {formatCurrency(effectiveInvestment)}
+              {formatCurrencyWithUserCurrency(effectiveInvestment)}
             </p>
             <p className="text-xs text-adaptive-600">
-              {isFullyRecovered ? 'Capitale completamente recuperato!' : `di ${formatCurrency(totalInvested)} totali`}
+              {isFullyRecovered ? 'Capitale completamente recuperato!' : `di ${formatCurrencyWithUserCurrency(totalInvested)} totali`}
             </p>
           </div>
 
@@ -800,7 +801,7 @@ const openEditTransaction = (transaction: DCATransaction) => {
           <div className="card-adaptive p-4 rounded-lg border-adaptive">
             <h3 className="text-sm font-medium text-adaptive-500 mb-1">Profitto Realizzato</h3>
             <p className={`text-2xl font-bold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(realizedProfit)}
+              {formatCurrencyWithUserCurrency(realizedProfit)}
             </p>
             <p className="text-xs text-adaptive-600">
               Da {sellCount} vendite
@@ -811,7 +812,7 @@ const openEditTransaction = (transaction: DCATransaction) => {
           <div className="card-adaptive p-4 rounded-lg border-adaptive">
             <h3 className="text-sm font-medium text-adaptive-500 mb-1">Plus/Minus Non Realizzati</h3>
             <p className={`text-2xl font-bold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(unrealizedGains)}
+              {formatCurrencyWithUserCurrency(unrealizedGains)}
             </p>
             <p className="text-xs text-adaptive-600">
               Su {formatBTC(netBTC)} detenuti
@@ -839,7 +840,7 @@ const openEditTransaction = (transaction: DCATransaction) => {
               {formatBTC(netBTC)}
             </p>
             <p className="text-xs text-adaptive-600">
-              Prezzo medio: {formatCurrency(avgPurchasePrice)}
+              Prezzo medio: {formatCurrencyWithUserCurrency(avgPurchasePrice)}
             </p>
           </div>
 
@@ -858,7 +859,7 @@ const openEditTransaction = (transaction: DCATransaction) => {
           <div className="card-adaptive p-4 rounded-lg border-adaptive">
             <h3 className="text-sm font-medium text-adaptive-500 mb-1">Valore Corrente</h3>
             <p className="text-xl font-bold text-blue-600">
-              {formatCurrency(currentValue)}
+              {formatCurrencyWithUserCurrency(currentValue)}
             </p>
             <p className="text-xs text-adaptive-600">
               Basato su prezzo corrente
@@ -961,10 +962,10 @@ const openEditTransaction = (transaction: DCATransaction) => {
                       {transaction.type === 'buy' ? '+' : '-'}{formatBTC(transaction.btcQuantity)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-adaptive-900">
-                      {transaction.type === 'buy' ? '-' : '+'}{formatCurrency(transaction.eurPaid)}
+                      {transaction.type === 'buy' ? '-' : '+'}{formatCurrencyWithUserCurrency(transaction.eurPaid)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-adaptive-900">
-                      {formatCurrency(transaction.purchasePrice)}
+                      {formatCurrencyWithUserCurrency(transaction.purchasePrice)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-adaptive-900">
                       {transaction.broker}

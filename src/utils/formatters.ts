@@ -1,12 +1,13 @@
 // src/utils/formatters.ts - Utility functions centralizzate per evitare duplicazioni
 
 /**
- * Formatta un importo in valuta EUR
+ * Formatta un importo in valuta EUR o USD
  */
-export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('it-IT', {
+export const formatCurrency = (amount: number, currency: string = 'EUR'): string => {
+  const locale = currency === 'USD' ? 'en-US' : 'it-IT'
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: 'EUR'
+    currency: currency
   }).format(amount)
 }
 
@@ -68,12 +69,12 @@ export const calculateROI = (currentValue: number, initialValue: number): number
 /**
  * Formatta importo con colore basato sul valore
  */
-export const formatCurrencyWithColor = (amount: number): { 
+export const formatCurrencyWithColor = (amount: number, currency: string = 'EUR'): { 
   formatted: string, 
   color: string 
 } => {
   return {
-    formatted: formatCurrency(amount),
+    formatted: formatCurrency(amount, currency),
     color: amount > 0 ? 'text-green-600' : amount < 0 ? 'text-red-600' : 'text-adaptive-900'
   }
 }

@@ -5,12 +5,15 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { CurrencyEuroIcon, ChartPieIcon, BanknotesIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { useAuth } from '@/contexts/AuthContext';
+import { formatCurrency } from '@/utils/formatters';
 
 // Interfaces
 interface BitcoinPrice {
-  btcUsd: number;
-  btcEur: number;
+  btcPrice: number;
+  currency: string;
   cached: boolean;
+  timestamp: string;
 }
 
 interface Account {
@@ -139,6 +142,7 @@ interface BudgetBreakdownItem {
 }
 
 const Dashboard = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState<boolean>(true);
   const [dataLoading, setDataLoading] = useState<boolean>(false);
   const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null);
@@ -170,11 +174,8 @@ const Dashboard = () => {
   });
 
   // Format functions
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount);
+  const formatCurrencyWithUserCurrency = (amount: number): string => {
+    return formatCurrency(amount, user?.currency || 'EUR');
   };
 
   const formatPercentage = (value: number): string => {
@@ -184,48 +185,69 @@ const Dashboard = () => {
   // ✅ NUOVO: Fetch Bitcoin price
   const fetchBitcoinPrice = async (): Promise<void> => {
     try {
+      console.log('🔄 Fetching Bitcoin price...');
       const response = await fetch('/api/bitcoin-price');
       if (response.ok) {
         const data: BitcoinPrice = await response.json();
         setBtcPrice(data);
-        console.log('🟠 Bitcoin Price loaded:', data.btcEur, 'EUR');
+        console.log('🟠 Bitcoin Price loaded:', data.btcPrice, data.currency);
+      } else {
+        console.error('❌ Bitcoin price fetch failed:', response.status);
       }
     } catch (error) {
-      console.error('Error fetching Bitcoin price:', error);
+      console.error('💥 Error fetching Bitcoin price:', error);
     }
   };
 
   // ✅ NUOVO: DCA Current Value Calculator (same as investments page)
   const getDCACurrentValue = (portfolio: Portfolio, btcPrice: BitcoinPrice | null): number => {
+    console.log(`🔍 getDCACurrentValue called for ${portfolio.name}:`, {
+      type: portfolio.type,
+      netBTC: portfolio.stats?.netBTC,
+      totalBTC: portfolio.stats?.totalBTC,
+      btcPriceAvailable: !!btcPrice?.btcPrice
+    });
+    
     if (portfolio.type !== 'dca_bitcoin' && !portfolio.stats?.totalBTC && !portfolio.stats?.netBTC) {
+      console.log(`❌ Portfolio ${portfolio.name} skipped: not DCA bitcoin and no BTC stats`);
       return 0;
     }
     
-    if (!btcPrice?.btcEur) {
-      console.warn('Bitcoin price not available for DCA calculation');
+    if (!btcPrice?.btcPrice) {
+      console.warn(`❌ Bitcoin price not available for DCA calculation for ${portfolio.name}`);
       return 0;
     }
     
     // Priority: netBTC (includes network fees)
     if (portfolio.stats?.netBTC !== undefined && portfolio.stats?.netBTC !== null) {
-      const value = portfolio.stats.netBTC * btcPrice.btcEur;
-      console.log(`🟠 DCA ${portfolio.name}: €${value} (netBTC: ${portfolio.stats.netBTC})`);
+      const value = portfolio.stats.netBTC * btcPrice.btcPrice;
+      console.log(`✅ DCA ${portfolio.name}: €${value} (netBTC: ${portfolio.stats.netBTC})`);
       return value;
     }
     
     // Fallback: totalBTC (may not include network fees)
     if (portfolio.stats?.totalBTC !== undefined && portfolio.stats?.totalBTC !== null) {
-      const value = portfolio.stats.totalBTC * btcPrice.btcEur;
-      console.log(`🟠 DCA ${portfolio.name}: €${value} (totalBTC: ${portfolio.stats.totalBTC})`);
+      const value = portfolio.stats.totalBTC * btcPrice.btcPrice;
+      console.log(`✅ DCA ${portfolio.name}: €${value} (totalBTC: ${portfolio.stats.totalBTC})`);
       return value;
     }
     
+    console.log(`❌ No BTC stats found for ${portfolio.name}`);
     return 0;
   };
 
   useEffect(() => {
-    loadDashboardData();
-    fetchBitcoinPrice(); // ✅ NUOVO: Load Bitcoin price
+    // Load dashboard data and Bitcoin price in parallel
+    const loadData = async () => {
+      // Start both fetches in parallel
+      const dataPromise = loadDashboardData();
+      const pricePromise = fetchBitcoinPrice();
+      
+      // Wait for both to complete
+      await Promise.all([dataPromise, pricePromise]);
+    };
+    
+    loadData();
   }, []);
 
   // ✅ FIX: Ricarica dati quando arriva il prezzo Bitcoin
@@ -239,6 +261,7 @@ const Dashboard = () => {
   const loadDashboardData = async (): Promise<void> => {
     try {
       setDataLoading(true); // Show data loading state
+      console.log('🔄 Loading dashboard data, btcPrice available:', !!btcPrice);
       
       // 🚀 PERFORMANCE: Single unified API call instead of 8 separate calls
       const dashboardRes = await fetch('/api/dashboard');
@@ -285,16 +308,20 @@ const Dashboard = () => {
         return sum + value;
       }, 0);
       
-      // Calculate DCA portfolios value
-      const dcaValue = dcaPortfolios.reduce((sum: number, portfolio: Portfolio) => {
+      // Calculate DCA portfolios value - only if btcPrice is available
+      const dcaValue = btcPrice ? dcaPortfolios.reduce((sum: number, portfolio: Portfolio) => {
         const value = getDCACurrentValue(portfolio, btcPrice);
         console.log(`🟠 DCA ${portfolio.name}: €${value} (calculated with BTC price)`);
         return sum + value;
-      }, 0);
+      }, 0) : 0;
+      
+      if (!btcPrice && dcaPortfolios.length > 0) {
+        console.log('⚠️ DCA portfolios found but Bitcoin price not available yet');
+      }
       
       holdingsValue = cryptoValue + dcaValue;
 
-      console.log(`🎯 Total Holdings Value: €${holdingsValue}`);
+      console.log(`🎯 Total Holdings Value: €${holdingsValue} (crypto: €${cryptoValue}, dca: €${dcaValue})`);
       
       // 🚀 PERFORMANCE: Use precalculated totals from unified API
       const totalNonCurrentAssets = dashboardData.totals?.totalNonCurrentAssets || 0;
@@ -540,7 +567,7 @@ const Dashboard = () => {
               {/* Informazioni Patrimonio */}
               <div>
                 <h2 className="text-xl font-semibold opacity-90">💎 Patrimonio Totale</h2>
-                <p className="text-4xl font-bold mt-2">{formatCurrency(dashboardData.totals.totalPatrimony)}</p>
+                <p className="text-4xl font-bold mt-2">{formatCurrencyWithUserCurrency(dashboardData.totals.totalPatrimony)}</p>
                 <div className="flex items-center mt-2 text-blue-100 mb-4">
                   <ArrowTrendingUpIcon className="w-5 h-5 mr-2" />
                   <span>Aggiornato in tempo reale</span>
@@ -558,7 +585,7 @@ const Dashboard = () => {
                         <span className="text-blue-100">{item.name}</span>
                       </div>
                       <div className="text-right">
-                        <div className="text-white font-semibold">{formatCurrency(item.value)}</div>
+                        <div className="text-white font-semibold">{formatCurrencyWithUserCurrency(item.value)}</div>
                         <div className="text-blue-200 text-xs">{formatPercentage(item.percentage)}</div>
                       </div>
                     </div>
@@ -613,7 +640,7 @@ const Dashboard = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-adaptive-900">Conti Bancari</h3>
                 <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(dashboardData.totals.bankLiquidity)}
+                  {formatCurrencyWithUserCurrency(dashboardData.totals.bankLiquidity)}
                 </p>
                 <p className="text-sm text-adaptive-600">
                   {dashboardData.accounts.filter(acc => acc.type === 'bank').length} conti bancari
@@ -631,7 +658,7 @@ const Dashboard = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-adaptive-900">Conti Investimento</h3>
                 <p className="text-2xl font-bold text-purple-600">
-                  {formatCurrency(dashboardData.totals.investmentLiquidity)}
+                  {formatCurrencyWithUserCurrency(dashboardData.totals.investmentLiquidity)}
                 </p>
                 <p className="text-sm text-adaptive-600">
                   {dashboardData.accounts.filter(acc => acc.type === 'investment').length} conti investimento
@@ -649,7 +676,7 @@ const Dashboard = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-adaptive-900">Assets</h3>
                 <p className="text-2xl font-bold text-green-600">
-                  {formatCurrency(dashboardData.totals.holdingsValue)}
+                  {formatCurrencyWithUserCurrency(dashboardData.totals.holdingsValue)}
                 </p>
                 <p className="text-sm text-adaptive-600">{dashboardData.investments.length} portfolio attivi</p>
               </div>
@@ -669,7 +696,7 @@ const Dashboard = () => {
                   </div>
                   <h3 className="text-lg font-semibold text-adaptive-900">Tasse da Pagare</h3>
                   <p className={`text-2xl font-bold ${dashboardData.partitaIVAStats.riepilogo.inRegola ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(dashboardData.partitaIVAStats.totali.saldoTasse)}
+                    {formatCurrencyWithUserCurrency(dashboardData.partitaIVAStats.totali.saldoTasse)}
                   </p>
                   <p className="text-sm text-adaptive-600">
                     {dashboardData.partitaIVAStats.riepilogo.inRegola ? 'In regola' : 'Da pagare'} • {dashboardData.partitaIVAStats.conteggi.anniAttivi} anni attivi
@@ -690,7 +717,7 @@ const Dashboard = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-adaptive-900">Totale Investito</h3>
                 <p className="text-2xl font-bold text-adaptive-900">
-                  {formatCurrency(dashboardData.enhancedCashFlow.totalInvested)}
+                  {formatCurrencyWithUserCurrency(dashboardData.enhancedCashFlow.totalInvested)}
                 </p>
                 <p className="text-sm text-adaptive-600">Storico investimenti</p>
               </div>
@@ -704,7 +731,7 @@ const Dashboard = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-adaptive-900">Capitale Recuperato</h3>
                 <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(dashboardData.enhancedCashFlow.capitalRecovered)}
+                  {formatCurrencyWithUserCurrency(dashboardData.enhancedCashFlow.capitalRecovered)}
                 </p>
                 <p className="text-sm text-adaptive-600">
                   {dashboardData.enhancedCashFlow.totalInvested > 0 ? 
@@ -721,7 +748,7 @@ const Dashboard = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-adaptive-900">Soldi a Rischio</h3>
                 <p className="text-2xl font-bold text-orange-600">
-                  {formatCurrency(dashboardData.enhancedCashFlow.effectiveInvestment)}
+                  {formatCurrencyWithUserCurrency(dashboardData.enhancedCashFlow.effectiveInvestment)}
                 </p>
                 <p className="text-sm text-adaptive-600">
                   {dashboardData.enhancedCashFlow.isFullyRecovered ? '🎉 Investimento gratis!' : 'Non ancora recuperato'}
@@ -737,7 +764,7 @@ const Dashboard = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-adaptive-900">Profitto Realizzato</h3>
                 <p className={`text-2xl font-bold ${dashboardData.enhancedCashFlow.realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(dashboardData.enhancedCashFlow.realizedProfit)}
+                  {formatCurrencyWithUserCurrency(dashboardData.enhancedCashFlow.realizedProfit)}
                 </p>
                 <p className="text-sm text-adaptive-600">Solo vendite realizzate</p>
               </div>
@@ -754,7 +781,7 @@ const Dashboard = () => {
                 <div>
                   <h3 className="text-lg font-semibold text-adaptive-900">💰 Liquidità + Assets</h3>
                   <p className="text-sm text-adaptive-600">
-                    Totale: {formatCurrency(allocationData.reduce((sum, item) => sum + item.value, 0))}
+                    Totale: {formatCurrencyWithUserCurrency(allocationData.reduce((sum, item) => sum + item.value, 0))}
                   </p>
                 </div>
                 <button
@@ -803,7 +830,7 @@ const Dashboard = () => {
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-semibold text-adaptive-900">
-                          {formatCurrency(item.value)}
+                          {formatCurrencyWithUserCurrency(item.value)}
                         </div>
                         <div className="text-xs text-adaptive-500">
                           {formatPercentage(item.percentage)}
@@ -837,7 +864,7 @@ const Dashboard = () => {
                           <span className="text-sm font-medium text-adaptive-900">{budget.name}</span>
                         </div>
                         <span className="text-sm text-adaptive-600">
-                          {formatCurrency(budget.allocated)} / {formatCurrency(budget.target)}
+                          {formatCurrencyWithUserCurrency(budget.allocated)} / {formatCurrencyWithUserCurrency(budget.target)}
                         </span>
                       </div>
                       <div className="w-full bg-adaptive-200 rounded-full h-2">
@@ -868,12 +895,12 @@ const Dashboard = () => {
                 <div className="mt-4 pt-4 border-t border-adaptive">
                   <div className="flex justify-between text-sm">
                     <span className="text-adaptive-700">Totale Allocato:</span>
-                    <span className="font-semibold text-adaptive-900">{formatCurrency(budgetSummary.allocated)}</span>
+                    <span className="font-semibold text-adaptive-900">{formatCurrencyWithUserCurrency(budgetSummary.allocated)}</span>
                   </div>
                   <div className="flex justify-between text-sm mt-1">
                     <span className="text-adaptive-700">Fondi Disponibili:</span>
                     <span className="font-semibold text-adaptive-900">
-                      {formatCurrency(dashboardData.totals.bankLiquidity - budgetSummary.allocated)}
+                      {formatCurrencyWithUserCurrency(dashboardData.totals.bankLiquidity - budgetSummary.allocated)}
                     </span>
                   </div>
                 </div>
@@ -902,7 +929,7 @@ const Dashboard = () => {
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-semibold text-green-600">
-                        {formatCurrency(portfolio.stats?.totalValueEur || getDCACurrentValue(portfolio, btcPrice))}
+                        {formatCurrencyWithUserCurrency(portfolio.stats?.totalValueEur || getDCACurrentValue(portfolio, btcPrice))}
                       </div>
                       <div className={`text-xs ${(portfolio.stats?.totalROI || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {(portfolio.stats?.totalROI || 0) >= 0 ? '+' : ''}{(portfolio.stats?.totalROI || 0).toFixed(1)}%
@@ -944,7 +971,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                     <div className={`text-sm font-semibold ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                      {transaction.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount))}
+                      {transaction.type === 'income' ? '+' : '-'}{formatCurrencyWithUserCurrency(Math.abs(transaction.amount))}
                     </div>
                   </div>
                 ))}
@@ -1078,7 +1105,7 @@ const Dashboard = () => {
                             <span className="text-sm text-gray-700">{budget.name}</span>
                           </div>
                           <span className="text-xs text-gray-500">
-                            {formatCurrency(budget.allocatedAmount)}
+                            {formatCurrencyWithUserCurrency(budget.allocatedAmount)}
                           </span>
                         </div>
                       ))}

@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 
 interface BitcoinPrice {
-  btcUsd: number
-  btcEur: number
+  btcPrice: number
+  currency: string
   cached: boolean
   timestamp: string
 }

@@ -8,6 +8,8 @@ import {
   Cog6ToothIcon, XMarkIcon, ChevronDownIcon, DocumentArrowUpIcon,
   CheckIcon
 } from '@heroicons/react/24/outline'
+import { useAuth } from '@/contexts/AuthContext'
+import { formatCurrency } from '@/utils/formatters'
 
 interface Asset {
   id: number
@@ -78,6 +80,7 @@ interface CryptoPortfolio {
 export default function CryptoPortfolioDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const { user } = useAuth()
   const portfolioId = params.id as string
 
   // 🔧 STATI PRINCIPALI
@@ -160,8 +163,8 @@ export default function CryptoPortfolioDetailPage() {
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
 
   // Format functions
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
+  const formatCurrencyWithUserCurrencyWithUserCurrency = (amount: number) =>
+    formatCurrencyWithUserCurrency(amount, user?.currency || 'EUR')
 
   const formatPercentage = (value: number) =>
     `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
@@ -917,7 +920,7 @@ export default function CryptoPortfolioDetailPage() {
               <p className="text-adaptive-600 mt-1">{portfolio.description}</p>
             )}
             <p className="text-sm text-adaptive-500 mt-1">
-              Collegato a: {portfolio.account.name} ({formatCurrency(portfolio.account.balance)})
+              Collegato a: {portfolio.account.name} ({formatCurrencyWithUserCurrency(portfolio.account.balance)})
             </p>
           </div>
         </div>
@@ -963,18 +966,18 @@ export default function CryptoPortfolioDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">💰 Investimento Totale</h3>
-          <p className="text-2xl font-bold text-adaptive-900">{formatCurrency(portfolio.stats.totalInvested)}</p>
+          <p className="text-2xl font-bold text-adaptive-900">{formatCurrencyWithUserCurrency(portfolio.stats.totalInvested)}</p>
           <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.buyCount} acquisti</p>
         </div>
         
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">💸 Capitale Recuperato</h3>
-          <p className="text-2xl font-bold text-adaptive-900">{formatCurrency(portfolio.stats.capitalRecovered)}</p>
+          <p className="text-2xl font-bold text-adaptive-900">{formatCurrencyWithUserCurrency(portfolio.stats.capitalRecovered)}</p>
           <p className="text-xs text-adaptive-600 mt-1">
             {portfolio.stats.sellCount} vendite
             {portfolio.stats.capitalFromSwaps > 0 && (
               <span className="block text-orange-600">
-                + {formatCurrency(portfolio.stats.capitalFromSwaps)} da {portfolio.stats.swapCount} swap
+                + {formatCurrencyWithUserCurrency(portfolio.stats.capitalFromSwaps)} da {portfolio.stats.swapCount} swap
               </span>
             )}
           </p>
@@ -982,7 +985,7 @@ export default function CryptoPortfolioDetailPage() {
         
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">📈 Valore Attuale</h3>
-          <p className="text-2xl font-bold text-green-600">{formatCurrency(portfolio.stats.totalValueEur)}</p>
+          <p className="text-2xl font-bold text-green-600">{formatCurrencyWithUserCurrency(portfolio.stats.totalValueEur)}</p>
           <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.holdingsCount} asset</p>
         </div>
         
@@ -1008,7 +1011,7 @@ export default function CryptoPortfolioDetailPage() {
             <div className="text-center">
               <div className="text-sm text-adaptive-500 mb-1">Profitti Realizzati</div>
               <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(portfolio.stats.realizedProfit - (portfolio.stats.stakeRewards || 0))}
+                {formatCurrencyWithUserCurrency(portfolio.stats.realizedProfit - (portfolio.stats.stakeRewards || 0))}
               </div>
               <div className="text-xs text-adaptive-600 mt-1">Da vendite</div>
             </div>
@@ -1016,7 +1019,7 @@ export default function CryptoPortfolioDetailPage() {
             <div className="text-center">
               <div className="text-sm text-adaptive-500 mb-1">🏆 Staking Rewards</div>
               <div className="text-2xl font-bold text-blue-600">
-                {formatCurrency(portfolio.stats.stakeRewards || 0)}
+                {formatCurrencyWithUserCurrency(portfolio.stats.stakeRewards || 0)}
               </div>
               <div className="text-xs text-adaptive-600 mt-1">
                 {portfolio.stats.stakeRewardCount || 0} reward
@@ -1029,7 +1032,7 @@ export default function CryptoPortfolioDetailPage() {
             <div className="text-center">
               <div className="text-sm text-adaptive-500 mb-1">Plus/Minus Non Realizzati</div>
               <div className={`text-2xl font-bold ${portfolio.stats.unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrency(portfolio.stats.unrealizedGains)}
+                {formatCurrencyWithUserCurrency(portfolio.stats.unrealizedGains)}
               </div>
               <div className="text-xs text-adaptive-600 mt-1">Su holdings correnti</div>
             </div>
@@ -1037,7 +1040,7 @@ export default function CryptoPortfolioDetailPage() {
             <div className="text-center">
               <div className="text-sm text-adaptive-500 mb-1">Totale P&L</div>
               <div className={`text-2xl font-bold ${(portfolio.stats.realizedProfit + portfolio.stats.unrealizedGains) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrency(portfolio.stats.realizedProfit + portfolio.stats.unrealizedGains)}
+                {formatCurrencyWithUserCurrency(portfolio.stats.realizedProfit + portfolio.stats.unrealizedGains)}
               </div>
               <div className="text-xs text-adaptive-600 mt-1">Performance totale</div>
             </div>
@@ -1084,13 +1087,13 @@ export default function CryptoPortfolioDetailPage() {
                     <div className="flex items-center gap-6 text-sm">
                       <div className="text-center">
                         <div className="text-xs text-adaptive-500">Valore</div>
-                        <div className="font-semibold">{formatCurrency(currentValue)}</div>
+                        <div className="font-semibold">{formatCurrencyWithUserCurrency(currentValue)}</div>
                       </div>
                       
                       <div className="text-center">
                         <div className="text-xs text-adaptive-500">P&L</div>
                         <div className={`font-semibold ${assetPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(assetPnL)}
+                          {formatCurrencyWithUserCurrency(assetPnL)}
                         </div>
                       </div>
                       
@@ -1332,22 +1335,22 @@ export default function CryptoPortfolioDetailPage() {
                           )}
                         </td>
                         <td className="py-4 px-4 text-right">
-                          {formatCurrency(holding.avgPrice)}
+                          {formatCurrencyWithUserCurrency(holding.avgPrice)}
                         </td>
                         <td className="py-4 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {formatCurrency(currentPrice)}
+                            {formatCurrencyWithUserCurrency(currentPrice)}
                             {livePrice && (
                               <span className="text-xs bg-green-100 text-green-600 px-1 rounded">LIVE</span>
                             )}
                           </div>
                         </td>
                         <td className="py-4 px-4 text-right font-semibold">
-                          {formatCurrency(currentValue)}
+                          {formatCurrencyWithUserCurrency(currentValue)}
                         </td>
                         <td className="py-4 px-4 text-right">
                           <div className={`font-semibold ${unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatCurrency(unrealizedPnL)}
+                            {formatCurrencyWithUserCurrency(unrealizedPnL)}
                           </div>
                           <div className={`text-xs ${unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {formatPercentage(investedValue > 0 ? (unrealizedPnL / investedValue) * 100 : 0)}
@@ -1402,7 +1405,7 @@ export default function CryptoPortfolioDetailPage() {
                       </div>
                       <div className="text-sm text-red-700">
                         <div>Quantità: {formatCrypto(feeData.quantity, feeData.asset?.decimals || 6)}</div>
-                        <div>Valore: {formatCurrency(feeData.eurValue)}</div>
+                        <div>Valore: {formatCurrencyWithUserCurrency(feeData.eurValue)}</div>
                       </div>
                     </div>
                   ))}
@@ -1448,7 +1451,7 @@ export default function CryptoPortfolioDetailPage() {
                           -{formatCrypto(fee.quantity, fee.asset?.decimals || 6)}
                         </td>
                         <td className="py-3 px-4 text-right text-red-600">
-                          {fee.eurValue ? formatCurrency(fee.eurValue) : '-'}
+                          {fee.eurValue ? formatCurrencyWithUserCurrency(fee.eurValue) : '-'}
                         </td>
                         <td className="py-3 px-4 text-sm">
                           {fee.description || '-'}
@@ -1563,7 +1566,7 @@ export default function CryptoPortfolioDetailPage() {
                               <div>{formatCrypto(item.swapOut.quantity, item.swapOut.asset.decimals)} → {formatCrypto(item.swapIn.quantity, item.swapIn.asset.decimals)}</div>
                             </td>
                             <td className="py-4 px-4 text-right font-semibold">
-                              {formatCurrency(item.swapOut.eurValue)}
+                              {formatCurrencyWithUserCurrency(item.swapOut.eurValue)}
                             </td>
                             <td className="py-4 px-4 text-right">
                               -
@@ -1626,10 +1629,10 @@ export default function CryptoPortfolioDetailPage() {
                                   -{formatCrypto(item.swapOut.quantity, item.swapOut.asset.decimals)}
                                 </td>
                                 <td className="py-2 px-8 text-right text-sm font-medium text-gray-900">
-                                  {formatCurrency(item.swapOut.eurValue)}
+                                  {formatCurrencyWithUserCurrency(item.swapOut.eurValue)}
                                 </td>
                                 <td className="py-2 px-8 text-right text-sm text-gray-800">
-                                  {formatCurrency(item.swapOut.pricePerUnit)}
+                                  {formatCurrencyWithUserCurrency(item.swapOut.pricePerUnit)}
                                 </td>
                                 <td className="py-2 px-8 text-center">
                                   <span className="text-xs text-gray-500">Parte del Swap</span>
@@ -1655,10 +1658,10 @@ export default function CryptoPortfolioDetailPage() {
                                   +{formatCrypto(item.swapIn.quantity, item.swapIn.asset.decimals)}
                                 </td>
                                 <td className="py-2 px-8 text-right text-sm font-medium text-gray-900">
-                                  {formatCurrency(item.swapIn.eurValue)}
+                                  {formatCurrencyWithUserCurrency(item.swapIn.eurValue)}
                                 </td>
                                 <td className="py-2 px-8 text-right text-sm text-gray-800">
-                                  {formatCurrency(item.swapIn.pricePerUnit)}
+                                  {formatCurrencyWithUserCurrency(item.swapIn.pricePerUnit)}
                                 </td>
                                 <td className="py-2 px-8 text-center">
                                   <span className="text-xs text-gray-500">Parte del Swap</span>
@@ -1712,10 +1715,10 @@ export default function CryptoPortfolioDetailPage() {
                         {formatCrypto(transaction.quantity, transaction.asset.decimals)}
                       </td>
                       <td className="py-4 px-4 text-right font-semibold">
-                        {formatCurrency(transaction.eurValue)}
+                        {formatCurrencyWithUserCurrency(transaction.eurValue)}
                       </td>
                       <td className="py-4 px-4 text-right">
-                        {formatCurrency(transaction.pricePerUnit)}
+                        {formatCurrencyWithUserCurrency(transaction.pricePerUnit)}
                       </td>
                       <td className="py-4 px-4 text-center">
                         <div className="flex items-center justify-center gap-2">
@@ -1827,7 +1830,7 @@ export default function CryptoPortfolioDetailPage() {
                 />
                 {currentPrice && (
                   <div className="text-xs text-green-600 mt-1">
-                    💹 Prezzo corrente: {formatCurrency(currentPrice)}
+                    💹 Prezzo corrente: {formatCurrencyWithUserCurrency(currentPrice)}
                   </div>
                 )}
               </div>
@@ -1866,7 +1869,7 @@ export default function CryptoPortfolioDetailPage() {
                 />
                 {currentPrice && transactionForm.quantity && !isNaN(parseFloat(transactionForm.quantity)) && (
                   <div className="text-xs text-gray-500 mt-1">
-                    💡 {transactionForm.quantity} × {formatCurrency(currentPrice)} = {formatCurrency(parseFloat(transactionForm.quantity) * currentPrice)}
+                    💡 {transactionForm.quantity} × {formatCurrencyWithUserCurrency(currentPrice)} = {formatCurrencyWithUserCurrency(parseFloat(transactionForm.quantity) * currentPrice)}
                   </div>
                 )}
               </div>
@@ -1999,7 +2002,7 @@ export default function CryptoPortfolioDetailPage() {
                 />
                 {currentPrice && (
                   <div className="text-xs text-green-600 mt-1">
-                    💹 Prezzo corrente: {formatCurrency(currentPrice)}
+                    💹 Prezzo corrente: {formatCurrencyWithUserCurrency(currentPrice)}
                   </div>
                 )}
               </div>
@@ -2038,7 +2041,7 @@ export default function CryptoPortfolioDetailPage() {
                 />
                 {currentPrice && transactionForm.quantity && !isNaN(parseFloat(transactionForm.quantity)) && (
                   <div className="text-xs text-gray-500 mt-1">
-                    💡 {transactionForm.quantity} × {formatCurrency(currentPrice)} = {formatCurrency(parseFloat(transactionForm.quantity) * currentPrice)}
+                    💡 {transactionForm.quantity} × {formatCurrencyWithUserCurrency(currentPrice)} = {formatCurrencyWithUserCurrency(parseFloat(transactionForm.quantity) * currentPrice)}
                   </div>
                 )}
               </div>

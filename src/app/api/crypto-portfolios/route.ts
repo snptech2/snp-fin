@@ -35,7 +35,7 @@ function calculateEnhancedStats(transactions: any[]) {
 }
 
 // 🆕 NUOVA FUNZIONE: Ottieni prezzi correnti per gli asset
-async function fetchCurrentPrices(symbols: string[]): Promise<Record<string, number>> {
+async function fetchCurrentPrices(symbols: string[], request: NextRequest): Promise<Record<string, number>> {
   try {
     if (symbols.length === 0) return {}
     
@@ -46,10 +46,14 @@ async function fetchCurrentPrices(symbols: string[]): Promise<Record<string, num
     const symbolsParam = symbols.join(',')
     const url = `${baseUrl}/api/crypto-prices?symbols=${symbolsParam}`
     
+    // Passa i cookie di autenticazione dalla richiesta originale
+    const authCookie = request.headers.get('cookie')
+    
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'User-Agent': 'SNP-Finance-App/1.0',
+        ...(authCookie ? { 'Cookie': authCookie } : {}),
       },
       // Force fresh data per backend calculations
       cache: 'no-store'
@@ -139,7 +143,7 @@ export async function GET(request: NextRequest) {
     })
 
     // 🆕 Fetch prezzi correnti per tutti gli asset
-    const currentPrices = await fetchCurrentPrices(Array.from(allSymbols))
+    const currentPrices = await fetchCurrentPrices(Array.from(allSymbols), request)
 
     // 🎯 FASE 1: Applica Enhanced Statistics + Current Prices
     const portfoliosWithEnhancedStats = portfolios.map(portfolio => {

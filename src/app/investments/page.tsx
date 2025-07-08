@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { useAuth } from '@/contexts/AuthContext'
+import { formatCurrency } from '@/utils/formatters'
 
 interface Account {
   id: number
@@ -47,12 +49,14 @@ interface Portfolio {
 }
 
 interface BitcoinPrice {
-  btcUsd: number
-  btcEur: number
+  btcPrice: number
+  currency: string
   cached: boolean
+  timestamp: string
 }
 
 export default function InvestmentsPage() {
+  const { user } = useAuth()
   const [dcaPortfolios, setDcaPortfolios] = useState<Portfolio[]>([])
   const [cryptoPortfolios, setCryptoPortfolios] = useState<Portfolio[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -110,6 +114,7 @@ export default function InvestmentsPage() {
 
       if (cryptoRes.ok) {
         const cryptoData = await cryptoRes.json()
+        console.log('🔍 Crypto portfolios data:', cryptoData)
         setCryptoPortfolios(Array.isArray(cryptoData) ? cryptoData : [])
       }
 
@@ -137,8 +142,8 @@ export default function InvestmentsPage() {
   }
 
   // Format functions
-  const formatCurrency = (amount: number) => 
-    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
+  const formatCurrencyWithUserCurrency = (amount: number) => 
+    formatCurrency(amount, user?.currency || 'EUR')
 
   const formatPercentage = (value: number) => 
     new Intl.NumberFormat('it-IT', { style: 'percent', minimumFractionDigits: 1 }).format(value / 100)
@@ -149,18 +154,18 @@ export default function InvestmentsPage() {
       return 0
     }
     
-    if (!btcPrice?.btcEur) {
+    if (!btcPrice?.btcPrice) {
       return 0
     }
     
     // Priority: netBTC (includes network fees)
     if (portfolio.stats?.netBTC !== undefined && portfolio.stats?.netBTC !== null) {
-      return portfolio.stats.netBTC * btcPrice.btcEur
+      return portfolio.stats.netBTC * btcPrice.btcPrice
     }
     
     // Fallback: totalBTC
     if (portfolio.stats?.totalBTC !== undefined && portfolio.stats?.totalBTC !== null) {
-      return portfolio.stats.totalBTC * btcPrice.btcEur
+      return portfolio.stats.totalBTC * btcPrice.btcPrice
     }
     
     return 0
@@ -323,7 +328,7 @@ export default function InvestmentsPage() {
           <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
             <h3 className="text-sm font-medium text-adaptive-500">💰 Totale Investito</h3>
             <p className="text-2xl font-bold text-adaptive-900">
-              {formatCurrency(overallStats.totalInvested)}
+              {formatCurrencyWithUserCurrency(overallStats.totalInvested)}
             </p>
             <p className="text-sm text-adaptive-600">{overallStats.totalPortfolios} portfolio</p>
           </div>
@@ -331,7 +336,7 @@ export default function InvestmentsPage() {
           <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
             <h3 className="text-sm font-medium text-adaptive-500">🔄 Capitale Recuperato</h3>
             <p className="text-2xl font-bold text-blue-600">
-              {formatCurrency(overallStats.totalCapitalRecovered)}
+              {formatCurrencyWithUserCurrency(overallStats.totalCapitalRecovered)}
             </p>
             <div className="flex items-center gap-2 text-sm text-adaptive-600">
               <span>
@@ -345,7 +350,7 @@ export default function InvestmentsPage() {
           <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
             <h3 className="text-sm font-medium text-adaptive-500">⚠️ Soldi a Rischio</h3>
             <p className="text-2xl font-bold text-orange-600">
-              {formatCurrency(overallStats.totalEffectiveInvestment)}
+              {formatCurrencyWithUserCurrency(overallStats.totalEffectiveInvestment)}
             </p>
             <p className="text-sm text-adaptive-600">
               {overallStats.isFullyRecovered ? '🎉 Investimento gratis!' : 'Non ancora recuperato'}
@@ -355,7 +360,7 @@ export default function InvestmentsPage() {
           <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
             <h3 className="text-sm font-medium text-adaptive-500">📈 Valore Attuale</h3>
             <p className="text-2xl font-bold text-green-600">
-              {formatCurrency(overallStats.totalCurrentValue)}
+              {formatCurrencyWithUserCurrency(overallStats.totalCurrentValue)}
             </p>
             <p className={`text-sm ${overallStats.overallROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               ROI: {formatPercentage(overallStats.overallROI)}
@@ -403,19 +408,19 @@ export default function InvestmentsPage() {
                           <div>
                             <p className="text-adaptive-500">Profitto Realizzato</p>
                             <p className={`font-semibold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(realizedProfit)}
+                              {formatCurrencyWithUserCurrency(realizedProfit)}
                             </p>
                           </div>
                           <div>
                             <p className="text-adaptive-500">Plus/Minus Non Realizzati</p>
                             <p className={`font-semibold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(unrealizedGains)}
+                              {formatCurrencyWithUserCurrency(unrealizedGains)}
                             </p>
                           </div>
                           <div>
                             <p className="text-adaptive-500">Totale P&L</p>
                             <p className={`font-semibold ${totalGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(totalGains)}
+                              {formatCurrencyWithUserCurrency(totalGains)}
                             </p>
                           </div>
                           <div>
@@ -432,7 +437,7 @@ export default function InvestmentsPage() {
                         <div className="text-center min-w-[100px]">
                           <p className="text-xs text-adaptive-500">Investito</p>
                           <p className="font-semibold text-adaptive-900">
-                            {formatCurrency(totalInvested)}
+                            {formatCurrencyWithUserCurrency(totalInvested)}
                           </p>
                         </div>
 
@@ -440,7 +445,7 @@ export default function InvestmentsPage() {
                         <div className="text-center min-w-[100px]">
                           <p className="text-xs text-adaptive-500">Valore Attuale</p>
                           <p className="font-semibold text-green-600">
-                            {formatCurrency(currentValue)}
+                            {formatCurrencyWithUserCurrency(currentValue)}
                           </p>
                         </div>
 
@@ -478,6 +483,13 @@ export default function InvestmentsPage() {
                 const realizedProfit = portfolio.stats.realizedProfit || 0
                 const unrealizedGains = portfolio.stats.unrealizedGains || 0
                 const totalGains = realizedProfit + unrealizedGains
+                
+                console.log(`🔍 Portfolio ${portfolio.name}:`, {
+                  totalInvested,
+                  currentValue,
+                  totalValueEur: portfolio.stats.totalValueEur,
+                  stats: portfolio.stats
+                })
 
                 return (
                   <div key={portfolio.id} className="p-6 hover:bg-adaptive-50 transition-colors">
@@ -499,19 +511,19 @@ export default function InvestmentsPage() {
                           <div>
                             <p className="text-adaptive-500">Profitto Realizzato</p>
                             <p className={`font-semibold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(realizedProfit)}
+                              {formatCurrencyWithUserCurrency(realizedProfit)}
                             </p>
                           </div>
                           <div>
                             <p className="text-adaptive-500">Plus/Minus Non Realizzati</p>
                             <p className={`font-semibold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(unrealizedGains)}
+                              {formatCurrencyWithUserCurrency(unrealizedGains)}
                             </p>
                           </div>
                           <div>
                             <p className="text-adaptive-500">Totale P&L</p>
                             <p className={`font-semibold ${totalGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(totalGains)}
+                              {formatCurrencyWithUserCurrency(totalGains)}
                             </p>
                           </div>
                           <div>
@@ -528,7 +540,7 @@ export default function InvestmentsPage() {
                         <div className="text-center min-w-[100px]">
                           <p className="text-xs text-adaptive-500">Investito</p>
                           <p className="font-semibold text-adaptive-900">
-                            {formatCurrency(totalInvested)}
+                            {formatCurrencyWithUserCurrency(totalInvested)}
                           </p>
                         </div>
 
@@ -536,7 +548,7 @@ export default function InvestmentsPage() {
                         <div className="text-center min-w-[100px]">
                           <p className="text-xs text-adaptive-500">Valore Attuale</p>
                           <p className="font-semibold text-green-600">
-                            {formatCurrency(currentValue)}
+                            {formatCurrencyWithUserCurrency(currentValue)}
                           </p>
                         </div>
 
@@ -619,7 +631,7 @@ export default function InvestmentsPage() {
                     <option value="">Seleziona account</option>
                     {investmentAccounts.map(account => (
                       <option key={account.id} value={account.id}>
-                        {account.name} ({formatCurrency(account.balance)})
+                        {account.name} ({formatCurrencyWithUserCurrency(account.balance)})
                       </option>
                     ))}
                   </select>
@@ -699,7 +711,7 @@ export default function InvestmentsPage() {
                     <option value="">Seleziona account</option>
                     {investmentAccounts.map(account => (
                       <option key={account.id} value={account.id}>
-                        {account.name} ({formatCurrency(account.balance)})
+                        {account.name} ({formatCurrencyWithUserCurrency(account.balance)})
                       </option>
                     ))}
                   </select>

@@ -18,7 +18,8 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   const [accountData, setAccountData] = useState({
     name: 'Conto Principale',
     type: 'bank' as 'bank' | 'investment',
-    balance: 0
+    balance: 0,
+    currency: 'EUR'
   })
 
   const totalSteps = 5
@@ -406,6 +407,18 @@ function InitialSetupStep({ accountData, setAccountData, profileId }: {
           >
             <option value="bank">🏦 Conto Bancario</option>
             <option value="investment">📈 Conto Investimenti</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2 text-adaptive-700">Valuta</label>
+          <select
+            value={accountData.currency}
+            onChange={(e) => setAccountData({...accountData, currency: e.target.value})}
+            className="w-full px-3 py-2 border border-adaptive rounded-lg focus:ring-2 focus:ring-info focus:border-transparent"
+          >
+            <option value="EUR">🇪🇺 Euro (€)</option>
+            <option value="USD">🇺🇸 US Dollar ($)</option>
           </select>
         </div>
 

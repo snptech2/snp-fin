@@ -252,7 +252,39 @@ function ModulesSettings({ moduleSettings, onToggleModule }: {
 
 // Account Settings Component
 function AccountSettings() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
+  const [loading, setLoading] = useState(false)
+  const [feedback, setFeedback] = useState<{type: 'success' | 'error', message: string} | null>(null)
+
+  const handleCurrencyChange = async (newCurrency: string) => {
+    if (user?.currency === newCurrency) return
+    
+    setLoading(true)
+    setFeedback(null)
+    
+    try {
+      const response = await fetch('/api/user/currency', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currency: newCurrency })
+      })
+      
+      if (response.ok) {
+        await refreshUser()
+        setFeedback({ 
+          type: 'success', 
+          message: `Valuta cambiata in ${newCurrency}. I prezzi verranno aggiornati automaticamente.` 
+        })
+        setTimeout(() => setFeedback(null), 5000)
+      } else {
+        throw new Error('Errore nel cambio valuta')
+      }
+    } catch (error) {
+      setFeedback({ type: 'error', message: 'Errore nel cambio valuta' })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -261,6 +293,17 @@ function AccountSettings() {
         <p className="text-adaptive-600 mb-6">
           Informazioni e preferenze del tuo account
         </p>
+        
+        {/* Feedback Toast */}
+        {feedback && (
+          <div className={`p-3 rounded-lg mb-4 ${
+            feedback.type === 'success' 
+              ? 'bg-success bg-opacity-10 border border-success text-success'
+              : 'bg-error bg-opacity-10 border border-error text-error'
+          }`}>
+            {feedback.message}
+          </div>
+        )}
       </div>
 
       <div className="space-y-4">
@@ -276,15 +319,26 @@ function AccountSettings() {
             </div>
             <div>
               <label className="block text-sm font-medium text-adaptive-700">Valuta</label>
-              <div className="mt-1 text-sm text-adaptive-900">{user?.currency}</div>
+              <div className="mt-1">
+                <select
+                  value={user?.currency || 'EUR'}
+                  onChange={(e) => handleCurrencyChange(e.target.value)}
+                  disabled={loading}
+                  className="text-sm border border-adaptive rounded px-2 py-1 bg-transparent text-adaptive-900 disabled:opacity-50"
+                >
+                  <option value="EUR">🇪🇺 Euro (€)</option>
+                  <option value="USD">🇺🇸 US Dollar ($)</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="p-4 border border-warning bg-warning bg-opacity-10 rounded-lg">
-          <h4 className="font-medium text-adaptive-900 mb-2">🚧 In Sviluppo</h4>
+        <div className="p-4 border border-info bg-info bg-opacity-10 rounded-lg">
+          <h4 className="font-medium text-adaptive-900 mb-2">💡 Nota sulla valuta</h4>
           <p className="text-sm text-adaptive-700">
-            Le modifiche alle impostazioni dell'account saranno disponibili presto.
+            Cambiando valuta, i prezzi crypto verranno aggiornati automaticamente. 
+            I dati esistenti (transazioni, saldi) mantengono il loro valore numerico ma cambiano solo il simbolo.
           </p>
         </div>
       </div>

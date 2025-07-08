@@ -6,6 +6,8 @@ import {
   ArrowsRightLeftIcon, CheckIcon, XMarkIcon, ArrowPathIcon 
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { useAuth } from '@/contexts/AuthContext'
+import { formatCurrency } from '@/utils/formatters'
 
 interface Account {
   id: number
@@ -51,12 +53,15 @@ interface Transfer {
 }
 
 interface BitcoinPrice {
-  btcUsd: number
-  btcEur: number
+  btcPrice: number
+  currency: string
   cached: boolean
+  timestamp: string
 }
 
 export default function AccountsPage() {
+  const { user } = useAuth()
+  
   // Stati esistenti
   const [accounts, setAccounts] = useState<Account[]>([])
   const [dcaPortfolios, setDCAPortfolios] = useState<Portfolio[]>([])
@@ -82,8 +87,8 @@ export default function AccountsPage() {
   // Stato per prezzo Bitcoin
   const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null)
 
-  const formatCurrency = (amount: number) => 
-    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
+  const formatCurrencyWithUserCurrency = (amount: number) => 
+    formatCurrency(amount, user?.currency || 'EUR')
 
   const formatPercentage = (value: number) => 
     new Intl.NumberFormat('it-IT', { style: 'percent', minimumFractionDigits: 1 }).format(value / 100)
@@ -125,18 +130,18 @@ const handleSetDefaultAccount = async (accountId: number) => {
       return 0
     }
     
-    if (!btcPrice?.btcEur) {
+    if (!btcPrice?.btcPrice) {
       return 0
     }
     
     // Priority: netBTC (includes network fees)
     if (portfolio.stats?.netBTC !== undefined && portfolio.stats?.netBTC !== null) {
-      return portfolio.stats.netBTC * btcPrice.btcEur
+      return portfolio.stats.netBTC * btcPrice.btcPrice
     }
     
     // Fallback: totalBTC
     if (portfolio.stats?.totalBTC !== undefined && portfolio.stats?.totalBTC !== null) {
-      return portfolio.stats.totalBTC * btcPrice.btcEur
+      return portfolio.stats.totalBTC * btcPrice.btcPrice
     }
     
     return 0
@@ -278,7 +283,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
 
         if (response.ok) {
           const result = await response.json()
-          alert(`Saldo ricalcolato per "${accountName}":\nVecchio saldo: ${formatCurrency(result.oldBalance)}\nNuovo saldo: ${formatCurrency(result.newBalance)}`)
+          alert(`Saldo ricalcolato per "${accountName}":\nVecchio saldo: ${formatCurrencyWithUserCurrency(result.oldBalance)}\nNuovo saldo: ${formatCurrencyWithUserCurrency(result.newBalance)}`)
           await fetchData() // Refresh data
         } else {
           const error = await response.json()
@@ -337,7 +342,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
           fromAccountId: parseInt(transferForm.fromAccountId),
           toAccountId: parseInt(transferForm.toAccountId),
           amount: amount,
-          description: transferForm.description || `Trasferimento di ${formatCurrency(amount)}`,
+          description: transferForm.description || `Trasferimento di ${formatCurrencyWithUserCurrency(amount)}`,
           date: transferForm.date
         })
       })
@@ -437,7 +442,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <div className="card-adaptive rounded-lg p-6">
             <h3 className="text-lg font-semibold text-adaptive-900 mb-2">💰 Saldo Totale</h3>
-            <p className="text-3xl font-bold text-adaptive-900">{formatCurrency(totalBalance)}</p>
+            <p className="text-3xl font-bold text-adaptive-900">{formatCurrencyWithUserCurrency(totalBalance)}</p>
           </div>
           
           <div className="card-adaptive rounded-lg p-6">
@@ -537,7 +542,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
           {/* Balance */}
           <div className="text-center mb-4">
             <p className="text-2xl font-bold text-adaptive-900">
-              {formatCurrency(account.balance)}
+              {formatCurrencyWithUserCurrency(account.balance)}
             </p>
           </div>
 
@@ -636,7 +641,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
                         <div className="text-right">
                           <p className="text-sm text-adaptive-500">Saldo Conto</p>
                           <p className="text-xl font-bold text-adaptive-900">
-                            {formatCurrency(account.balance)}
+                            {formatCurrencyWithUserCurrency(account.balance)}
                           </p>
                         </div>
                         <div className="flex gap-1">
@@ -670,19 +675,19 @@ const handleSetDefaultAccount = async (accountId: number) => {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
                             <p className="text-adaptive-500">💰 Totale Investito</p>
-                            <p className="font-semibold text-adaptive-900">{formatCurrency(breakdown.totalInvested)}</p>
+                            <p className="font-semibold text-adaptive-900">{formatCurrencyWithUserCurrency(breakdown.totalInvested)}</p>
                           </div>
                           <div>
                             <p className="text-adaptive-500">🔄 Capitale Recuperato</p>
-                            <p className="font-semibold text-blue-600">{formatCurrency(breakdown.totalCapitalRecovered)}</p>
+                            <p className="font-semibold text-blue-600">{formatCurrencyWithUserCurrency(breakdown.totalCapitalRecovered)}</p>
                           </div>
                           <div>
                             <p className="text-adaptive-500">⚠️ Soldi a Rischio</p>
-                            <p className="font-semibold text-orange-600">{formatCurrency(breakdown.totalEffectiveInvestment)}</p>
+                            <p className="font-semibold text-orange-600">{formatCurrencyWithUserCurrency(breakdown.totalEffectiveInvestment)}</p>
                           </div>
                           <div>
                             <p className="text-adaptive-500">📈 Valore Attuale</p>
-                            <p className="font-semibold text-green-600">{formatCurrency(breakdown.totalCurrentValue)}</p>
+                            <p className="font-semibold text-green-600">{formatCurrencyWithUserCurrency(breakdown.totalCurrentValue)}</p>
                           </div>
                         </div>
                         
@@ -776,7 +781,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
                         <td className="py-3 px-4 text-adaptive-900">{transfer.fromAccount.name}</td>
                         <td className="py-3 px-4 text-adaptive-900">{transfer.toAccount.name}</td>
                         <td className="py-3 px-4 text-right font-semibold text-green-600">
-                          {formatCurrency(transfer.amount)}
+                          {formatCurrencyWithUserCurrency(transfer.amount)}
                         </td>
                         <td className="py-3 px-4 text-adaptive-600">{transfer.description}</td>
                         <td className="py-3 px-4 text-center">
@@ -903,7 +908,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
                     <option value="">Seleziona conto di origine</option>
                     {accounts.map((account) => (
                       <option key={account.id} value={account.id}>
-                        {account.name} ({formatCurrency(account.balance)})
+                        {account.name} ({formatCurrencyWithUserCurrency(account.balance)})
                       </option>
                     ))}
                   </select>
@@ -924,7 +929,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
                       .filter(account => account.id.toString() !== transferForm.fromAccountId)
                       .map((account) => (
                         <option key={account.id} value={account.id}>
-                          {account.name} ({formatCurrency(account.balance)})
+                          {account.name} ({formatCurrencyWithUserCurrency(account.balance)})
                         </option>
                       ))}
                   </select>
@@ -932,7 +937,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
 
                 <div>
                   <label className="block text-sm font-medium text-adaptive-900 mb-1">
-                    Importo (EUR)
+                    Importo ({user?.currency || 'EUR'})
                   </label>
                   <input
                     type="number"

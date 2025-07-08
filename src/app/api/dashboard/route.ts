@@ -5,6 +5,32 @@ import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
+// Helper function to fetch DCA portfolios with calculated stats
+async function fetchDCAPortfoliosInternal(request: NextRequest) {
+  try {
+    // Build internal API URL 
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    const response = await fetch(`${baseUrl}/api/dca-portfolios`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'SNP-Finance-App/1.0',
+        'Cookie': request.headers.get('cookie') || '',
+      },
+      cache: 'no-store'
+    })
+    
+    if (response.ok) {
+      return await response.json()
+    } else {
+      console.error('Failed to fetch DCA portfolios:', response.status)
+      return []
+    }
+  } catch (error) {
+    console.error('Error fetching DCA portfolios:', error)
+    return []
+  }
+}
+
 // GET - Dashboard data unificata (riduce da 8 a 1 chiamata HTTP)
 export async function GET(request: NextRequest) {
   try {
@@ -38,24 +64,8 @@ export async function GET(request: NextRequest) {
         }
       }),
       
-      // DCA Portfolios
-      prisma.dCAPortfolio.findMany({
-        where: { userId, isActive: true },
-        include: {
-          account: { select: { id: true, name: true, balance: true } },
-          transactions: {
-            orderBy: { date: 'desc' },
-            select: {
-              id: true,
-              date: true,
-              type: true,
-              btcQuantity: true,
-              eurPaid: true
-            }
-          }
-        },
-        orderBy: { createdAt: 'desc' }
-      }),
+      // DCA Portfolios - fetch from API to get calculated stats
+      fetchDCAPortfoliosInternal(request),
       
       // Crypto Portfolios - ottimizzato
       prisma.cryptoPortfolio.findMany({
