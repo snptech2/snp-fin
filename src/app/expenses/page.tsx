@@ -162,7 +162,7 @@ export default function ExpensesPage() {
       const [accountsRes, categoriesRes, transactionsRes] = await Promise.all([
         fetch('/api/accounts'),
         fetch('/api/categories?type=expense'),
-        fetch('/api/transactions?type=expense')
+        fetch('/api/transactions?type=expense&all=true')
       ])
 
       if (accountsRes.ok) setAccounts(await accountsRes.json())

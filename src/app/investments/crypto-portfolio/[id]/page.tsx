@@ -163,8 +163,8 @@ export default function CryptoPortfolioDetailPage() {
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
 
   // Format functions
-  const formatCurrencyWithUserCurrencyWithUserCurrency = (amount: number) =>
-    formatCurrencyWithUserCurrency(amount, user?.currency || 'EUR')
+  const formatCurrencyWithUserCurrency = (amount: number) =>
+    formatCurrency(amount, user?.currency || 'EUR')
 
   const formatPercentage = (value: number) =>
     `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`

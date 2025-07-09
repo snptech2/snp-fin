@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get('categoryId')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50') // Ridotto limite default per performance
+    const all = searchParams.get('all') === 'true' // Parametro per ottenere tutte le transazioni
     const offset = (page - 1) * limit
 
     // Costruisci filtri
@@ -30,10 +31,10 @@ export async function GET(request: NextRequest) {
     if (accountId) where.accountId = parseInt(accountId)
     if (categoryId) where.categoryId = parseInt(categoryId)
 
-    // Get total count for pagination
-    const totalCount = await prisma.transaction.count({ where })
+    // Get total count for pagination (se non richiediamo tutto)
+    const totalCount = all ? 0 : await prisma.transaction.count({ where })
     
-    const transactions = await prisma.transaction.findMany({
+    const transactionQuery: any = {
       where,
       include: {
         account: {
@@ -43,14 +44,22 @@ export async function GET(request: NextRequest) {
           select: { id: true, name: true, type: true, color: true } // 🎨 Includi il colore!
         }
       },
-      orderBy: { date: 'desc' },
-      take: limit,
-      skip: offset
-    })
+      orderBy: { date: 'desc' }
+    }
+    
+    // Se non richiediamo tutto, applica paginazione
+    if (!all) {
+      transactionQuery.take = limit
+      transactionQuery.skip = offset
+    }
+    
+    const transactions = await prisma.transaction.findMany(transactionQuery)
 
-    return NextResponse.json({
-      transactions,
-      pagination: {
+    const response: any = { transactions }
+    
+    // Includi paginazione solo se non richiediamo tutto
+    if (!all) {
+      response.pagination = {
         currentPage: page,
         totalPages: Math.ceil(totalCount / limit),
         totalCount,
@@ -58,7 +67,9 @@ export async function GET(request: NextRequest) {
         hasNext: page * limit < totalCount,
         hasPrev: page > 1
       }
-    })
+    }
+    
+    return NextResponse.json(response)
   } catch (error) {
     console.error('Errore nel recupero transazioni:', error)
     return NextResponse.json(

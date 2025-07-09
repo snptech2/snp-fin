@@ -125,6 +125,7 @@ export async function GET(
 
     const portfolioWithStats = {
       ...portfolio,
+      type: 'dca_bitcoin', // Aggiungi tipo per distinguere da crypto wallet
       transactions: transactionsWithPrice,
       stats: finalStats
     }

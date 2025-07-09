@@ -5,7 +5,8 @@
       "Bash(rg:*)",
       "Bash(mkdir:*)",
       "Bash(grep:*)",
-      "Bash(claude doctor)"
+      "Bash(claude doctor)",
+      "Bash(npm run build:*)"
     ],
     "deny": []
   }

@@ -702,7 +702,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
                                 
                                 return (
                                   <a
-                                    key={portfolio.id}
+                                    key={`${portfolio.type}-${portfolio.id}`}
                                     href={portfolioUrl}
                                     className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full hover:bg-blue-200 transition-colors cursor-pointer"
                                   >

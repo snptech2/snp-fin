@@ -9,12 +9,16 @@ const prisma = new PrismaClient()
 function calculateEnhancedStats(transactions: any[]) {
   const buyTransactions = transactions.filter(tx => tx.type === 'buy')
   const sellTransactions = transactions.filter(tx => tx.type === 'sell')
+  const swapOutTransactions = transactions.filter(tx => tx.type === 'swap_out')
 
   // 🔧 FIX FASE 1: Applica esattamente la logica Enhanced definita nei documenti
   const totalInvested = buyTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
-  const capitalRecovered = sellTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
+  // FIX: Capitale recuperato è limitato all'investimento totale
+  const totalSold = sellTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
+  const capitalRecovered = Math.min(totalSold, totalInvested)
   const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
-  const realizedProfit = Math.max(0, capitalRecovered - totalInvested)
+  // FIX: Profitto realizzato = vendite totali - investimento totale (se positivo)
+  const realizedProfit = Math.max(0, totalSold - totalInvested)
 
   // Status
   const isFullyRecovered = capitalRecovered >= totalInvested
@@ -180,6 +184,8 @@ export async function GET(request: NextRequest) {
 
       return {
         ...portfolio,
+        accountId: portfolio.account.id, // Aggiungi accountId per compatibilità
+        type: 'crypto_wallet', // Aggiungi tipo per distinguere da DCA
         holdings: holdingsWithCurrentPrices,
         stats: finalStats
       }

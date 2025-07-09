@@ -490,7 +490,7 @@ export default function DCAPortfolioPage() {
           eur_pagati: values[headers.indexOf('eur_pagati')] || '',
           note: values[headers.indexOf('note')] || ''
         }
-      }).filter(row => row.data && row.tipo && row.broker && row.info && row.quantita_btc && row.eur_pagati)
+      }).filter(row => row.data && row.tipo && row.broker && row.quantita_btc && row.eur_pagati)
 
       setCsvData(rows)
       setShowPreview(true)
@@ -1096,13 +1096,13 @@ const openEditTransaction = (transaction: DCATransaction) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Info</label>
+                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Info (opzionale)</label>
                   <input
                     type="text"
                     value={transactionForm.info}
                     onChange={(e) => setTransactionForm({...transactionForm, info: e.target.value})}
                     className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
-                    required
+                    placeholder="es. DCA, Profit taking"
                   />
                 </div>
                 <div>
@@ -1203,13 +1203,13 @@ const openEditTransaction = (transaction: DCATransaction) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Info</label>
+                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Info (opzionale)</label>
                   <input
                     type="text"
                     value={transactionForm.info}
                     onChange={(e) => setTransactionForm({...transactionForm, info: e.target.value})}
                     className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
-                    required
+                    placeholder="es. DCA, Profit taking"
                   />
                 </div>
                 <div>
@@ -1558,7 +1558,7 @@ const openEditTransaction = (transaction: DCATransaction) => {
                       <li>• <strong>data:</strong> formato DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD</li>
                       <li>• <strong>tipo:</strong> 'buy' o 'sell'</li>
                       <li>• <strong>broker:</strong> nome del broker/exchange (es. Binance, Kraken)</li>
-                      <li>• <strong>info:</strong> informazioni sulla transazione (es. DCA, Profit taking)</li>
+                      <li>• <strong>info:</strong> informazioni sulla transazione (es. DCA, Profit taking) - <em>opzionale</em></li>
                       <li>• <strong>quantita_btc:</strong> quantità di Bitcoin (es. 0.00123456)</li>
                       <li>• <strong>eur_pagati:</strong> importo in Euro (es. 50.00)</li>
                       <li>• <strong>note:</strong> note opzionali</li>
@@ -1628,7 +1628,7 @@ const openEditTransaction = (transaction: DCATransaction) => {
                               </span>
                             </td>
                             <td className="px-3 py-2 text-sm text-gray-900">{row.broker}</td>
-                            <td className="px-3 py-2 text-sm text-gray-900">{row.info}</td>
+                            <td className="px-3 py-2 text-sm text-gray-900">{row.info || 'N/A'}</td>
                             <td className="px-3 py-2 text-sm text-gray-900">{row.quantita_btc}</td>
                             <td className="px-3 py-2 text-sm text-gray-900">€{row.eur_pagati}</td>
                             <td className="px-3 py-2 text-sm text-gray-500">{row.note || '-'}</td>

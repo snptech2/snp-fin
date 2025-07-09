@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
 
       return {
         ...portfolio,
+        type: 'dca_bitcoin', // Aggiungi tipo per distinguere da crypto wallet
         stats: finalStats
       }
     })

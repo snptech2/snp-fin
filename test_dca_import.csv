@@ -1,0 +1,6 @@
+data,tipo,broker,info,quantita_btc,eur_pagati,note
+01/01/2024,buy,Kraken,DCA acquisto,0.00123456,50.00,Test note 1
+02/01/2024,buy,Binance,,0.00098765,40.00,Test note 2
+03/01/2024,sell,Coinbase,Profit taking,0.00050000,30.00,Test note 3
+04/01/2024,buy,Kraken,,0.00111111,55.00,
+05/01/2024,buy,Binance,DCA acquisto,0.00087654,45.00,Test note 5

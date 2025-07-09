@@ -8,7 +8,7 @@ interface CSVRow {
   data: string
   tipo: string
   broker: string
-  info: string
+  info?: string
   quantita_btc: string
   eur_pagati: string
   note: string
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
                   if (!row.data) missingFields.push('data')
                   if (!row.tipo) missingFields.push('tipo')
                   if (!row.broker) missingFields.push('broker')
-                  if (!row.info) missingFields.push('info')
+                  // Campo info è opzionale
                   if (!row.quantita_btc) missingFields.push('quantita_btc')
                   if (!row.eur_pagati) missingFields.push('eur_pagati')
                   
@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
                       date: dateValue,
                       type: transactionType,
                       broker: row.broker.trim(),
-                      info: row.info.trim(),
+                      info: row.info ? row.info.trim() : 'N/A',
                       btcQuantity: transactionType === 'buy' ? btcQuantity : -btcQuantity,
                       eurPaid: eurAmount,
                       notes: row.note ? row.note.trim() : null,

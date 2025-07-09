@@ -14,7 +14,9 @@ function calculateEnhancedStats(transactions: any[], networkFees: any[] = [], cu
 
   // 🔧 FIX FASE 1: Applica esattamente la logica Enhanced definita nei documenti
   const totalInvested = buyTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
-  const capitalRecovered = sellTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
+  // FIX: Capitale recuperato è limitato all'investimento totale
+  const totalSold = sellTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
+  const capitalRecovered = Math.min(totalSold, totalInvested)
   // 🔧 FIX: Calcolo dinamico staking rewards (valore corrente se eurValue = 0)
   const stakeRewards = stakeRewardTransactions.reduce((sum: number, tx: any) => {
     if (tx.eurValue > 0) {
@@ -54,12 +56,13 @@ function calculateEnhancedStats(transactions: any[], networkFees: any[] = [], cu
   const capitalFromSwaps = swapOutTransactions.reduce((sum: number, tx: any) => sum + tx.eurValue, 0)
   
   const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
-  const realizedProfit = Math.max(0, capitalRecovered - totalInvested) + stakeRewards
+  // FIX: Profitto realizzato = vendite totali - investimento totale (se positivo)
+  const realizedProfit = Math.max(0, totalSold - totalInvested) + stakeRewards
 
   return {
     totalInvested,
-    capitalRecovered, // 🔧 FIX: Solo da vendite reali
-    capitalFromSwaps, // 🆕 Separato: capitale da swap
+    capitalRecovered, // FIX: Solo vendite reali, NON swap
+    capitalFromSwaps, // 🆕 Separato: capitale da swap (informativo)
     effectiveInvestment,
     realizedProfit,
     stakeRewards,
@@ -205,6 +208,8 @@ export async function GET(
 
     const portfolioWithStats = {
       ...portfolio,
+      accountId: portfolio.account.id, // Aggiungi accountId per compatibilità
+      type: 'crypto_wallet', // Aggiungi tipo per distinguere da DCA
       holdings: holdingsWithCurrentPrices,
       stats: {
         ...enhancedStats,

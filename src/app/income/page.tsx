@@ -219,7 +219,7 @@ export default function IncomePage() {
       const [accountsRes, categoriesRes, transactionsRes] = await Promise.all([
         fetch('/api/accounts'),
         fetch('/api/categories?type=income'),
-        fetch('/api/transactions?type=income')
+        fetch('/api/transactions?type=income&all=true')
       ])
 
       if (accountsRes.ok) setAccounts(await accountsRes.json())

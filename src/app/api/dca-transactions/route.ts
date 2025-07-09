@@ -70,10 +70,10 @@ export async function POST(request: NextRequest) {
     // 🟠 AGGIUNTO: campo type opzionale
     const { portfolioId, date, type = 'buy', broker, info, btcQuantity, eurPaid, notes } = body
 
-    // Validazioni (INVARIATE)
-    if (!portfolioId || !broker || !info || !btcQuantity || !eurPaid) {
+    // Validazioni (AGGIORNATE - info opzionale)
+    if (!portfolioId || !broker || !btcQuantity || !eurPaid) {
       return NextResponse.json(
-        { error: 'Campi obbligatori: portfolioId, broker, info, btcQuantity, eurPaid' },
+        { error: 'Campi obbligatori: portfolioId, broker, btcQuantity, eurPaid' },
         { status: 400 }
       )
     }
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
           date: date ? new Date(date) : new Date(),
           type: type, // 🟠 NUOVO: Salva il tipo
           broker: broker.trim(),
-          info: info.trim(),
+          info: info ? info.trim() : 'N/A', // 🟠 AGGIORNATO: info opzionale
           btcQuantity: type === 'buy' ? btcQty : -btcQty, // 🟠 NUOVO: Negativo per vendite
           eurPaid: eurAmt,
           notes: notes?.trim() || null,

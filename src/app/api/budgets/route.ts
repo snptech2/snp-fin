@@ -17,11 +17,12 @@ export async function GET(request: NextRequest) {
       orderBy: { order: 'asc' }
     })
 
-    // Calculate total liquidity from BANK accounts only
+    // FIX: Calculate total liquidity from BOTH bank AND investment accounts
+    // per permettere allocazione budget tasse anche da conti investimento
     const accounts = await prisma.account.findMany({
       where: { 
         userId,
-        type: 'bank'
+        type: { in: ['bank', 'investment'] }
       }
     })
 

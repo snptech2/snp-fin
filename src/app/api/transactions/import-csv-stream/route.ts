@@ -134,15 +134,46 @@ export async function POST(request: NextRequest) {
                     continue
                   }
                   
-                  // Validazione importo
-                  const cleanAmount = row.importo
-                    .replace(/[€$£¥]/g, '')
-                    .replace(',', '.')
+                  // Validazione importo - gestisce formati con virgole nelle migliaia
+                  let cleanAmount = row.importo
+                    .replace(/[€$£¥]/g, '') // Rimuovi simboli di valuta
                     .trim()
                   
+                  // Gestione dei vari formati numerici
+                  if (cleanAmount.includes('.') && cleanAmount.includes(',')) {
+                    // Due casi possibili:
+                    // 1) Formato con virgola migliaia: 23,410.92 (punto=decimali)
+                    // 2) Formato italiano: 1.234,56 (virgola=decimali)
+                    
+                    const lastDotIndex = cleanAmount.lastIndexOf('.')
+                    const lastCommaIndex = cleanAmount.lastIndexOf(',')
+                    
+                    if (lastDotIndex > lastCommaIndex) {
+                      // Formato US: 23,410.92 -> virgola=migliaia, punto=decimali
+                      cleanAmount = cleanAmount.replace(/,/g, '')
+                    } else {
+                      // Formato italiano: 1.234,56 -> punto=migliaia, virgola=decimali
+                      cleanAmount = cleanAmount.replace(/\./g, '').replace(',', '.')
+                    }
+                  } else if (cleanAmount.includes(',') && !cleanAmount.includes('.')) {
+                    // Solo virgola - può essere decimali o migliaia
+                    const parts = cleanAmount.split(',')
+                    if (parts.length === 2 && parts[1].length <= 2) {
+                      // Probabile decimale: 1234,56
+                      cleanAmount = cleanAmount.replace(',', '.')
+                    } else {
+                      // Probabile separatore migliaia: 1,234
+                      cleanAmount = cleanAmount.replace(/,/g, '')
+                    }
+                  }
+                  // Se c'è solo il punto, lascialo come decimale
+                  
                   const amount = parseFloat(cleanAmount)
+                  console.log(`💰 Riga ${rowNumber}: ${row.importo} -> ${cleanAmount} -> ${amount}`)
+                  
                   if (isNaN(amount) || amount <= 0) {
-                    result.errors.push(`Riga ${rowNumber}: Importo non valido - ${row.importo}`)
+                    console.error(`❌ Riga ${rowNumber}: Importo non valido - ${row.importo} (parsed: ${cleanAmount})`)
+                    result.errors.push(`Riga ${rowNumber}: Importo non valido - ${row.importo} (parsed: ${cleanAmount})`)
                     continue
                   }
                   
