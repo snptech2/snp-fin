@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import MatrixEffect from '@/components/effects/MatrixEffect'
+import { SimpleThemeToggle } from '@/components/theme/SimpleThemeToggle'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -42,6 +43,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: '#000000' }}>
       <MatrixEffect />
+      
       <div className="max-w-md w-full space-y-8 p-8 card-adaptive rounded-lg relative z-10 backdrop-blur-sm shadow-2xl" 
            style={{ 
              boxShadow: '0 0 40px rgba(0, 255, 0, 0.3), 0 0 80px rgba(0, 255, 0, 0.15), inset 0 0 20px rgba(0, 255, 0, 0.05)',
@@ -100,13 +102,16 @@ export default function LoginPage() {
             {isLoading ? 'Accesso in corso...' : 'Accedi'}
           </button>
 
-          <div className="text-center">
+          <div className="text-center space-y-4">
             <p className="text-sm text-gray-600">
               Non hai un account?{' '}
               <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
                 Registrati
               </Link>
             </p>
+            <div className="flex justify-center">
+              <SimpleThemeToggle />
+            </div>
           </div>
         </form>
       </div>
