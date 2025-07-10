@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useUserModules } from '@/hooks/useUserModules'
 import { useNotifications } from '@/contexts/NotificationContext'
 import { useState } from 'react'
+import { SimpleThemeToggle } from '@/components/theme/SimpleThemeToggle'
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -58,7 +59,7 @@ export default function Sidebar() {
                       group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors
                       ${isActive 
                         ? 'bg-blue-500 text-white' 
-                        : 'text-adaptive-700 hover:bg-gray-50 hover:text-adaptive-900'
+                        : 'text-adaptive-700 hover:bg-sidebar-hover hover:text-adaptive-900'
                       }
                     `}
                   >
@@ -95,6 +96,9 @@ export default function Sidebar() {
               <p className="text-sm font-medium text-adaptive-700 truncate">{user.name}</p>
               <p className="text-xs text-adaptive-600 truncate">{user.email}</p>
               <p className="text-xs text-adaptive-600">{user.currency}</p>
+            </div>
+            <div className="ml-2">
+              <SimpleThemeToggle />
             </div>
           </div>
           
@@ -153,6 +157,7 @@ function SettingsModal({ onClose, onModulesChanged }: {
             <nav className="space-y-2">
               {[
                 { id: 'modules', name: 'Moduli', icon: '📦' },
+                // { id: 'theme', name: 'Tema', icon: '🎨' },
                 { id: 'account', name: 'Account', icon: '🔐' }
               ].map(tab => (
                 <button
@@ -179,6 +184,9 @@ function SettingsModal({ onClose, onModulesChanged }: {
                 onToggleModule={toggleModule}
               />
             )}
+            {/* {activeTab === 'theme' && (
+              <ThemeSelector />
+            )} */}
             {activeTab === 'account' && (
               <AccountSettings />
             )}

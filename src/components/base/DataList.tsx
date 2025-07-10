@@ -30,7 +30,7 @@ export function DataList<T extends DataItem>({
   return (
     <div className="space-y-3">
       {items.map((item) => (
-        <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+        <div key={item.id} className="flex items-center justify-between p-4 card-adaptive rounded-lg hover:bg-adaptive-50 transition-colors border border-adaptive">
           <div className="flex items-center gap-4 flex-1">
             {renderItem(item)}
           </div>

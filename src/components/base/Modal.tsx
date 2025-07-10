@@ -112,7 +112,7 @@ export const Modal = ({
       <div className="flex min-h-full items-center justify-center p-4">
         <div 
           ref={modalRef}
-          className={`relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow-xl transition-all w-full ${sizeClasses[size]}`}
+          className={`relative transform overflow-hidden rounded-lg card-adaptive shadow-xl transition-all w-full ${sizeClasses[size]}`}
         >
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-adaptive">

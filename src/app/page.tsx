@@ -143,7 +143,7 @@ interface BudgetBreakdownItem {
 }
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState<boolean>(true);
   const [dataLoading, setDataLoading] = useState<boolean>(false);
   const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null);
@@ -265,6 +265,11 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    // Only load data if user is authenticated
+    if (!user || authLoading) {
+      return;
+    }
+    
     // Load dashboard data and Bitcoin price in parallel
     const loadData = async () => {
       // Start both fetches in parallel
@@ -276,15 +281,15 @@ const Dashboard = () => {
     };
     
     loadData();
-  }, []);
+  }, [user, authLoading]);
 
   // ✅ FIX: Ricarica dati quando arriva il prezzo Bitcoin
   useEffect(() => {
-    if (btcPrice) {
+    if (btcPrice && user && !authLoading) {
       // Recalculate dashboard data with Bitcoin price
       loadDashboardData();
     }
-  }, [btcPrice]);
+  }, [btcPrice, user, authLoading]);
 
   const loadDashboardData = async (): Promise<void> => {
     try {
@@ -598,14 +603,14 @@ const Dashboard = () => {
                   <h2 className="text-xl font-semibold opacity-90">💎 Patrimonio Totale</h2>
                   <button
                     onClick={() => setShowColorSettings(true)}
-                    className="text-sm text-blue-100 hover:text-white flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity"
+                    className="text-sm text-white hover:text-white flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity"
                     title="Personalizza colori"
                   >
                     🎨 Colori
                   </button>
                 </div>
                 <p className="text-4xl font-bold mt-2">{formatCurrencyWithUserCurrency(dashboardData.totals.totalPatrimony)}</p>
-                <div className="flex items-center mt-2 text-blue-100 mb-4">
+                <div className="flex items-center mt-2 text-white mb-4">
                   <ArrowTrendingUpIcon className="w-5 h-5 mr-2" />
                   <span>Aggiornato in tempo reale</span>
                 </div>
@@ -619,11 +624,11 @@ const Dashboard = () => {
                           className="w-3 h-3 rounded-full" 
                           style={{ backgroundColor: item.color }}
                         />
-                        <span className="text-blue-100">{item.name}</span>
+                        <span className="text-white">{item.name}</span>
                       </div>
                       <div className="text-right">
                         <div className="text-white font-semibold">{formatCurrencyWithUserCurrency(item.value)}</div>
-                        <div className="text-blue-200 text-xs">{formatPercentage(item.percentage)}</div>
+                        <div className="text-white text-xs opacity-90">{formatPercentage(item.percentage)}</div>
                       </div>
                     </div>
                   ))}
@@ -656,7 +661,7 @@ const Dashboard = () => {
                   </div>
                 ) : (
                   <div className="w-64 h-64 flex items-center justify-center">
-                    <div className="text-center text-blue-100">
+                    <div className="text-center text-white">
                       <div className="text-6xl mb-4">💎</div>
                       <div>Nessun dato disponibile</div>
                     </div>
@@ -670,7 +675,7 @@ const Dashboard = () => {
             <Link href="/accounts">
               <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive hover:shadow-md transition-shadow cursor-pointer">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-2 bg-blue-100 rounded-lg">
+                  <div className="p-2 bg-info-adaptive rounded-lg">
                     <BanknotesIcon className="w-6 h-6 text-blue-600" />
                   </div>
                   <div className="text-blue-600 text-2xl">🏦</div>
@@ -761,7 +766,7 @@ const Dashboard = () => {
 
               <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="p-2 bg-blue-100 rounded-lg">
+                  <div className="p-2 bg-info-adaptive rounded-lg">
                     <ArrowTrendingUpIcon className="w-6 h-6 text-blue-600" />
                   </div>
                   <div className="text-blue-600 text-xl">🔄</div>

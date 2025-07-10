@@ -30,31 +30,31 @@ export default function AlertModal({
     danger: {
       icon: ExclamationTriangleIcon,
       iconColor: 'text-red-600',
-      iconBg: 'bg-red-100',
+      iconBg: 'bg-error-adaptive',
       button: 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
     },
     error: {
       icon: XCircleIcon,
       iconColor: 'text-red-600',
-      iconBg: 'bg-red-100',
+      iconBg: 'bg-error-adaptive',
       button: 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
     },
     warning: {
       icon: ExclamationTriangleIcon,
       iconColor: 'text-yellow-600',
-      iconBg: 'bg-yellow-100',
+      iconBg: 'bg-warning-adaptive',
       button: 'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500'
     },
     info: {
       icon: InformationCircleIcon,
       iconColor: 'text-blue-600',
-      iconBg: 'bg-blue-100',
+      iconBg: 'bg-info-adaptive',
       button: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
     },
     success: {
       icon: CheckCircleIcon,
       iconColor: 'text-green-600',
-      iconBg: 'bg-green-100',
+      iconBg: 'bg-success-adaptive',
       button: 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
     }
   }
@@ -99,7 +99,7 @@ export default function AlertModal({
       
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow-xl transition-all w-full max-w-md">
+        <div className="relative transform overflow-hidden rounded-lg card-adaptive shadow-xl transition-all w-full max-w-md border border-adaptive">
           <div className="p-6">
             <div className="flex items-start gap-4">
               {/* Icon */}
@@ -120,7 +120,7 @@ export default function AlertModal({
           </div>
           
           {/* Actions */}
-          <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex justify-end">
+          <div className="modal-footer-adaptive px-6 py-4 flex justify-end border-t border-adaptive">
             <button
               type="button"
               onClick={onClose}

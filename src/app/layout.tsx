@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
+import { ThemeProvider } from "@/contexts/ThemeContext.simple";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 
 const geistSans = Geist({
@@ -32,13 +33,15 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{ background: 'var(--background)', color: 'var(--foreground)' }}
       >
-        <AuthProvider>
-          <NotificationProvider>
-            <AuthenticatedLayout>
-              {children}
-            </AuthenticatedLayout>
-          </NotificationProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <NotificationProvider>
+              <AuthenticatedLayout>
+                {children}
+              </AuthenticatedLayout>
+            </NotificationProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

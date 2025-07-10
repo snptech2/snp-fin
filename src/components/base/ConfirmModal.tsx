@@ -29,28 +29,28 @@ export default function ConfirmModal({
     danger: {
       icon: ExclamationTriangleIcon,
       iconColor: 'text-red-600',
-      iconBg: 'bg-red-100',
+      iconBg: 'bg-error-adaptive',
       confirmButton: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
       confirmTextColor: 'text-white'
     },
     warning: {
       icon: ExclamationTriangleIcon,
       iconColor: 'text-yellow-600',
-      iconBg: 'bg-yellow-100',
+      iconBg: 'bg-warning-adaptive',
       confirmButton: 'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500',
       confirmTextColor: 'text-white'
     },
     info: {
       icon: InformationCircleIcon,
       iconColor: 'text-blue-600',
-      iconBg: 'bg-blue-100',
+      iconBg: 'bg-info-adaptive',
       confirmButton: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
       confirmTextColor: 'text-white'
     },
     success: {
       icon: CheckCircleIcon,
       iconColor: 'text-green-600',
-      iconBg: 'bg-green-100',
+      iconBg: 'bg-success-adaptive',
       confirmButton: 'bg-green-600 hover:bg-green-700 focus:ring-green-500',
       confirmTextColor: 'text-white'
     }
@@ -88,7 +88,7 @@ export default function ConfirmModal({
       
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow-xl transition-all w-full max-w-md">
+        <div className="relative transform overflow-hidden rounded-lg card-adaptive shadow-xl transition-all w-full max-w-md border border-adaptive">
           <div className="p-6">
             <div className="flex items-start gap-4">
               {/* Icon */}
@@ -109,11 +109,11 @@ export default function ConfirmModal({
           </div>
           
           {/* Actions */}
-          <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex gap-3 justify-end">
+          <div className="modal-footer-adaptive px-6 py-4 flex gap-3 justify-end border-t border-adaptive">
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-adaptive-700 bg-white dark:bg-gray-600 border border-adaptive rounded-md hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+              className="px-4 py-2 text-sm font-medium modal-button-adaptive rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
             >
               {cancelText}
             </button>

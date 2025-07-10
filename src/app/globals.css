@@ -2,6 +2,9 @@
 
 /* 🎨 SNP FINANCE - STANDARDIZZAZIONE SOLO CSS */
 
+/* ========================================
+   🎨 DARK THEME (DEFAULT)
+======================================== */
 :root {
   --background: #0a0a0a;
   --foreground: #ededed;
@@ -10,17 +13,50 @@
   --input-text: #ededed;
   --border-color: #404040;
   --hover-bg: #374151;
+  --sidebar-hover-bg: #374151;
 }
 
+/* ========================================
+   ☀️ LIGHT THEME (EXPLICIT)
+======================================== */
+[data-theme="light"] {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --input-text: #0f172a;
+  --border-color: #cbd5e1;
+  --hover-bg: #e2e8f0;
+  --sidebar-hover-bg: #f1f5f9;
+}
+
+/* ========================================
+   🌙 DARK THEME (EXPLICIT)
+======================================== */
+[data-theme="dark"] {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --card-bg: #1a1a1a;
+  --input-bg: #2a2a2a;
+  --input-text: #ededed;
+  --border-color: #404040;
+  --hover-bg: #374151;
+  --sidebar-hover-bg: #374151;
+}
+
+/* ========================================
+   💻 SYSTEM PREFERENCE FALLBACK
+======================================== */
 @media (prefers-color-scheme: light) {
-  :root {
-    --background: #ffffff;
-    --foreground: #171717;
+  :root:not([data-theme]) {
+    --background: #f8fafc;
+    --foreground: #0f172a;
     --card-bg: #ffffff;
     --input-bg: #ffffff;
-    --input-text: #171717;
-    --border-color: #d1d5db;
-    --hover-bg: #f3f4f6;
+    --input-text: #0f172a;
+    --border-color: #cbd5e1;
+    --hover-bg: #e2e8f0;
+    --sidebar-hover-bg: #f1f5f9;
   }
 }
 
@@ -31,11 +67,28 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* ========================================
+   🎭 THEME TRANSITIONS
+======================================== */
+html {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
   line-height: 1.6;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Smooth transitions for all theme-dependent elements */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.3s;
 }
 
 /* ========================================
@@ -47,9 +100,27 @@ body {
   color: var(--foreground) !important;
 }
 
+/* Enhanced card styling for light theme */
+[data-theme="light"] .card-adaptive {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-theme="dark"] .card-adaptive {
+  box-shadow: none !important;
+}
+
 .sidebar-adaptive {
   background-color: var(--card-bg) !important;
   color: var(--foreground) !important;
+}
+
+/* Enhanced sidebar styling for light theme */
+[data-theme="light"] .sidebar-adaptive {
+  box-shadow: 4px 0 6px -1px rgba(0, 0, 0, 0.1), 2px 0 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-theme="dark"] .sidebar-adaptive {
+  box-shadow: none !important;
 }
 
 .text-adaptive-900 {
@@ -89,9 +160,28 @@ body {
    🔧 FIX PER STANDARDIZZARE I COLORI
 ======================================== */
 
-/* Standardizza text-white -> adaptive */
-.text-white {
-  color: var(--foreground) !important;
+/* RIMOSSO - La standardizzazione di text-white causava troppi problemi */
+/* Ora text-white sarà veramente bianco ovunque */
+
+/* Force white text in Patrimonio Totale section */
+div[style*="linear-gradient"] {
+  color: #ffffff !important;
+}
+
+div[style*="linear-gradient"] * {
+  color: #ffffff !important;
+}
+
+/* Extra specificity for stubborn elements */
+div[style*="linear-gradient"] .text-white,
+div[style*="linear-gradient"] button,
+div[style*="linear-gradient"] span,
+div[style*="linear-gradient"] div,
+div[style*="linear-gradient"] p,
+div[style*="linear-gradient"] h1,
+div[style*="linear-gradient"] h2,
+div[style*="linear-gradient"] h3 {
+  color: #ffffff !important;
 }
 
 /* Standardizza bg-gray-50 */
@@ -102,6 +192,11 @@ body {
 
 .bg-adaptive-50 {
   background-color: var(--hover-bg) !important;
+  color: var(--foreground) !important;
+}
+
+.bg-sidebar-hover {
+  background-color: var(--sidebar-hover-bg) !important;
   color: var(--foreground) !important;
 }
 
@@ -184,6 +279,23 @@ select:focus {
   color: #ffffff !important;
 }
 
+/* Fix yellow flash in light theme - override global transitions */
+.sidebar-adaptive nav a,
+.sidebar-adaptive nav button {
+  transition: background-color 0.1s ease-out, color 0.1s ease-out !important;
+}
+
+/* Disable problematic color interpolation for active states */
+.sidebar-adaptive nav a {
+  transition-timing-function: steps(1, end) !important;
+}
+
+/* Re-enable smooth transitions only for hover */
+.sidebar-adaptive nav a:hover {
+  transition: background-color 0.15s ease-out, color 0.15s ease-out !important;
+  transition-timing-function: ease-out !important;
+}
+
 /* ========================================
    🎨 COLORI SEMANTICI - SEMPRE VISIBILI
 ======================================== */
@@ -196,6 +308,61 @@ select:focus {
 .bg-error { background-color: #ef4444 !important; }
 .bg-warning { background-color: #f59e0b !important; }
 .bg-info { background-color: #3b82f6 !important; }
+
+/* ========================================
+   🎨 BACKGROUND COLORATI ADAPTATIVI
+======================================== */
+.bg-info-adaptive {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+[data-theme="light"] .bg-info-adaptive {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+[data-theme="dark"] .bg-info-adaptive {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Background colorati per stati/alert */
+.bg-error-adaptive {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+.bg-warning-adaptive {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
+.bg-success-adaptive {
+  background-color: rgba(34, 197, 94, 0.1) !important;
+}
+
+[data-theme="dark"] .bg-error-adaptive {
+  background-color: rgba(239, 68, 68, 0.2) !important;
+}
+
+[data-theme="dark"] .bg-warning-adaptive {
+  background-color: rgba(245, 158, 11, 0.2) !important;
+}
+
+[data-theme="dark"] .bg-success-adaptive {
+  background-color: rgba(34, 197, 94, 0.2) !important;
+}
+
+/* Modal specific backgrounds */
+.modal-footer-adaptive {
+  background-color: var(--hover-bg) !important;
+}
+
+.modal-button-adaptive {
+  background-color: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--foreground) !important;
+}
+
+.modal-button-adaptive:hover {
+  background-color: var(--hover-bg) !important;
+}
 
 /* ========================================
    🚀 FINE CSS - TUTTO STANDARDIZZATO

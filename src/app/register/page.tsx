@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
+import MatrixEffect from '@/components/effects/MatrixEffect'
 
 export default function RegisterPage() {
   const [name, setName] = useState('')
@@ -52,11 +53,19 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: '#000000' }}>
+      <MatrixEffect />
+      <div className="max-w-md w-full space-y-8 p-8 card-adaptive rounded-lg relative z-10 backdrop-blur-sm shadow-2xl" 
+           style={{ 
+             boxShadow: '0 0 40px rgba(0, 255, 0, 0.3), 0 0 80px rgba(0, 255, 0, 0.15), inset 0 0 20px rgba(0, 255, 0, 0.05)',
+             border: '1px solid rgba(0, 255, 0, 0.2)'
+           }}>
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900">SNP Finance</h1>
-          <p className="mt-2 text-gray-600">Crea il tuo account</p>
+          <h1 className="text-3xl font-bold text-adaptive-900">
+            <span className="inline-block">SNP</span>
+            <span className="inline-block ml-2 text-green-500 animate-pulse">Finance</span>
+          </h1>
+          <p className="mt-2 text-adaptive-600">Crea il tuo account</p>
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
