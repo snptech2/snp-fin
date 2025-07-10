@@ -11,7 +11,7 @@ interface CSVRow {
   asset_to?: string // Per swap
   quantita: string
   quantita_to?: string // Per swap
-  valore_eur: string
+  valore_eur?: string // Opzionale per swap
   prezzo_unitario?: string
   broker: string
   note: string
@@ -147,7 +147,10 @@ export async function POST(
                   if (!row.tipo) missingFields.push('tipo')
                   if (!row.asset) missingFields.push('asset')
                   if (!row.quantita) missingFields.push('quantita')
-                  if (!row.valore_eur) missingFields.push('valore_eur')
+                  // valore_eur è opzionale per swap, obbligatorio per altri tipi
+                  if (!row.valore_eur && row.tipo?.toLowerCase().trim() !== 'swap') {
+                    missingFields.push('valore_eur')
+                  }
                   if (!row.broker) missingFields.push('broker')
                   
                   if (missingFields.length > 0) {
@@ -176,10 +179,13 @@ export async function POST(
                     continue
                   }
                   
-                  // Validazione valore EUR
-                  let cleanEurValue = row.valore_eur
-                    .replace(/[€$£¥]/g, '') // Rimuovi simboli di valuta
-                    .trim()
+                  // Validazione valore EUR (opzionale per swap)
+                  let eurValue: number | null = null
+                  
+                  if (row.valore_eur) {
+                    let cleanEurValue = row.valore_eur
+                      .replace(/[€$£¥]/g, '') // Rimuovi simboli di valuta
+                      .trim()
                   
                   // Gestione formati numerici (come DCA)
                   if (cleanEurValue.includes('.') && cleanEurValue.includes(',')) {
@@ -207,18 +213,24 @@ export async function POST(
                     }
                   }
                   
-                  const eurValue = parseFloat(cleanEurValue)
-                  
-                  // Per stake_reward, permettiamo valore 0 (reward gratuiti)
-                  if (transactionType === 'stake_reward') {
-                    if (isNaN(eurValue) || eurValue < 0) {
-                      result.errors.push(`Riga ${rowNumber}: Valore EUR non valido per stake_reward - ${row.valore_eur} (deve essere >= 0)`)
-                      continue
+                    eurValue = parseFloat(cleanEurValue)
+                    
+                    // Per stake_reward, permettiamo valore 0 (reward gratuiti)
+                    if (transactionType === 'stake_reward') {
+                      if (isNaN(eurValue) || eurValue < 0) {
+                        result.errors.push(`Riga ${rowNumber}: Valore EUR non valido per stake_reward - ${row.valore_eur} (deve essere >= 0)`)
+                        continue
+                      }
+                    } else if (transactionType !== 'swap') {
+                      // Per buy/sell, il valore deve essere > 0
+                      if (isNaN(eurValue) || eurValue <= 0) {
+                        result.errors.push(`Riga ${rowNumber}: Valore EUR non valido - ${row.valore_eur} (deve essere > 0)`)
+                        continue
+                      }
                     }
-                  } else {
-                    // Per buy/sell/swap, il valore deve essere > 0
-                    if (isNaN(eurValue) || eurValue <= 0) {
-                      result.errors.push(`Riga ${rowNumber}: Valore EUR non valido - ${row.valore_eur} (deve essere > 0)`)
+                    // Per swap, accettiamo qualsiasi valore >= 0 se fornito
+                    else if (transactionType === 'swap' && (isNaN(eurValue) || eurValue < 0)) {
+                      result.errors.push(`Riga ${rowNumber}: Valore EUR non valido per swap - ${row.valore_eur} (deve essere >= 0)`)
                       continue
                     }
                   }
@@ -412,7 +424,7 @@ async function processSwapTransaction(
   dateValue: Date, 
   quantityFrom: number, 
   quantityTo: number, 
-  eurValue: number
+  eurValue: number | null
 ) {
   // Trova o crea asset FROM
   let fromAsset = await tx.cryptoPortfolioAsset.findUnique({
@@ -428,6 +440,25 @@ async function processSwapTransaction(
         isActive: true
       }
     })
+  }
+
+  // Se eurValue non è fornito, calcolalo dal prezzo medio dell'holding
+  let calculatedEurValue = eurValue
+  if (calculatedEurValue === null) {
+    const fromHolding = await tx.cryptoPortfolioHolding.findUnique({
+      where: {
+        portfolioId_assetId: {
+          portfolioId,
+          assetId: fromAsset.id
+        }
+      }
+    })
+
+    if (!fromHolding || fromHolding.quantity < quantityFrom) {
+      throw new Error(`Quantità insufficiente di ${row.asset} per lo swap. Disponibili: ${fromHolding?.quantity || 0}, richiesti: ${quantityFrom}`)
+    }
+
+    calculatedEurValue = fromHolding.avgPrice * quantityFrom
   }
 
   // Trova o crea asset TO
@@ -446,8 +477,8 @@ async function processSwapTransaction(
     })
   }
 
-  const fromPricePerUnit = eurValue / quantityFrom
-  const toPricePerUnit = eurValue / quantityTo
+  const fromPricePerUnit = calculatedEurValue / quantityFrom
+  const toPricePerUnit = calculatedEurValue / quantityTo
 
   // Crea transazione SWAP_OUT
   const swapOutTransaction = await tx.cryptoPortfolioTransaction.create({
@@ -456,7 +487,7 @@ async function processSwapTransaction(
       type: 'swap_out',
       assetId: fromAsset.id,
       quantity: quantityFrom,
-      eurValue: eurValue,
+      eurValue: calculatedEurValue,
       pricePerUnit: fromPricePerUnit,
       date: dateValue,
       notes: row.note ? row.note.trim() : `Swap ${row.asset} → ${row.asset_to}`
@@ -470,7 +501,7 @@ async function processSwapTransaction(
       type: 'swap_in',
       assetId: toAsset.id,
       quantity: quantityTo,
-      eurValue: eurValue,
+      eurValue: calculatedEurValue,
       pricePerUnit: toPricePerUnit,
       date: dateValue,
       notes: row.note ? row.note.trim() : `Swap ${row.asset} → ${row.asset_to}`,

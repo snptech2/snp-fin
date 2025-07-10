@@ -6,6 +6,7 @@ import { XMarkIcon } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
+import { useNotifications } from '@/contexts/NotificationContext'
 
 interface Account {
   id: number
@@ -57,6 +58,7 @@ interface BitcoinPrice {
 
 export default function InvestmentsPage() {
   const { user } = useAuth()
+  const { alert } = useNotifications()
   const [dcaPortfolios, setDcaPortfolios] = useState<Portfolio[]>([])
   const [cryptoPortfolios, setCryptoPortfolios] = useState<Portfolio[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -223,7 +225,7 @@ export default function InvestmentsPage() {
   // Create DCA Portfolio
   const createDCAPortfolio = async () => {
     if (!formData.name.trim() || !formData.accountId) {
-      alert('Nome e account sono obbligatori')
+      await alert('Nome e account sono obbligatori')
       return
     }
 
@@ -241,11 +243,11 @@ export default function InvestmentsPage() {
         setFormData({ name: '', accountId: undefined })
       } else {
         const error = await response.json()
-        alert(error.error || 'Errore nella creazione portfolio')
+        await alert(error.error || 'Errore nella creazione portfolio')
       }
     } catch (error) {
       console.error('Errore:', error)
-      alert('Errore nella creazione portfolio')
+      await alert('Errore nella creazione portfolio')
     } finally {
       setSubmitLoading(false)
     }
@@ -254,7 +256,7 @@ export default function InvestmentsPage() {
   // Create Crypto Portfolio
   const createCryptoPortfolio = async () => {
     if (!cryptoFormData.name.trim() || !cryptoFormData.accountId) {
-      alert('Nome e account sono obbligatori')
+      await alert('Nome e account sono obbligatori')
       return
     }
 
@@ -272,11 +274,11 @@ export default function InvestmentsPage() {
         setCryptoFormData({ name: '', description: '', accountId: undefined })
       } else {
         const error = await response.json()
-        alert(error.error || 'Errore nella creazione portfolio')
+        await alert(error.error || 'Errore nella creazione portfolio')
       }
     } catch (error) {
       console.error('Errore:', error)
-      alert('Errore nella creazione portfolio')
+      await alert('Errore nella creazione portfolio')
     } finally {
       setSubmitLoading(false)
     }

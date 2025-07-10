@@ -1,12 +1,16 @@
 // src/app/api/crypto-portfolio-assets/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
 // GET - Lista asset disponibili
 export async function GET(request: NextRequest) {
   try {
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+
     const assets = await prisma.cryptoPortfolioAsset.findMany({
       where: { isActive: true },
       orderBy: { symbol: 'asc' }
@@ -22,6 +26,9 @@ export async function GET(request: NextRequest) {
 // POST - Aggiungi asset manualmente con ticker
 export async function POST(request: NextRequest) {
   try {
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+
     const body = await request.json()
     const { symbol, name, decimals = 6 } = body
 

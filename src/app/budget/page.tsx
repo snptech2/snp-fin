@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { formatCurrency } from '@/utils/formatters'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { useNotifications } from '@/contexts/NotificationContext'
+import { FormModal } from '@/components/base/FormModal'
 
 interface Budget {
   id: number
@@ -37,6 +39,7 @@ interface FormData {
 }
 
 export default function BudgetPage() {
+  const { confirm, alert } = useNotifications()
   const [budgetData, setBudgetData] = useState<BudgetData | null>(null)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -135,11 +138,19 @@ export default function BudgetPage() {
         resetForm()
       } else {
         const error = await response.json()
-        alert(`Errore: ${error.error}`)
+        await alert({
+          title: 'Errore nel Salvataggio',
+          message: `Si è verificato un errore: ${error.error}`,
+          variant: 'error'
+        })
       }
     } catch (error) {
       console.error('Errore nel salvataggio:', error)
-      alert('Errore nel salvataggio del budget')
+      await alert({
+        title: 'Errore di Connessione',
+        message: 'Errore nel salvataggio del budget. Verifica la connessione e riprova.',
+        variant: 'error'
+      })
     } finally {
       setSubmitting(false)
     }
@@ -147,7 +158,15 @@ export default function BudgetPage() {
 
   // Cancella budget
   const deleteBudget = async (id: number) => {
-    if (!confirm('Sei sicuro di voler cancellare questo budget?')) return
+    const confirmed = await confirm({
+      title: 'Elimina Budget',
+      message: 'Sei sicuro di voler cancellare questo budget? Questa operazione non può essere annullata.',
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+    
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/budgets/${id}`, {
@@ -158,11 +177,19 @@ export default function BudgetPage() {
         await loadBudgets()
       } else {
         const error = await response.json()
-        alert(`Errore: ${error.error}`)
+        await alert({
+          title: 'Errore nell\'Eliminazione',
+          message: `Si è verificato un errore: ${error.error}`,
+          variant: 'error'
+        })
       }
     } catch (error) {
       console.error('Errore nella cancellazione:', error)
-      alert('Errore nella cancellazione del budget')
+      await alert({
+        title: 'Errore di Connessione',
+        message: 'Errore nella cancellazione del budget. Verifica la connessione e riprova.',
+        variant: 'error'
+      })
     }
   }
 
@@ -198,7 +225,8 @@ export default function BudgetPage() {
       })
     }
     
-    return data
+    // Ordina i dati per valore decrescente (dal più grande al più piccolo)
+    return data.sort((a, b) => b.value - a.value)
   }, [budgetData])
 
   // Componente grafico a torta
@@ -222,6 +250,8 @@ export default function BudgetPage() {
                   outerRadius={70}
                   paddingAngle={2}
                   dataKey="value"
+                  startAngle={90}
+                  endAngle={-270}
                 >
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -461,13 +491,17 @@ export default function BudgetPage() {
           </div>
         </div>
 
-        {/* Modal */}
-        {showForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
-              <h3 className="text-lg font-semibold text-adaptive-900 mb-4">
-                {editingBudget ? 'Modifica Budget' : 'Nuovo Budget'}
-              </h3>
+        {/* Budget Form Modal */}
+        <FormModal
+          isOpen={showForm}
+          onClose={resetForm}
+          title={editingBudget ? 'Modifica Budget' : 'Nuovo Budget'}
+          onSubmit={handleSubmit}
+          onCancel={resetForm}
+          submitText={editingBudget ? 'Aggiorna' : 'Crea'}
+          isSubmitting={loading}
+          size="md"
+        >
               
               <div className="space-y-4">
                 <div>
@@ -555,24 +589,7 @@ export default function BudgetPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={resetForm}
-                  className="px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-gray-50"
-                >
-                  Annulla
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitting || !formData.name || (formData.type === 'fixed' && !formData.targetAmount)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {submitting ? 'Salvataggio...' : editingBudget ? 'Aggiorna' : 'Crea'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        </FormModal>
       </div>
     </ProtectedRoute>
   )

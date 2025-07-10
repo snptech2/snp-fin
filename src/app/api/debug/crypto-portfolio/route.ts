@@ -1,6 +1,7 @@
 // src/app/api/debug/crypto-portfolio/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
@@ -10,6 +11,10 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const authResult = requireAuth(request)
+    if (authResult instanceof Response) return authResult
+    const { userId } = authResult
+
     const portfolioId = parseInt(params.id)
 
     if (isNaN(portfolioId)) {
@@ -18,7 +23,7 @@ export async function GET(
 
     // Recupera portfolio con tutte le transazioni
     const portfolio = await prisma.cryptoPortfolio.findUnique({
-      where: { id: portfolioId, userId: 1 },
+      where: { id: portfolioId, userId },
       include: {
         transactions: {
           include: { asset: true },

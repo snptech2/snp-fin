@@ -5,16 +5,26 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUserModules } from '@/hooks/useUserModules'
+import { useNotifications } from '@/contexts/NotificationContext'
 import { useState } from 'react'
 
 export default function Sidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
   const { getEnabledModulesList, loading: modulesLoading, refreshModuleSettings } = useUserModules()
+  const { confirm } = useNotifications()
   const [showSettings, setShowSettings] = useState(false)
 
   const handleLogout = async () => {
-    if (confirm('Sei sicuro di voler uscire?')) {
+    const confirmed = await confirm({
+      title: 'Conferma Logout',
+      message: 'Sei sicuro di voler uscire dall\'applicazione?',
+      confirmText: 'Esci',
+      cancelText: 'Annulla',
+      variant: 'warning'
+    })
+    
+    if (confirmed) {
       await logout()
     }
   }

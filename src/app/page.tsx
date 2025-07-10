@@ -7,6 +7,7 @@ import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/utils/formatters';
+import { ColorSettingsModal } from '@/components/dashboard/ColorSettingsModal';
 
 // Interfaces
 interface BitcoinPrice {
@@ -147,10 +148,37 @@ const Dashboard = () => {
   const [dataLoading, setDataLoading] = useState<boolean>(false);
   const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null);
   const [showColorSettings, setShowColorSettings] = useState<boolean>(false);
-  const [chartColors, setChartColors] = useState({
-    fondiDisponibili: '#22D3EE',
-    contiInvestimento: '#A855F7',
-    holdingsInvestimenti: '#F59E0B'
+  const [chartColors, setChartColors] = useState(() => {
+    const defaultColors = {
+      fondiDisponibili: '#22D3EE',
+      contiInvestimento: '#A855F7',
+      holdingsInvestimenti: '#F59E0B',
+      // Colori per il grafico patrimonio
+      contiBancari: '#3B82F6',
+      contiInvestimentoPatr: '#8B5CF6',
+      assets: '#F59E0B',
+      beniNonCorrenti: '#10B981',
+      crediti: '#EF4444'
+    };
+    
+    // Carica i colori salvati dal localStorage o usa i default
+    if (typeof window !== 'undefined') {
+      const savedColors = localStorage.getItem('dashboardChartColors');
+      if (savedColors) {
+        try {
+          const parsed = JSON.parse(savedColors);
+          // Verifica che tutti i colori necessari siano presenti
+          return {
+            ...defaultColors,
+            ...parsed
+          };
+        } catch (e) {
+          console.error('Errore nel parsing dei colori salvati:', e);
+          localStorage.removeItem('dashboardChartColors'); // Rimuovi dati corrotti
+        }
+      }
+    }
+    return defaultColors;
   });
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     accounts: [],
@@ -464,7 +492,7 @@ const Dashboard = () => {
       data.push({
         name: 'Conti Bancari - Tasse',
         value: dashboardData.totals.liquiditaBancaria,
-        color: '#3B82F6', // Blu
+        color: chartColors.contiBancari,
         percentage: totalPatrimony > 0 ? (dashboardData.totals.liquiditaBancaria / totalPatrimony) * 100 : 0
       });
     }
@@ -474,7 +502,7 @@ const Dashboard = () => {
       data.push({
         name: 'Conti Investimento',
         value: dashboardData.totals.investmentLiquidity,
-        color: '#8B5CF6', // Viola
+        color: chartColors.contiInvestimentoPatr,
         percentage: totalPatrimony > 0 ? (dashboardData.totals.investmentLiquidity / totalPatrimony) * 100 : 0
       });
     }
@@ -484,7 +512,7 @@ const Dashboard = () => {
       data.push({
         name: 'Assets',
         value: dashboardData.totals.holdingsValue,
-        color: '#F59E0B', // Arancione
+        color: chartColors.assets,
         percentage: totalPatrimony > 0 ? (dashboardData.totals.holdingsValue / totalPatrimony) * 100 : 0
       });
     }
@@ -494,7 +522,7 @@ const Dashboard = () => {
       data.push({
         name: 'Beni Non Correnti',
         value: dashboardData.totals.nonCurrentAssets,
-        color: '#10B981', // Verde
+        color: chartColors.beniNonCorrenti,
         percentage: totalPatrimony > 0 ? (dashboardData.totals.nonCurrentAssets / totalPatrimony) * 100 : 0
       });
     }
@@ -504,14 +532,14 @@ const Dashboard = () => {
       data.push({
         name: 'Crediti',
         value: dashboardData.totals.credits,
-        color: '#EF4444', // Rosso
+        color: chartColors.crediti,
         percentage: totalPatrimony > 0 ? (dashboardData.totals.credits / totalPatrimony) * 100 : 0
       });
     }
     
     // Ordina per valore decrescente
     return data.sort((a, b) => b.value - a.value);
-  }, [dashboardData]);
+  }, [dashboardData, chartColors]);
 
   // ✅ CORREZIONE: Calculate budget breakdown con campi corretti
   const budgetBreakdown: BudgetBreakdownItem[] = Array.isArray(dashboardData.budgets) ? 
@@ -566,7 +594,16 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
               {/* Informazioni Patrimonio */}
               <div>
-                <h2 className="text-xl font-semibold opacity-90">💎 Patrimonio Totale</h2>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-xl font-semibold opacity-90">💎 Patrimonio Totale</h2>
+                  <button
+                    onClick={() => setShowColorSettings(true)}
+                    className="text-sm text-blue-100 hover:text-white flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity"
+                    title="Personalizza colori"
+                  >
+                    🎨 Colori
+                  </button>
+                </div>
                 <p className="text-4xl font-bold mt-2">{formatCurrencyWithUserCurrency(dashboardData.totals.totalPatrimony)}</p>
                 <div className="flex items-center mt-2 text-blue-100 mb-4">
                   <ArrowTrendingUpIcon className="w-5 h-5 mr-2" />
@@ -1015,127 +1052,15 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Modal Personalizzazione Colori */}
-          {showColorSettings && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-lg border border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">🎨 Personalizza Colori Grafico</h3>
-                
-                <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {/* Sezioni fisse del grafico */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                      Fondi Disponibili
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={chartColors.fondiDisponibili}
-                        onChange={(e) => setChartColors(prev => ({ ...prev, fondiDisponibili: e.target.value }))}
-                        className="w-12 h-8 rounded border cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={chartColors.fondiDisponibili}
-                        onChange={(e) => setChartColors(prev => ({ ...prev, fondiDisponibili: e.target.value }))}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white"
-                        placeholder="#22D3EE"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                      Conti Investimento
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={chartColors.contiInvestimento}
-                        onChange={(e) => setChartColors(prev => ({ ...prev, contiInvestimento: e.target.value }))}
-                        className="w-12 h-8 rounded border cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={chartColors.contiInvestimento}
-                        onChange={(e) => setChartColors(prev => ({ ...prev, contiInvestimento: e.target.value }))}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white"
-                        placeholder="#A855F7"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                      Holdings Investimenti
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={chartColors.holdingsInvestimenti}
-                        onChange={(e) => setChartColors(prev => ({ ...prev, holdingsInvestimenti: e.target.value }))}
-                        className="w-12 h-8 rounded border cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={chartColors.holdingsInvestimenti}
-                        onChange={(e) => setChartColors(prev => ({ ...prev, holdingsInvestimenti: e.target.value }))}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white"
-                        placeholder="#F59E0B"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Separatore */}
-                  <div className="border-t border-gray-200 pt-4 mt-4">
-                    <h4 className="text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">Budget Individuali</h4>
-                    <p className="text-xs text-gray-500 mb-3">
-                      I colori dei budget si modificano dalla pagina Budget
-                    </p>
-                    
-                    {/* Lista budget con preview colori */}
-                    <div className="space-y-2">
-                      {dashboardData.budgets.filter(budget => budget.allocatedAmount > 0).map((budget, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-4 h-4 rounded-full border" 
-                              style={{ backgroundColor: budget.color || '#3B82F6' }}
-                            />
-                            <span className="text-sm text-gray-700">{budget.name}</span>
-                          </div>
-                          <span className="text-xs text-gray-500">
-                            {formatCurrencyWithUserCurrency(budget.allocatedAmount)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-6 border-t border-gray-200 mt-6">
-                  <button
-                    onClick={() => {
-                      setChartColors({
-                        fondiDisponibili: '#22D3EE',
-                        contiInvestimento: '#A855F7',
-                        holdingsInvestimenti: '#F59E0B'
-                      });
-                    }}
-                    className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors"
-                  >
-                    Reset Default
-                  </button>
-                  <button
-                    onClick={() => setShowColorSettings(false)}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Salva
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Color Settings Modal */}
+          <ColorSettingsModal
+            isOpen={showColorSettings}
+            onClose={() => setShowColorSettings(false)}
+            chartColors={chartColors}
+            onColorsChange={setChartColors}
+            budgets={dashboardData.budgets}
+            userCurrency={user?.currency}
+          />
         </div>
       </div>
     </ProtectedRoute>

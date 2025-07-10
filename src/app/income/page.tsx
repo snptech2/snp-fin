@@ -9,6 +9,12 @@ import {
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { usePathname } from 'next/navigation'
+import { 
+  TransactionFormModal, 
+  CategoryFormModal, 
+  BulkDeleteModal, 
+  CSVImportModal 
+} from '@/components/transactions'
 
 interface Account {
   id: number
@@ -1163,8 +1169,27 @@ export default function IncomePage() {
           </div>
         </div>
 
-        {/* Modal Transazione */}
-        {showTransactionForm && (
+        {/* Transaction Form Modal */}
+        <TransactionFormModal
+          isOpen={showTransactionForm}
+          onClose={resetTransactionForm}
+          transactionType="income"
+          editingTransaction={editingTransaction}
+          transactionForm={transactionForm}
+          onFormChange={setTransactionForm}
+          onSubmit={handleTransactionSubmit}
+          accounts={accounts}
+          categories={categories}
+          onNewCategory={() => {
+            resetCategoryForm()
+            setShowCategoryForm(true)
+          }}
+          error={error}
+          isSubmitting={isSubmitting}
+        />
+        
+        {/* TODO: Remove after testing */}
+        {false && showTransactionForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="modal-content rounded-lg p-6 w-full max-w-md">
               <h3 className="text-lg font-semibold mb-4">
@@ -1287,8 +1312,22 @@ export default function IncomePage() {
           </div>
         )}
 
-        {/* Modal Categoria */}
-        {showCategoryForm && (
+        {/* Category Form Modal */}
+        <CategoryFormModal
+          isOpen={showCategoryForm}
+          onClose={resetCategoryForm}
+          transactionType="income"
+          editingCategory={editingCategory}
+          categoryForm={categoryForm}
+          onFormChange={setCategoryForm}
+          onSubmit={handleCategorySubmit}
+          availableColors={availableColors}
+          error={error}
+          isSubmitting={isSubmitting}
+        />
+        
+        {/* TODO: Remove after testing */}
+        {false && showCategoryForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="modal-content rounded-lg p-6 w-full max-w-md">
               <h3 className="text-lg font-semibold mb-4">
@@ -1360,7 +1399,13 @@ export default function IncomePage() {
         )}
 
         {/* Bulk Delete Progress Modal */}
-        {isDeleting && (
+        <BulkDeleteModal
+          isOpen={isDeleting}
+          progress={deleteProgress}
+        />
+        
+        {/* TODO: Remove after testing */}
+        {false && isDeleting && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-adaptive rounded-lg p-6 w-full max-w-md border border-adaptive">
               <h3 className="text-lg font-bold text-adaptive-900 mb-4">Cancellazione in corso...</h3>
@@ -1395,7 +1440,30 @@ export default function IncomePage() {
         )}
 
         {/* CSV Import Modal */}
-        {showImportModal && (
+        <CSVImportModal
+          isOpen={showImportModal}
+          onClose={resetImportModal}
+          transactionType="income"
+          csvFile={csvFile}
+          onFileSelect={(file) => {
+            setCsvFile(file)
+            parseCSV(file)
+          }}
+          useDefaultAccount={useDefaultAccount}
+          onUseDefaultAccountChange={setUseDefaultAccount}
+          accounts={accounts}
+          showPreview={showPreview}
+          csvData={csvData}
+          onBackToFileSelect={() => setShowPreview(false)}
+          isImporting={isImporting}
+          onStartImport={handleImportCSV}
+          importProgress={importProgress}
+          importResult={importResult}
+          onReset={resetImportModal}
+        />
+        
+        {/* TODO: Remove after testing */}
+        {false && showImportModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-adaptive rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-adaptive">
               <div className="flex justify-between items-center mb-4">
@@ -1614,6 +1682,7 @@ export default function IncomePage() {
             </div>
           </div>
         )}
+        {/* End TODO blocks */}
       </div>
     </ProtectedRoute>
   )

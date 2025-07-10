@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 
 const geistSans = Geist({
@@ -32,9 +33,11 @@ export default function RootLayout({
         style={{ background: 'var(--background)', color: 'var(--foreground)' }}
       >
         <AuthProvider>
-          <AuthenticatedLayout>
-            {children}
-          </AuthenticatedLayout>
+          <NotificationProvider>
+            <AuthenticatedLayout>
+              {children}
+            </AuthenticatedLayout>
+          </NotificationProvider>
         </AuthProvider>
       </body>
     </html>

@@ -13,6 +13,12 @@ import {
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { usePathname } from 'next/navigation'
+import { 
+  TransactionFormModal, 
+  CategoryFormModal, 
+  BulkDeleteModal, 
+  CSVImportModal 
+} from '@/components/transactions'
 
 interface Account {
   id: number
@@ -80,6 +86,28 @@ export default function ExpensesPage() {
     name: '', 
     color: '#EF4444'  // Rosso per le uscite
   })
+  
+  // Stato per categorie escluse dai grafici
+  const [excludedCategories, setExcludedCategories] = useState<number[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('expensesExcludedCategories')
+      if (saved) {
+        try {
+          return JSON.parse(saved)
+        } catch (e) {
+          console.error('Errore nel parsing delle categorie escluse:', e)
+        }
+      }
+    }
+    return []
+  })
+  const [showCategoryFilter, setShowCategoryFilter] = useState(false)
+  
+  // Funzione per aggiornare le categorie escluse
+  const updateExcludedCategories = (categoryIds: number[]) => {
+    setExcludedCategories(categoryIds)
+    localStorage.setItem('expensesExcludedCategories', JSON.stringify(categoryIds))
+  }
   
   // Colori disponibili per le categorie - PALETTE AMPLIATA (ORDINATA CON ROSSI PRIMA)
   const [availableColors] = useState([
@@ -754,8 +782,9 @@ export default function ExpensesPage() {
     return stats.sort((a, b) => b.total - a.total)
   }, [categories, operationalTransactions, totalExpenses])
 
-  // Dati per grafici - SOLO SPESE OPERATIVE (senza tasse fiscali)
+  // Dati per grafici - SOLO SPESE OPERATIVE (senza tasse fiscali) E CATEGORIE NON ESCLUSE
   const currentMonthChartData = categoryStats
+    .filter(stat => !excludedCategories.includes(stat.id)) // Escludi categorie selezionate
     .filter(stat => {
       const categoryTransactions = operationalTransactions.filter(t => 
         t.category.id === stat.id && new Date(t.date).getMonth() === new Date().getMonth()
@@ -769,15 +798,19 @@ export default function ExpensesPage() {
         .reduce((sum, t) => sum + t.amount, 0),
       color: stat.color
     }))
+    .sort((a, b) => b.value - a.value) // Ordina dalla spesa più alta alla più bassa
 
-  const totalChartData = categoryStats.map(stat => ({
-    name: stat.name,
-    value: stat.total,
-    color: stat.color
-  }))
+  const totalChartData = categoryStats
+    .filter(stat => !excludedCategories.includes(stat.id)) // Escludi categorie selezionate
+    .map(stat => ({
+      name: stat.name,
+      value: stat.total,
+      color: stat.color
+    }))
 
-  const currentMonthTotal = currentMonthExpenses
-  const grandTotal = totalExpenses
+  // Totali aggiornati escludendo le categorie selezionate
+  const currentMonthTotal = currentMonthChartData.reduce((sum, item) => sum + item.value, 0)
+  const grandTotal = totalChartData.reduce((sum, item) => sum + item.value, 0)
 
   // === COMPONENTE GRAFICO ===
   const renderPieChart = (data, title, total) => (
@@ -979,6 +1012,78 @@ export default function ExpensesPage() {
           )}
         </div>
 
+        {/* === INFO E FILTRI GRAFICI === */}
+        {!loading && transactions.length > 0 && (
+          <div className="mb-6 p-4 card-adaptive rounded-lg shadow-sm border-adaptive">
+              <div className="flex items-start justify-between">
+                <p className="text-sm text-adaptive-700 flex-1">
+                  ℹ️ I grafici mostrano solo <strong>spese operative</strong>. 
+                  Le tasse P.IVA e pagamenti fiscali ({formatCurrency(totalFiscalExpenses)}) sono esclusi per una migliore analisi dei pattern di spesa.
+                  {excludedCategories.length > 0 && (
+                    <span className="block mt-1 text-adaptive-600">
+                      🚫 {excludedCategories.length} categoria{excludedCategories.length > 1 ? 'e' : ''} esclus{excludedCategories.length > 1 ? 'e' : 'a'} dai grafici.
+                    </span>
+                  )}
+                </p>
+                <button
+                  onClick={() => setShowCategoryFilter(!showCategoryFilter)}
+                  className="ml-3 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors flex items-center gap-1"
+                  title="Gestisci categorie visibili nei grafici"
+                >
+                  <span>👁️</span>
+                  <span>Filtri</span>
+                </button>
+              </div>
+              
+              {/* Pannello filtri categorie */}
+              {showCategoryFilter && (
+                <div className="mt-3 pt-3 border-t border-adaptive">
+                  <h4 className="text-sm font-medium text-adaptive-900 mb-2">Categorie nei grafici:</h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {categoryStats.map(stat => (
+                      <label key={stat.id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!excludedCategories.includes(stat.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              // Rimuovi dalla lista escluse
+                              updateExcludedCategories(excludedCategories.filter(id => id !== stat.id))
+                            } else {
+                              // Aggiungi alla lista escluse
+                              updateExcludedCategories([...excludedCategories, stat.id])
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: stat.color }}
+                        />
+                        <span className="text-sm text-adaptive-700">{stat.name}</span>
+                        <span className="text-xs text-adaptive-600">({formatCurrency(stat.total)})</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => updateExcludedCategories([])}
+                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Mostra tutte
+                    </button>
+                    <button
+                      onClick={() => updateExcludedCategories(categoryStats.map(s => s.id))}
+                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Nascondi tutte
+                    </button>
+                  </div>
+                </div>
+              )}
+          </div>
+        )}
+
         {/* === RIEPILOGHI CON GRAFICI === */}
         {!loading && transactions.length > 0 && (
           <div className="mb-8">
@@ -997,15 +1102,8 @@ export default function ExpensesPage() {
                 grandTotal
               )}
             </div>
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                ℹ️ I grafici mostrano solo <strong>spese operative</strong>. 
-                Le tasse P.IVA e pagamenti fiscali ({formatCurrency(totalFiscalExpenses)}) sono esclusi per una migliore analisi dei pattern di spesa.
-              </p>
-            </div>
           </div>
         )}
-
 
         {/* Lista Transazioni con Filtri */}
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
@@ -1258,239 +1356,70 @@ export default function ExpensesPage() {
           </div>
         </div>
 
-        {/* Modal Transazione */}
-        {showTransactionForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="modal-content rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">
-                {editingTransaction ? 'Modifica Uscita' : 'Nuova Uscita'}
-              </h3>
-              
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                  {error}
-                </div>
-              )}
-              
-              <form onSubmit={handleTransactionSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Descrizione
-                  </label>
-                  <input
-                    type="text"
-                    value={transactionForm.description}
-                    onChange={(e) => setTransactionForm(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Es: Spesa supermercato"
-                  />
-                </div>
+        {/* Transaction Form Modal */}
+        <TransactionFormModal
+          isOpen={showTransactionForm}
+          onClose={resetTransactionForm}
+          transactionType="expense"
+          editingTransaction={editingTransaction}
+          transactionForm={transactionForm}
+          onFormChange={setTransactionForm}
+          onSubmit={handleTransactionSubmit}
+          accounts={accounts}
+          categories={categories}
+          onNewCategory={() => {
+            resetCategoryForm()
+            setShowCategoryForm(true)
+          }}
+          error={error}
+          isSubmitting={isSubmitting}
+        />
 
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Importo (EUR) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={transactionForm.amount}
-                    onChange={(e) => setTransactionForm(prev => ({ ...prev, amount: e.target.value }))}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Data *
-                  </label>
-                  <input
-                    type="date"
-                    value={transactionForm.date}
-                    onChange={(e) => setTransactionForm(prev => ({ ...prev, date: e.target.value }))}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Conto *
-                  </label>
-                  <select
-                    value={transactionForm.accountId}
-                    onChange={(e) => setTransactionForm(prev => ({ ...prev, accountId: e.target.value }))}
-                    required
-                  >
-                    <option value="">Seleziona conto</option>
-                    {accounts.filter(account => account.type === 'bank').map(account => (
-                      <option key={account.id} value={account.id.toString()}>
-                        {account.name}{account.isDefault ? '  (Predefinito)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-  <label className="block text-sm font-medium mb-1">
-    Categoria *
-  </label>
-  <div className="flex gap-2">
-    <select
-      value={transactionForm.categoryId}
-      onChange={(e) => setTransactionForm(prev => ({ ...prev, categoryId: e.target.value }))}
-      required
-      className="flex-1"
-    >
-      <option value="">Seleziona categoria</option>
-      {categories.map(category => (
-        <option key={category.id} value={category.id.toString()}>
-          {category.name}
-        </option>
-      ))}
-    </select>
-    <button
-      type="button"
-      onClick={() => {
-        resetCategoryForm()
-        setShowCategoryForm(true)
-      }}
-      className="px-3 py-2 text-sm bg-adaptive-100 hover:bg-adaptive-200 border border-adaptive rounded-md transition-colors"
-      title="Aggiungi nuova categoria"
-    >
-      +
-    </button>
-  </div>
-</div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={resetTransactionForm}
-                    className="flex-1 btn-secondary px-4 py-2 rounded-lg"
-                  >
-                    Annulla
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex-1 btn-primary px-4 py-2 rounded-lg disabled:opacity-50"
-                  >
-                    {isSubmitting ? 'Salvando...' : editingTransaction ? 'Aggiorna' : 'Crea'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Modal Categoria */}
-        {showCategoryForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="modal-content rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">
-                {editingCategory ? 'Modifica Categoria' : 'Nuova Categoria'}
-              </h3>
-              
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                  {error}
-                </div>
-              )}
-              
-              <form onSubmit={handleCategorySubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Nome Categoria *
-                  </label>
-                  <input
-                    type="text"
-                    value={categoryForm.name}
-                    onChange={(e) => setCategoryForm(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Es: Alimentari"
-                    required
-                  />
-                </div>
-
-                {/* Selettore Colori */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    🎨 Colore Categoria
-                  </label>
-                  <div className="grid grid-cols-10 gap-2">
-                    {availableColors.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setCategoryForm(prev => ({ ...prev, color }))}
-                        className={`w-8 h-8 rounded-lg border-2 transition-all ${
-                          categoryForm.color === color 
-                            ? 'border-gray-900 scale-110' 
-                            : 'border-gray-300 hover:border-gray-500'
-                        }`}
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={resetCategoryForm}
-                    className="flex-1 btn-secondary px-4 py-2 rounded-lg"
-                  >
-                    Annulla
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex-1 btn-primary px-4 py-2 rounded-lg disabled:opacity-50"
-                  >
-                    {isSubmitting ? 'Salvando...' : editingCategory ? 'Aggiorna' : 'Crea'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {/* Category Form Modal */}
+        <CategoryFormModal
+          isOpen={showCategoryForm}
+          onClose={resetCategoryForm}
+          transactionType="expense"
+          editingCategory={editingCategory}
+          categoryForm={categoryForm}
+          onFormChange={setCategoryForm}
+          onSubmit={handleCategorySubmit}
+          availableColors={availableColors}
+          error={error}
+          isSubmitting={isSubmitting}
+        />
 
         {/* Bulk Delete Progress Modal */}
-        {isDeleting && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-adaptive rounded-lg p-6 w-full max-w-md border border-adaptive">
-              <h3 className="text-lg font-bold text-adaptive-900 mb-4">Cancellazione in corso...</h3>
-              
-              <div className="space-y-3">
-                {/* Progress bar */}
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div 
-                    className="bg-red-600 h-3 rounded-full transition-all duration-300 ease-out"
-                    style={{ 
-                      width: `${deleteProgress.total > 0 ? (deleteProgress.current / deleteProgress.total) * 100 : 0}%` 
-                    }}
-                  ></div>
-                </div>
-                
-                {/* Stats */}
-                <div className="flex justify-between text-sm text-adaptive-900 font-medium">
-                  <span>Cancellate: {deleteProgress.current} / {deleteProgress.total}</span>
-                  <span className="font-medium">
-                    {deleteProgress.total > 0 ? Math.round((deleteProgress.current / deleteProgress.total) * 100) : 0}%
-                  </span>
-                </div>
-                
-                {/* Loading indicator */}
-                <div className="flex items-center justify-center space-x-2 pt-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
-                  <span className="text-sm text-adaptive-900 font-medium">Eliminazione transazioni...</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <BulkDeleteModal
+          isOpen={isDeleting}
+          progress={deleteProgress}
+        />
 
         {/* CSV Import Modal */}
-        {showImportModal && (
+        <CSVImportModal
+          isOpen={showImportModal}
+          onClose={resetImportModal}
+          transactionType="expense"
+          csvFile={csvFile}
+          onFileSelect={(file) => {
+            setCsvFile(file)
+            parseCSV(file)
+          }}
+          useDefaultAccount={useDefaultAccount}
+          onUseDefaultAccountChange={setUseDefaultAccount}
+          accounts={accounts}
+          showPreview={showPreview}
+          csvData={csvData}
+          onBackToFileSelect={() => setShowPreview(false)}
+          isImporting={isImporting}
+          onStartImport={handleImportCSV}
+          importProgress={importProgress}
+          importResult={importResult}
+          onReset={resetImportModal}
+        />
+        
+        {/* TODO: Remove this block after testing the new modal */}
+        {false && showImportModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-adaptive rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-adaptive">
               <div className="flex justify-between items-center mb-4">
@@ -1733,6 +1662,7 @@ export default function ExpensesPage() {
             </div>
           </div>
         )}
+        {/* End TODO block */}
       </div>
     </ProtectedRoute>
   )

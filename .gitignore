@@ -91,3 +91,6 @@ DOCS/*-sensitive.md
 # Additional backup files
 .env.production.backup
 *.backup
+
+# Claude AI configuration
+.claude/
