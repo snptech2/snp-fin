@@ -1302,7 +1302,7 @@ export default function PartitaIVAPage() {
         {showConfigForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="modal-content rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">
+              <h3 className="text-lg font-semibold mb-4 text-white">
                 ⚙️ Configurazione {currentYear}
               </h3>
               
@@ -1395,7 +1395,7 @@ export default function PartitaIVAPage() {
         {showIncomeForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="modal-content rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">
+              <h3 className="text-lg font-semibold mb-4 text-white">
                 📋 {editingIncome ? 'Modifica Entrata' : 'Nuova Entrata'} P.IVA
               </h3>
               
@@ -1407,7 +1407,7 @@ export default function PartitaIVAPage() {
               
               <form onSubmit={handleIncomeSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">
+                  <label className="block text-sm font-medium mb-1 text-white">
                     Data Incasso *
                   </label>
                   <input
@@ -1420,7 +1420,7 @@ export default function PartitaIVAPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
+                  <label className="block text-sm font-medium mb-1 text-white">
                     Data Emissione *
                   </label>
                   <input
@@ -1433,7 +1433,7 @@ export default function PartitaIVAPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
+                  <label className="block text-sm font-medium mb-1 text-white">
                     Riferimento *
                   </label>
                   <input
@@ -1447,7 +1447,7 @@ export default function PartitaIVAPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
+                  <label className="block text-sm font-medium mb-1 text-white">
                     Entrata (EUR) *
                   </label>
                   <input
@@ -1462,7 +1462,7 @@ export default function PartitaIVAPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
+                  <label className="block text-sm font-medium mb-1 text-white">
                     Conto Bancario
                   </label>
                   <select
@@ -1519,7 +1519,7 @@ export default function PartitaIVAPage() {
         {showPaymentForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="modal-content rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">
+              <h3 className="text-lg font-semibold mb-4 text-white">
                 💸 {editingPayment ? 'Modifica Pagamento' : 'Nuovo Pagamento'} Tasse
               </h3>
               
@@ -1630,7 +1630,7 @@ export default function PartitaIVAPage() {
         {showYearForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="modal-content rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">
+              <h3 className="text-lg font-semibold mb-4 text-white">
                 📅 Aggiungi Nuovo Anno
               </h3>
               
@@ -1691,7 +1691,7 @@ export default function PartitaIVAPage() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="modal-content rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-adaptive-900">
+                <h3 className="text-xl font-semibold text-white">
                   📊 Importa Entrate CSV
                 </h3>
                 <button

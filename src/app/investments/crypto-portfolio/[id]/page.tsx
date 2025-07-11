@@ -1754,7 +1754,7 @@ export default function CryptoPortfolioDetailPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">➕ Nuova Transazione</h3>
+              <h3 className="text-lg font-semibold text-white">➕ Nuova Transazione</h3>
               <button
                 onClick={() => {
                   setShowAddTransaction(false)
@@ -1925,7 +1925,7 @@ export default function CryptoPortfolioDetailPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">✏️ Modifica Transazione</h3>
+              <h3 className="text-lg font-semibold text-white">✏️ Modifica Transazione</h3>
               <button
                 onClick={() => {
                   setShowEditTransaction(false)
@@ -2098,7 +2098,7 @@ export default function CryptoPortfolioDetailPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">⚙️ Impostazioni Portfolio</h3>
+              <h3 className="text-lg font-semibold text-white">⚙️ Impostazioni Portfolio</h3>
               <button
                 onClick={() => setShowEditPortfolio(false)}
                 className="text-gray-500 hover:text-gray-700"
@@ -2157,7 +2157,7 @@ export default function CryptoPortfolioDetailPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">🔄 Swap Crypto</h3>
+              <h3 className="text-lg font-semibold text-white">🔄 Swap Crypto</h3>
               <button
                 onClick={() => {
                   setShowSwap(false)
@@ -2280,7 +2280,7 @@ export default function CryptoPortfolioDetailPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-900">🌐 Aggiungi Network Fee</h2>
+              <h2 className="text-xl font-bold text-white">🌐 Aggiungi Network Fee</h2>
               <button
                 onClick={() => {
                   setShowAddFee(false)
@@ -2384,13 +2384,13 @@ export default function CryptoPortfolioDetailPage() {
       {/* 📁 CSV IMPORT MODAL */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-adaptive rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-adaptive">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-300 dark:border-gray-600">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-adaptive-900">Import CSV Transazioni Crypto</h2>
+              <h2 className="text-xl font-bold text-white">Import CSV Transazioni Crypto</h2>
               <button
                 onClick={resetImportModal}
                 disabled={isImporting}
-                className={`${isImporting ? 'text-adaptive-300 cursor-not-allowed' : 'text-adaptive-500 hover:text-adaptive-700'}`}
+                className={`${isImporting ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
               >
                 ✕
               </button>
@@ -2405,7 +2405,7 @@ export default function CryptoPortfolioDetailPage() {
             {/* Progress Bar durante l'import */}
             {isImporting && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-adaptive-900">Import in corso...</h3>
+                <h3 className="text-lg font-bold text-white">Import in corso...</h3>
                 
                 <div className="space-y-3">
                   {/* Progress bar principale */}
@@ -2621,13 +2621,13 @@ export default function CryptoPortfolioDetailPage() {
       {/* 🗑️ BULK DELETE CONFIRMATION MODAL */}
       {showBulkDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-adaptive rounded-lg p-6 w-full max-w-md mx-4 border border-adaptive">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4 border border-gray-300 dark:border-gray-600">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-adaptive-900">🗑️ Conferma Eliminazione</h3>
+              <h3 className="text-lg font-semibold text-white">🗑️ Conferma Eliminazione</h3>
               <button
                 onClick={() => setShowBulkDeleteModal(false)}
                 disabled={isDeleting}
-                className="text-adaptive-500 hover:text-adaptive-700 disabled:opacity-50"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
@@ -2649,7 +2649,7 @@ export default function CryptoPortfolioDetailPage() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowBulkDeleteModal(false)}
-                    className="flex-1 px-4 py-2 border border-adaptive-300 text-adaptive-700 rounded-lg hover:bg-adaptive-100"
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-800"
                   >
                     Annulla
                   </button>

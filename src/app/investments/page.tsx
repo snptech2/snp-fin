@@ -595,40 +595,40 @@ export default function InvestmentsPage() {
         {/* Create DCA Portfolio Modal */}
         {showCreateDCAModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4 border border-gray-300 dark:border-gray-600">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-adaptive-900">🟠 Nuovo Portfolio DCA Bitcoin</h3>
+                <h3 className="text-lg font-semibold text-white">🟠 Nuovo Portfolio DCA Bitcoin</h3>
                 
                 <button
                   onClick={() => setShowCreateDCAModal(false)}
-                  className="text-adaptive-600 hover:text-adaptive-900"
+                  className="text-white hover:text-gray-200"
                 >
                   <XMarkIcon className="w-5 h-5" />
                 </button>
               </div>
-<h4>Questo portfolio supporta esclusivamente l'acquisto e la vendita di btc con valute FIAT. Se hai bisogno di swap con stablecoins o shitcoins utilizza il Crypto Wallet.</h4><br></br>
+<h4 className="text-white">Questo portfolio supporta esclusivamente l'acquisto e la vendita di btc con valute FIAT. Se hai bisogno di swap con stablecoins o shitcoins utilizza il Crypto Wallet.</h4><br></br>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Nome Portfolio
                   </label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     placeholder="es. DCA Bitcoin Principale"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Account di Investimento
                   </label>
                   <select
                     value={formData.accountId || ''}
                     onChange={(e) => setFormData({ ...formData, accountId: Number(e.target.value) || undefined })}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="">Seleziona account</option>
                     {investmentAccounts.map(account => (
@@ -643,7 +643,7 @@ export default function InvestmentsPage() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowCreateDCAModal(false)}
-                    className="flex-1 px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-adaptive-50"
+                    className="flex-1 px-4 py-2 border border-white rounded-md text-white hover:bg-gray-700"
                   >
                     Annulla
                   </button>
@@ -663,12 +663,12 @@ export default function InvestmentsPage() {
         {/* Create Crypto Portfolio Modal */}
         {showCreateCryptoModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="modal-content rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4 border border-gray-300 dark:border-gray-600">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-adaptive-900">🚀 Nuovo Portfolio Crypto</h3>
+                <h3 className="text-lg font-semibold text-white">🚀 Nuovo Portfolio Crypto</h3>
                 <button
                   onClick={() => setShowCreateCryptoModal(false)}
-                  className="text-adaptive-600 hover:text-adaptive-900"
+                  className="text-white hover:text-gray-200"
                 >
                   <XMarkIcon className="w-5 h-5" />
                 </button>
@@ -676,39 +676,39 @@ export default function InvestmentsPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Nome Portfolio
                   </label>
                   <input
                     type="text"
                     value={cryptoFormData.name}
                     onChange={(e) => setCryptoFormData({ ...cryptoFormData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     placeholder="es. Portfolio Altcoin"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Descrizione (opzionale)
                   </label>
                   <input
                     type="text"
                     value={cryptoFormData.description}
                     onChange={(e) => setCryptoFormData({ ...cryptoFormData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     placeholder="Portfolio per diversificazione crypto"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Account di Investimento
                   </label>
                   <select
                     value={cryptoFormData.accountId || ''}
                     onChange={(e) => setCryptoFormData({ ...cryptoFormData, accountId: Number(e.target.value) || undefined })}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="">Seleziona account</option>
                     {investmentAccounts.map(account => (
@@ -722,7 +722,7 @@ export default function InvestmentsPage() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowCreateCryptoModal(false)}
-                    className="flex-1 px-4 py-2 border border-adaptive rounded-md text-adaptive-700 hover:bg-adaptive-50"
+                    className="flex-1 px-4 py-2 border border-white rounded-md text-white hover:bg-gray-700"
                   >
                     Annulla
                   </button>

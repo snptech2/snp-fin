@@ -1,5 +1,5 @@
 // src/components/transactions/TransactionFormModal.tsx
-import React from 'react'
+import React, { useCallback } from 'react'
 import { FormModal } from '@/components/base/FormModal'
 
 interface Account {
@@ -71,6 +71,27 @@ export const TransactionFormModal = ({
     await onSubmit(event)
   }
 
+  // Memoize change handlers to prevent re-renders
+  const handleDescriptionChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onFormChange({ description: e.target.value })
+  }, [onFormChange])
+
+  const handleAmountChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onFormChange({ amount: e.target.value })
+  }, [onFormChange])
+
+  const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onFormChange({ date: e.target.value })
+  }, [onFormChange])
+
+  const handleAccountChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    onFormChange({ accountId: e.target.value })
+  }, [onFormChange])
+
+  const handleCategoryChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    onFormChange({ categoryId: e.target.value })
+  }, [onFormChange])
+
   return (
     <FormModal
       isOpen={isOpen}
@@ -96,7 +117,7 @@ export const TransactionFormModal = ({
           <input
             type="text"
             value={transactionForm.description}
-            onChange={(e) => onFormChange({ ...transactionForm, description: e.target.value })}
+            onChange={handleDescriptionChange}
             placeholder={`Es: ${transactionType === 'income' ? 'Stipendio' : 'Spesa supermercato'}`}
             className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
           />
@@ -111,7 +132,7 @@ export const TransactionFormModal = ({
             step="0.01"
             min="0.01"
             value={transactionForm.amount}
-            onChange={(e) => onFormChange({ ...transactionForm, amount: e.target.value })}
+            onChange={handleAmountChange}
             required
             className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
           />
@@ -124,7 +145,7 @@ export const TransactionFormModal = ({
           <input
             type="date"
             value={transactionForm.date}
-            onChange={(e) => onFormChange({ ...transactionForm, date: e.target.value })}
+            onChange={handleDateChange}
             required
             className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
           />
@@ -136,7 +157,7 @@ export const TransactionFormModal = ({
           </label>
           <select
             value={transactionForm.accountId}
-            onChange={(e) => onFormChange({ ...transactionForm, accountId: e.target.value })}
+            onChange={handleAccountChange}
             required
             className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
           >
@@ -156,7 +177,7 @@ export const TransactionFormModal = ({
           <div className="flex gap-2">
             <select
               value={transactionForm.categoryId}
-              onChange={(e) => onFormChange({ ...transactionForm, categoryId: e.target.value })}
+              onChange={handleCategoryChange}
               required
               className="flex-1 px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
             >

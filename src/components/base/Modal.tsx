@@ -22,10 +22,14 @@ export const Modal = ({
   closeOnBackdrop = true
 }: ModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null)
+  const hasAutoFocused = useRef(false)
 
   // Gestione ESC key e focus trap
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      hasAutoFocused.current = false
+      return
+    }
 
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -66,16 +70,23 @@ export const Modal = ({
     // Prevent body scroll
     document.body.style.overflow = 'hidden'
     
-    // Auto focus sul primo elemento focusabile
-    setTimeout(() => {
-      const modal = modalRef.current
-      if (modal) {
-        const firstFocusable = modal.querySelector(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        ) as HTMLElement
-        firstFocusable?.focus()
-      }
-    }, 100)
+    // Auto focus sul primo elemento focusabile (solo la prima volta)
+    if (!hasAutoFocused.current) {
+      setTimeout(() => {
+        const modal = modalRef.current
+        if (modal) {
+          const activeElement = document.activeElement as HTMLElement
+          // Non fare auto-focus se l'utente sta già interagendo con un input
+          if (!activeElement || !activeElement.matches('input, textarea, select')) {
+            const firstFocusable = modal.querySelector(
+              'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            ) as HTMLElement
+            firstFocusable?.focus()
+            hasAutoFocused.current = true
+          }
+        }
+      }, 100)
+    }
 
     return () => {
       document.removeEventListener('keydown', handleEsc)

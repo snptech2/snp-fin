@@ -78,6 +78,7 @@ export default function ExpensesPage() {
     accountId: '',
     categoryId: ''
   })
+  const [isFormTouched, setIsFormTouched] = useState(false)
   
   // Stati per gestione categorie
   const [showCategoryForm, setShowCategoryForm] = useState(false)
@@ -173,7 +174,7 @@ export default function ExpensesPage() {
 
   // Imposta conto predefinito quando aprono i form
   useEffect(() => {
-    if (showTransactionForm && !editingTransaction && accounts.length > 0) {
+    if (showTransactionForm && !editingTransaction && accounts.length > 0 && !isFormTouched) {
       const defaultAccount = getDefaultAccount()
       if (defaultAccount) {
         setTransactionForm(prev => ({
@@ -182,7 +183,7 @@ export default function ExpensesPage() {
         }))
       }
     }
-  }, [showTransactionForm, editingTransaction, accounts])
+  }, [showTransactionForm, editingTransaction, accounts, isFormTouched])
 
   const fetchData = async () => {
     setLoading(true)
@@ -219,6 +220,7 @@ export default function ExpensesPage() {
     setEditingTransaction(null)
     setShowTransactionForm(false)
     setError('')
+    setIsFormTouched(false)
   }
 
   const resetCategoryForm = () => {
@@ -1363,7 +1365,10 @@ export default function ExpensesPage() {
           transactionType="expense"
           editingTransaction={editingTransaction}
           transactionForm={transactionForm}
-          onFormChange={setTransactionForm}
+          onFormChange={(updatedForm) => {
+            setIsFormTouched(true)
+            setTransactionForm(prev => ({ ...prev, ...updatedForm }))
+          }}
           onSubmit={handleTransactionSubmit}
           accounts={accounts}
           categories={categories}

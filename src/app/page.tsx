@@ -8,6 +8,9 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/utils/formatters';
 import { ColorSettingsModal } from '@/components/dashboard/ColorSettingsModal';
+import { PatrimonyColorModal } from '@/components/dashboard/PatrimonyColorModal';
+import { LiquidityColorModal } from '@/components/dashboard/LiquidityColorModal';
+import FinanceNewsTickerBar from '@/components/dashboard/FinanceNewsTickerBar';
 
 // Interfaces
 interface BitcoinPrice {
@@ -148,6 +151,8 @@ const Dashboard = () => {
   const [dataLoading, setDataLoading] = useState<boolean>(false);
   const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null);
   const [showColorSettings, setShowColorSettings] = useState<boolean>(false);
+  const [showPatrimonyColors, setShowPatrimonyColors] = useState<boolean>(false);
+  const [showLiquidityColors, setShowLiquidityColors] = useState<boolean>(false);
   const [chartColors, setChartColors] = useState(() => {
     const defaultColors = {
       fondiDisponibili: '#22D3EE',
@@ -317,6 +322,30 @@ const Dashboard = () => {
       const nonCurrentAssets: NonCurrentAsset[] = dashboardData.nonCurrentAssets || [];
       const credits: Credit[] = dashboardData.credits || [];
 
+      // 📊 AGGIUNTA: Fetch entrate Partita IVA per le transazioni recenti
+      let partitaIVAIncomes: Transaction[] = [];
+      try {
+        const pivaRes = await fetch('/api/partita-iva/income');
+        if (pivaRes.ok) {
+          const pivaData = await pivaRes.json();
+          // Trasforma le entrate partita IVA in formato Transaction
+          partitaIVAIncomes = pivaData.slice(0, 5).map((income: any) => ({
+            id: income.id,
+            description: income.riferimento || 'Fattura Partita IVA',
+            amount: income.entrata,
+            date: income.dataIncasso,
+            type: 'income' as const
+          }));
+        }
+      } catch (error) {
+        console.log('Partita IVA incomes not available:', error);
+      }
+
+      // Combina transazioni regolari e partita IVA
+      const allTransactions = [...transactions, ...partitaIVAIncomes]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 10); // Prendiamo le 10 più recenti
+
       // Use precalculated totals from unified API
       const budgetTotals = {
         totalLiquidity: dashboardData.totals?.bankLiquidity || 0,
@@ -386,7 +415,7 @@ const Dashboard = () => {
         investments: [...cryptoPortfolios, ...dcaPortfolios],
         budgets,
         budgetTotals,
-        transactions: transactions.slice(0, 5),
+        transactions: allTransactions.slice(0, 5),
         enhancedCashFlow,
         totals: {
           bankLiquidity,
@@ -586,6 +615,9 @@ const Dashboard = () => {
     <ProtectedRoute>
       <div className="min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Finance News Ticker - ALLINEATO AL CONTENUTO */}
+          <FinanceNewsTickerBar className="mb-8" />
+          
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-adaptive-900">Dashboard</h1>
@@ -602,9 +634,9 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-xl font-semibold opacity-90">💎 Patrimonio Totale</h2>
                   <button
-                    onClick={() => setShowColorSettings(true)}
+                    onClick={() => setShowPatrimonyColors(true)}
                     className="text-sm text-white hover:text-white flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity"
-                    title="Personalizza colori"
+                    title="Personalizza colori patrimonio"
                   >
                     🎨 Colori
                   </button>
@@ -684,9 +716,26 @@ const Dashboard = () => {
                 <p className="text-2xl font-bold text-blue-600">
                   {formatCurrencyWithUserCurrency(dashboardData.totals.bankLiquidity)}
                 </p>
-                <p className="text-sm text-adaptive-600">
-                  {dashboardData.accounts.filter(acc => acc.type === 'bank').length} conti bancari
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-adaptive-600">
+                    {dashboardData.accounts.filter(acc => acc.type === 'bank').length} conti bancari
+                  </p>
+                  {(() => {
+                    // Calcola riserva tasse dai budget
+                    const riservaTasse = dashboardData.budgets.find(budget => 
+                      ['RISERVA TASSE', 'Riserva Tasse', 'riserva tasse'].includes(budget.name)
+                    )?.allocatedAmount || 0;
+                    
+                    // Mostra netto solo se c'è una riserva tasse significativa (>50€)
+                    const shouldShowNetto = riservaTasse > 50;
+                    
+                    return shouldShowNetto ? (
+                      <p className="text-xs font-extrabold text-adaptive-700">
+                        Netto: {formatCurrencyWithUserCurrency(dashboardData.totals.liquiditaBancaria)}
+                      </p>
+                    ) : null;
+                  })()}
+                </div>
               </div>
             </Link>
 
@@ -720,7 +769,25 @@ const Dashboard = () => {
                 <p className="text-2xl font-bold text-green-600">
                   {formatCurrencyWithUserCurrency(dashboardData.totals.holdingsValue)}
                 </p>
-                <p className="text-sm text-adaptive-600">{dashboardData.investments.length} portfolio attivi</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-adaptive-600">{dashboardData.investments.length} portfolio attivi</p>
+                  {(() => {
+                    // Calcola ROI% totale da tutti i portfolio
+                    const totalROI = dashboardData.investments.reduce((sum, portfolio) => {
+                      const roi = portfolio.stats?.totalROI || 0
+                      return sum + roi
+                    }, 0)
+                    const avgROI = dashboardData.investments.length > 0 ? totalROI / dashboardData.investments.length : 0
+                    const roiColor = avgROI >= 0 ? 'text-green-600' : 'text-red-600'
+                    const roiIcon = avgROI >= 0 ? '📈' : '📉'
+                    
+                    return (
+                      <p className={`text-base font-semibold ${roiColor}`}>
+                        {roiIcon} {avgROI.toFixed(1)}%
+                      </p>
+                    )
+                  })()}
+                </div>
               </div>
             </Link>
 
@@ -788,7 +855,7 @@ const Dashboard = () => {
                   </div>
                   <div className="text-orange-600 text-xl">⚠️</div>
                 </div>
-                <h3 className="text-lg font-semibold text-adaptive-900">Soldi a Rischio</h3>
+                <h3 className="text-lg font-semibold text-adaptive-900">Capitale a Rischio</h3>
                 <p className="text-2xl font-bold text-orange-600">
                   {formatCurrencyWithUserCurrency(dashboardData.enhancedCashFlow.effectiveInvestment)}
                 </p>
@@ -827,9 +894,9 @@ const Dashboard = () => {
                   </p>
                 </div>
                 <button
-                  onClick={() => setShowColorSettings(true)}
+                  onClick={() => setShowLiquidityColors(true)}
                   className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                  title="Personalizza colori"
+                  title="Personalizza colori liquidità"
                 >
                   🎨 Colori
                 </button>
@@ -951,8 +1018,8 @@ const Dashboard = () => {
           </div>
 
           {/* Bottom Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Investments Overview */}
+          <div className="space-y-8">
+            {/* Investments Overview - Full Width */}
             <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold text-adaptive-900">🚀 Investimenti</h3>
@@ -960,68 +1027,108 @@ const Dashboard = () => {
                   Dettagli →
                 </Link>
               </div>
-              <div className="space-y-4">
-                {dashboardData.investments.slice(0, 3).map((portfolio: Portfolio, index: number) => (
-                  <div key={index} className="flex items-center justify-between p-3 rounded-lg border border-adaptive">
-                    <div>
-                      <p className="text-sm font-medium text-adaptive-900">{portfolio.name}</p>
-                      <p className="text-xs text-adaptive-500">
-                        {portfolio.type === 'crypto_wallet' ? '🚀 Crypto Wallet' : '🟠 DCA Bitcoin'}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-semibold text-green-600">
-                        {formatCurrencyWithUserCurrency(portfolio.stats?.totalValueEur || getDCACurrentValue(portfolio, btcPrice))}
+              
+              {dashboardData.investments.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {dashboardData.investments.map((portfolio: Portfolio, index: number) => (
+                    <div key={index} className="p-4 rounded-lg border border-adaptive bg-adaptive-50 hover:bg-adaptive-100 transition-colors">
+                      <div className="mb-3">
+                        <p className="text-base font-semibold text-adaptive-900">{portfolio.name}</p>
+                        <p className="text-sm text-adaptive-500">
+                          {portfolio.type === 'crypto_wallet' ? '🚀 Crypto Wallet' : '🟠 DCA Bitcoin'}
+                        </p>
                       </div>
-                      <div className={`text-xs ${(portfolio.stats?.totalROI || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {(portfolio.stats?.totalROI || 0) >= 0 ? '+' : ''}{(portfolio.stats?.totalROI || 0).toFixed(1)}%
+                      <div className="text-right">
+                        <div className="text-base font-bold text-green-600">
+                          {formatCurrencyWithUserCurrency(portfolio.stats?.totalValueEur || getDCACurrentValue(portfolio, btcPrice))}
+                        </div>
+                        <div className={`text-sm font-medium ${(portfolio.stats?.totalROI || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {(portfolio.stats?.totalROI || 0) >= 0 ? '+' : ''}{(portfolio.stats?.totalROI || 0).toFixed(1)}%
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                {dashboardData.investments.length === 0 && (
-                  <div className="text-center py-4">
-                    <p className="text-adaptive-500">Nessun investimento attivo</p>
-                    <Link href="/investments" className="text-sm text-blue-600 hover:text-blue-700">
-                      Inizia a investire →
-                    </Link>
-                  </div>
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-adaptive-500">Nessun investimento attivo</p>
+                  <Link href="/investments" className="text-sm text-blue-600 hover:text-blue-700">
+                    Inizia a investire →
+                  </Link>
+                </div>
+              )}
             </div>
 
-            {/* Recent Transactions */}
-            <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-adaptive-900">📋 Transazioni Recenti</h3>
-                <Link href="/income" className="text-sm text-blue-600 hover:text-blue-700">
-                  Tutte →
-                </Link>
-              </div>
-              <div className="space-y-4">
-                {dashboardData.transactions.map((transaction: Transaction, index: number) => (
-                  <div key={index} className="flex items-center justify-between p-3 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${transaction.type === 'income' ? 'bg-green-500' : 'bg-red-500'}`} />
-                      <div>
-                        <p className="text-sm font-medium text-adaptive-900">
-                          {transaction.description || 'Transazione'}
-                        </p>
-                        <p className="text-xs text-adaptive-500">
-                          {new Date(transaction.date).toLocaleDateString('it-IT')}
-                        </p>
+            {/* Recent Transactions - Split into Income and Expenses */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Recent Income */}
+              <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-adaptive-900">📈 Entrate Recenti</h3>
+                  <Link href="/income" className="text-sm text-green-600 hover:text-green-700">
+                    Tutte →
+                  </Link>
+                </div>
+                <div className="space-y-4">
+                  {dashboardData.transactions.filter(t => t.type === 'income').slice(0, 4).map((transaction: Transaction, index: number) => (
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-200">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                        <div>
+                          <p className="text-sm font-medium text-adaptive-900">
+                            {transaction.description || 'Entrata'}
+                          </p>
+                          <p className="text-xs text-adaptive-500">
+                            {new Date(transaction.date).toLocaleDateString('it-IT')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-sm font-semibold text-green-600">
+                        +{formatCurrencyWithUserCurrency(Math.abs(transaction.amount))}
                       </div>
                     </div>
-                    <div className={`text-sm font-semibold ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                      {transaction.type === 'income' ? '+' : '-'}{formatCurrencyWithUserCurrency(Math.abs(transaction.amount))}
+                  ))}
+                  {dashboardData.transactions.filter(t => t.type === 'income').length === 0 && (
+                    <div className="text-center py-4">
+                      <p className="text-adaptive-500">Nessuna entrata recente</p>
                     </div>
-                  </div>
-                ))}
-                {dashboardData.transactions.length === 0 && (
-                  <div className="text-center py-4">
-                    <p className="text-adaptive-500">Nessuna transazione recente</p>
-                  </div>
-                )}
+                  )}
+                </div>
+              </div>
+
+              {/* Recent Expenses */}
+              <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-adaptive-900">📉 Uscite Recenti</h3>
+                  <Link href="/expenses" className="text-sm text-red-600 hover:text-red-700">
+                    Tutte →
+                  </Link>
+                </div>
+                <div className="space-y-4">
+                  {dashboardData.transactions.filter(t => t.type === 'expense').slice(0, 4).map((transaction: Transaction, index: number) => (
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-red-50 border border-red-200">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-red-500" />
+                        <div>
+                          <p className="text-sm font-medium text-black">
+                            {transaction.description || 'Uscita'}
+                          </p>
+                          <p className="text-xs text-black">
+                            {new Date(transaction.date).toLocaleDateString('it-IT')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-sm font-semibold text-red-600">
+                        -{formatCurrencyWithUserCurrency(Math.abs(transaction.amount))}
+                      </div>
+                    </div>
+                  ))}
+                  {dashboardData.transactions.filter(t => t.type === 'expense').length === 0 && (
+                    <div className="text-center py-4">
+                      <p className="text-adaptive-500">Nessuna uscita recente</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1057,7 +1164,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Color Settings Modal */}
+          {/* Color Settings Modals */}
           <ColorSettingsModal
             isOpen={showColorSettings}
             onClose={() => setShowColorSettings(false)}
@@ -1065,6 +1172,32 @@ const Dashboard = () => {
             onColorsChange={setChartColors}
             budgets={dashboardData.budgets}
             userCurrency={user?.currency}
+          />
+          
+          {/* Patrimony Color Modal */}
+          <PatrimonyColorModal
+            isOpen={showPatrimonyColors}
+            onClose={() => setShowPatrimonyColors(false)}
+            colors={{
+              contiBancari: chartColors.contiBancari,
+              contiInvestimentoPatr: chartColors.contiInvestimentoPatr,
+              assets: chartColors.assets,
+              beniNonCorrenti: chartColors.beniNonCorrenti,
+              crediti: chartColors.crediti
+            }}
+            onColorsChange={(newColors) => setChartColors(prev => ({ ...prev, ...newColors }))}
+          />
+          
+          {/* Liquidity Color Modal */}
+          <LiquidityColorModal
+            isOpen={showLiquidityColors}
+            onClose={() => setShowLiquidityColors(false)}
+            colors={{
+              fondiDisponibili: chartColors.fondiDisponibili,
+              contiInvestimento: chartColors.contiInvestimento,
+              holdingsInvestimenti: chartColors.holdingsInvestimenti
+            }}
+            onColorsChange={(newColors) => setChartColors(prev => ({ ...prev, ...newColors }))}
           />
         </div>
       </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { formatCurrency } from '@/utils/formatters'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import ProtectedRoute from '@/components/ProtectedRoute'
@@ -52,6 +52,7 @@ export default function BudgetPage() {
     color: '#3B82F6'
   })
   const [submitting, setSubmitting] = useState(false)
+  const [isFormTouched, setIsFormTouched] = useState(false)
 
   // Carica budget
   const loadBudgets = async () => {
@@ -83,18 +84,22 @@ export default function BudgetPage() {
     })
     setEditingBudget(null)
     setShowForm(false)
+    setIsFormTouched(false)
   }
 
   // Apri form per nuovo budget
   const openCreateForm = () => {
-    resetForm()
-    setShowForm(true)
     const maxOrder = budgetData?.budgets.reduce((max, b) => Math.max(max, b.order), 0) || 0
-    setFormData(prev => ({ 
-      ...prev, 
+    setFormData({
+      name: '',
+      targetAmount: '',
+      type: 'fixed',
       order: (maxOrder + 1).toString(),
       color: budgetData?.availableColors?.[0] || '#3B82F6'
-    }))
+    })
+    setEditingBudget(null)
+    setIsFormTouched(false)
+    setShowForm(true)
   }
 
   // Apri form per modifica
@@ -198,6 +203,36 @@ export default function BudgetPage() {
     '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
     '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
   ]
+
+  // Optimized form handlers
+  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsFormTouched(true)
+    setFormData(prev => ({ ...prev, name: e.target.value }))
+  }, [])
+
+  const handleTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setIsFormTouched(true)
+    setFormData(prev => ({ 
+      ...prev, 
+      type: e.target.value as 'fixed' | 'unlimited',
+      targetAmount: e.target.value === 'unlimited' ? '0' : prev.targetAmount
+    }))
+  }, [])
+
+  const handleTargetAmountChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsFormTouched(true)
+    setFormData(prev => ({ ...prev, targetAmount: e.target.value }))
+  }, [])
+
+  const handleOrderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsFormTouched(true)
+    setFormData(prev => ({ ...prev, order: e.target.value }))
+  }, [])
+
+  const handleColorChange = useCallback((color: string) => {
+    setIsFormTouched(true)
+    setFormData(prev => ({ ...prev, color }))
+  }, [])
 
   // Dati per il grafico a torta
   const chartData = useMemo(() => {
@@ -511,7 +546,7 @@ export default function BudgetPage() {
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={handleNameChange}
                     className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="es. Fondo Emergenza"
                   />
@@ -523,11 +558,7 @@ export default function BudgetPage() {
                   </label>
                   <select
                     value={formData.type}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      type: e.target.value as 'fixed' | 'unlimited',
-                      targetAmount: e.target.value === 'unlimited' ? '0' : prev.targetAmount
-                    }))}
+                    onChange={handleTypeChange}
                     className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="fixed">💰 Budget Fisso</option>
@@ -545,7 +576,7 @@ export default function BudgetPage() {
                       step="0.01"
                       min="0.01"
                       value={formData.targetAmount}
-                      onChange={(e) => setFormData(prev => ({ ...prev, targetAmount: e.target.value }))}
+                      onChange={handleTargetAmountChange}
                       className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="1000.00"
                     />
@@ -560,7 +591,7 @@ export default function BudgetPage() {
                     type="number"
                     min="1"
                     value={formData.order}
-                    onChange={(e) => setFormData(prev => ({ ...prev, order: e.target.value }))}
+                    onChange={handleOrderChange}
                     className="w-full border border-adaptive rounded-lg px-3 py-2 text-adaptive-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="1"
                   />
@@ -578,7 +609,7 @@ export default function BudgetPage() {
                       <button
                         key={color}
                         type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, color }))}
+                        onClick={() => handleColorChange(color)}
                         className={`w-8 h-8 rounded-lg border-2 transition-all ${
                           formData.color === color ? 'border-gray-800' : 'border-gray-300'
                         }`}

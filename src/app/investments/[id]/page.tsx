@@ -1053,86 +1053,86 @@ const openEditTransaction = (transaction: DCATransaction) => {
         {/* Add Transaction Modal */}
         {showAddTransaction && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-adaptive-50 rounded-lg w-full max-w-md m-4">
-              <div className="flex items-center justify-between p-6 border-b border-adaptive-200">
-                <h3 className="text-lg font-semibold text-adaptive-900">Aggiungi Transazione</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md m-4 border border-gray-300 dark:border-gray-600">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600">
+                <h3 className="text-lg font-semibold text-white">Aggiungi Transazione</h3>
                 <button
                   onClick={() => setShowAddTransaction(false)}
-                  className="text-adaptive-500 hover:text-adaptive-700"
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 >
                   <XMarkIcon className="w-6 h-6" />
                 </button>
               </div>
               <form onSubmit={handleAddTransaction} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Data</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Data</label>
                   <input
                     type="date"
                     value={transactionForm.date}
                     onChange={(e) => setTransactionForm({...transactionForm, date: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Tipo</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo</label>
                   <select
                     value={transactionForm.type}
                     onChange={(e) => setTransactionForm({...transactionForm, type: e.target.value as 'buy' | 'sell'})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="buy">Acquisto</option>
                     <option value="sell">Vendita</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Broker</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Broker</label>
                   <input
                     type="text"
                     value={transactionForm.broker}
                     onChange={(e) => setTransactionForm({...transactionForm, broker: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Info (opzionale)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Info (opzionale)</label>
                   <input
                     type="text"
                     value={transactionForm.info}
                     onChange={(e) => setTransactionForm({...transactionForm, info: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     placeholder="es. DCA, Profit taking"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Quantità BTC</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Quantità BTC</label>
                   <input
                     type="number"
                     step="0.00000001"
                     value={transactionForm.btcQuantity}
                     onChange={(e) => setTransactionForm({...transactionForm, btcQuantity: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Importo EUR</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Importo EUR</label>
                   <input
                     type="number"
                     step="0.01"
                     value={transactionForm.eurPaid}
                     onChange={(e) => setTransactionForm({...transactionForm, eurPaid: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Note (opzionale)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Note (opzionale)</label>
                   <textarea
                     value={transactionForm.notes}
                     onChange={(e) => setTransactionForm({...transactionForm, notes: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     rows={3}
                   />
                 </div>
@@ -1160,86 +1160,86 @@ const openEditTransaction = (transaction: DCATransaction) => {
         {/* Edit Transaction Modal */}
         {showEditTransaction && editingTransaction && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-adaptive-50 rounded-lg w-full max-w-md m-4">
-              <div className="flex items-center justify-between p-6 border-b border-adaptive-200">
-                <h3 className="text-lg font-semibold text-adaptive-900">Modifica Transazione</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md m-4 border border-gray-300 dark:border-gray-600">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600">
+                <h3 className="text-lg font-semibold text-white">Modifica Transazione</h3>
                 <button
                   onClick={() => setShowEditTransaction(false)}
-                  className="text-adaptive-500 hover:text-adaptive-700"
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 >
                   <XMarkIcon className="w-6 h-6" />
                 </button>
               </div>
               <form onSubmit={handleEditTransaction} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Data</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Data</label>
                   <input
                     type="date"
                     value={transactionForm.date}
                     onChange={(e) => setTransactionForm({...transactionForm, date: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Tipo</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo</label>
                   <select
                     value={transactionForm.type}
                     onChange={(e) => setTransactionForm({...transactionForm, type: e.target.value as 'buy' | 'sell'})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="buy">Acquisto</option>
                     <option value="sell">Vendita</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Broker</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Broker</label>
                   <input
                     type="text"
                     value={transactionForm.broker}
                     onChange={(e) => setTransactionForm({...transactionForm, broker: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Info (opzionale)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Info (opzionale)</label>
                   <input
                     type="text"
                     value={transactionForm.info}
                     onChange={(e) => setTransactionForm({...transactionForm, info: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     placeholder="es. DCA, Profit taking"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Quantità BTC</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Quantità BTC</label>
                   <input
                     type="number"
                     step="0.00000001"
                     value={transactionForm.btcQuantity}
                     onChange={(e) => setTransactionForm({...transactionForm, btcQuantity: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Importo EUR</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Importo EUR</label>
                   <input
                     type="number"
                     step="0.01"
                     value={transactionForm.eurPaid}
                     onChange={(e) => setTransactionForm({...transactionForm, eurPaid: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Note (opzionale)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Note (opzionale)</label>
                   <textarea
                     value={transactionForm.notes}
                     onChange={(e) => setTransactionForm({...transactionForm, notes: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     rows={3}
                   />
                 </div>
@@ -1267,24 +1267,24 @@ const openEditTransaction = (transaction: DCATransaction) => {
         {/* Edit Portfolio Modal */}
         {showEditPortfolio && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-adaptive-50 rounded-lg w-full max-w-md m-4">
-              <div className="flex items-center justify-between p-6 border-b border-adaptive-200">
-                <h3 className="text-lg font-semibold text-adaptive-900">Impostazioni Portfolio</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md m-4 border border-gray-300 dark:border-gray-600">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600">
+                <h3 className="text-lg font-semibold text-white">Impostazioni Portfolio</h3>
                 <button
                   onClick={() => setShowEditPortfolio(false)}
-                  className="text-adaptive-500 hover:text-adaptive-700"
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 >
                   <XMarkIcon className="w-6 h-6" />
                 </button>
               </div>
               <form onSubmit={handleEditPortfolio} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Nome Portfolio</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome Portfolio</label>
                   <input
                     type="text"
                     value={portfolioForm.name}
                     onChange={(e) => setPortfolioForm({...portfolioForm, name: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
@@ -1332,7 +1332,7 @@ const openEditTransaction = (transaction: DCATransaction) => {
         {/* Delete Portfolio Confirmation */}
         {showDeletePortfolio && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-adaptive-50 rounded-lg w-full max-w-md m-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md m-4 border border-gray-300 dark:border-gray-600">
               <div className="p-6">
                 <h3 className="text-lg font-semibold text-adaptive-900 mb-4">Conferma Eliminazione</h3>
                 <p className="text-adaptive-600 mb-6">
@@ -1360,44 +1360,44 @@ const openEditTransaction = (transaction: DCATransaction) => {
         {/* Add Fee Modal */}
         {showAddFee && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-adaptive-50 rounded-lg w-full max-w-md m-4">
-              <div className="flex items-center justify-between p-6 border-b border-adaptive-200">
-                <h3 className="text-lg font-semibold text-adaptive-900">Aggiungi Commissione di Rete</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md m-4 border border-gray-300 dark:border-gray-600">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600">
+                <h3 className="text-lg font-semibold text-white">Aggiungi Commissione di Rete</h3>
                 <button
                   onClick={() => setShowAddFee(false)}
-                  className="text-adaptive-500 hover:text-adaptive-700"
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 >
                   <XMarkIcon className="w-6 h-6" />
                 </button>
               </div>
               <form onSubmit={handleAddFee} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Data</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Data</label>
                   <input
                     type="date"
                     value={feeForm.date}
                     onChange={(e) => setFeeForm({...feeForm, date: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Sats</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sats</label>
                   <input
                     type="number"
                     value={feeForm.sats}
                     onChange={(e) => setFeeForm({...feeForm, sats: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Descrizione (opzionale)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descrizione (opzionale)</label>
                   <input
                     type="text"
                     value={feeForm.description}
                     onChange={(e) => setFeeForm({...feeForm, description: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     placeholder="es. On-chain transfer, Lightning withdraw..."
                   />
                 </div>
@@ -1425,44 +1425,44 @@ const openEditTransaction = (transaction: DCATransaction) => {
         {/* Edit Fee Modal */}
         {showEditFee && editingFee && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-adaptive-50 rounded-lg w-full max-w-md m-4">
-              <div className="flex items-center justify-between p-6 border-b border-adaptive-200">
-                <h3 className="text-lg font-semibold text-adaptive-900">Modifica Commissione di Rete</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md m-4 border border-gray-300 dark:border-gray-600">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600">
+                <h3 className="text-lg font-semibold text-white">Modifica Commissione di Rete</h3>
                 <button
                   onClick={() => setShowEditFee(false)}
-                  className="text-adaptive-500 hover:text-adaptive-700"
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 >
                   <XMarkIcon className="w-6 h-6" />
                 </button>
               </div>
               <form onSubmit={handleEditFee} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Data</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Data</label>
                   <input
                     type="date"
                     value={feeForm.date}
                     onChange={(e) => setFeeForm({...feeForm, date: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Sats</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sats</label>
                   <input
                     type="number"
                     value={feeForm.sats}
                     onChange={(e) => setFeeForm({...feeForm, sats: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-adaptive-700 mb-1">Descrizione (opzionale)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descrizione (opzionale)</label>
                   <input
                     type="text"
                     value={feeForm.description}
                     onChange={(e) => setFeeForm({...feeForm, description: e.target.value})}
-                    className="w-full p-2 border border-adaptive-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-adaptive-50"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     placeholder="es. On-chain transfer, Lightning withdraw..."
                   />
                 </div>
@@ -1490,13 +1490,13 @@ const openEditTransaction = (transaction: DCATransaction) => {
         {/* CSV Import Modal */}
         {showImportModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-adaptive rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-adaptive">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-300 dark:border-gray-600">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-adaptive-900">Import CSV Transazioni DCA</h2>
+                <h2 className="text-xl font-bold text-white">Import CSV Transazioni DCA</h2>
                 <button
                   onClick={resetImportModal}
                   disabled={isImporting}
-                  className={`${isImporting ? 'text-adaptive-300 cursor-not-allowed' : 'text-adaptive-500 hover:text-adaptive-700'}`}
+                  className={`${isImporting ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
                 >
                   ✕
                 </button>
@@ -1511,7 +1511,7 @@ const openEditTransaction = (transaction: DCATransaction) => {
               {/* Progress Bar durante l'import */}
               {isImporting && (
                 <div className="space-y-4">
-                  <h3 className="text-lg font-bold text-adaptive-900">Import in corso...</h3>
+                  <h3 className="text-lg font-bold text-white">Import in corso...</h3>
                   
                   <div className="space-y-3">
                     {/* Progress bar principale */}
