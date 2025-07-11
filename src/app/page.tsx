@@ -10,7 +10,6 @@ import { formatCurrency } from '@/utils/formatters';
 import { ColorSettingsModal } from '@/components/dashboard/ColorSettingsModal';
 import { PatrimonyColorModal } from '@/components/dashboard/PatrimonyColorModal';
 import { LiquidityColorModal } from '@/components/dashboard/LiquidityColorModal';
-import FinanceNewsTickerBar from '@/components/dashboard/FinanceNewsTickerBar';
 
 // Interfaces
 interface BitcoinPrice {
@@ -625,9 +624,6 @@ const Dashboard = () => {
     <ProtectedRoute>
       <div className="min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Finance News Ticker - ALLINEATO AL CONTENUTO */}
-          <FinanceNewsTickerBar className="mb-8" />
-          
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-adaptive-900">Dashboard</h1>
@@ -712,6 +708,9 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
+
+          
+
           {/* Liquidità Overview - Seconda Riga */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Link href="/accounts">
@@ -1143,36 +1142,6 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="mt-8 card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-4">⚡ Azioni Rapide</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Link href="/accounts">
-                <button className="p-4 text-center border border-adaptive rounded-lg hover:bg-adaptive-100 transition-colors w-full">
-                  <div className="text-2xl mb-2">💸</div>
-                  <div className="text-sm font-medium text-adaptive-700">Trasferimento</div>
-                </button>
-              </Link>
-              <Link href="/investments">
-                <button className="p-4 text-center border border-adaptive rounded-lg hover:bg-adaptive-100 transition-colors w-full">
-                  <div className="text-2xl mb-2">📈</div>
-                  <div className="text-sm font-medium text-adaptive-700">Investimenti</div>
-                </button>
-              </Link>
-              <Link href="/income">
-                <button className="p-4 text-center border border-adaptive rounded-lg hover:bg-adaptive-100 transition-colors w-full">
-                  <div className="text-2xl mb-2">💰</div>
-                  <div className="text-sm font-medium text-adaptive-700">Nuova Entrata</div>
-                </button>
-              </Link>
-              <Link href="/budget">
-                <button className="p-4 text-center border border-adaptive rounded-lg hover:bg-adaptive-100 transition-colors w-full">
-                  <div className="text-2xl mb-2">📊</div>
-                  <div className="text-sm font-medium text-adaptive-700">Budget</div>
-                </button>
-              </Link>
-            </div>
-          </div>
 
           {/* Color Settings Modals */}
           <ColorSettingsModal
