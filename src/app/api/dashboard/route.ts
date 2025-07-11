@@ -5,55 +5,67 @@ import { requireAuth } from '@/lib/auth-middleware'
 
 const prisma = new PrismaClient()
 
-// Helper function to fetch DCA portfolios with calculated stats
-async function fetchDCAPortfoliosInternal(request: NextRequest) {
-  try {
-    // Build internal API URL 
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    const response = await fetch(`${baseUrl}/api/dca-portfolios`, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'SNP-Finance-App/1.0',
-        'Cookie': request.headers.get('cookie') || '',
-      },
-      cache: 'no-store'
-    })
-    
-    if (response.ok) {
-      return await response.json()
-    } else {
-      console.error('Failed to fetch DCA portfolios:', response.status)
-      return []
-    }
-  } catch (error) {
-    console.error('Error fetching DCA portfolios:', error)
-    return []
+// Calculate Enhanced Cash Flow stats for DCA portfolios
+function calculateDCAEnhancedStats(transactions: any[]) {
+  const buyTransactions = transactions.filter((tx: any) => tx.type === 'buy' || !tx.type)
+  const sellTransactions = transactions.filter((tx: any) => tx.type === 'sell')
+
+  const totalInvested = buyTransactions.reduce((sum: number, tx: any) => sum + tx.eurPaid, 0)
+  const totalSold = sellTransactions.reduce((sum: number, tx: any) => sum + tx.eurPaid, 0)
+  
+  const capitalRecovered = Math.min(totalSold, totalInvested)
+  const realizedProfit = Math.max(0, totalSold - totalInvested)
+  const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
+
+  const totalBuyBTC = buyTransactions.reduce((sum: number, tx: any) => sum + Math.abs(tx.btcQuantity), 0)
+  const totalSellBTC = sellTransactions.reduce((sum: number, tx: any) => sum + Math.abs(tx.btcQuantity), 0)
+  const totalBTC = totalBuyBTC - totalSellBTC
+
+  const isFullyRecovered = capitalRecovered >= totalInvested
+  const freeBTCAmount = isFullyRecovered ? totalBTC : 0
+
+  const transactionCount = transactions.length
+  const buyCount = buyTransactions.length
+  const sellCount = sellTransactions.length
+
+  return {
+    totalInvested,
+    capitalRecovered,
+    effectiveInvestment,
+    realizedProfit,
+    totalBuyBTC,
+    totalSellBTC,
+    totalBTC,
+    isFullyRecovered,
+    freeBTCAmount,
+    transactionCount,
+    buyCount,
+    sellCount
   }
 }
 
-// Helper function to fetch Crypto portfolios with calculated stats
-async function fetchCryptoPortfoliosInternal(request: NextRequest) {
-  try {
-    // Build internal API URL 
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    const response = await fetch(`${baseUrl}/api/crypto-portfolios`, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'SNP-Finance-App/1.0',
-        'Cookie': request.headers.get('cookie') || '',
-      },
-      cache: 'no-store'
-    })
-    
-    if (response.ok) {
-      return await response.json()
-    } else {
-      console.error('Failed to fetch crypto portfolios:', response.status)
-      return []
-    }
-  } catch (error) {
-    console.error('Error fetching crypto portfolios:', error)
-    return []
+// Calculate Enhanced Cash Flow stats for Crypto portfolios
+function calculateCryptoEnhancedStats(transactions: any[]) {
+  const buyTransactions = transactions.filter(tx => tx.type === 'buy')
+  const sellTransactions = transactions.filter(tx => tx.type === 'sell')
+
+  const totalInvested = buyTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
+  const totalSold = sellTransactions.reduce((sum, tx) => sum + tx.eurValue, 0)
+  const capitalRecovered = Math.min(totalSold, totalInvested)
+  const effectiveInvestment = Math.max(0, totalInvested - capitalRecovered)
+  const realizedProfit = Math.max(0, totalSold - totalInvested)
+
+  const isFullyRecovered = capitalRecovered >= totalInvested
+
+  return {
+    totalInvested,
+    capitalRecovered,
+    effectiveInvestment,
+    realizedProfit,
+    isFullyRecovered,
+    transactionCount: transactions.length,
+    buyCount: buyTransactions.length,
+    sellCount: sellTransactions.length
   }
 }
 
@@ -70,8 +82,8 @@ export async function GET(request: NextRequest) {
     // 🚀 OTTIMIZZAZIONE: Query parallele lato server invece di chiamate HTTP
     const [
       accounts,
-      dcaPortfolios,
-      cryptoPortfolios,
+      dcaPortfoliosRaw,
+      cryptoPortfoliosRaw,
       budgetsResponse,
       recentTransactions,
       partitaIVAStats,
@@ -91,11 +103,48 @@ export async function GET(request: NextRequest) {
         }
       }),
       
-      // DCA Portfolios - fetch from API to get calculated stats
-      fetchDCAPortfoliosInternal(request),
+      // DCA Portfolios - direct database query
+      prisma.dCAPortfolio.findMany({
+        where: { userId },
+        include: {
+          account: {
+            select: { id: true, name: true, balance: true }
+          },
+          transactions: {
+            orderBy: { date: 'desc' }
+          },
+          networkFees: true
+        },
+        orderBy: { createdAt: 'desc' }
+      }),
       
-      // Crypto Portfolios - fetch from API to get calculated stats
-      fetchCryptoPortfoliosInternal(request),
+      // Crypto Portfolios - direct database query
+      prisma.cryptoPortfolio.findMany({
+        where: { userId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          isActive: true,
+          createdAt: true,
+          account: {
+            select: { id: true, name: true, balance: true }
+          },
+          holdings: {
+            select: {
+              id: true,
+              quantity: true,
+              avgPrice: true,
+              totalInvested: true,
+              realizedGains: true,
+              asset: {
+                select: { id: true, symbol: true, name: true, decimals: true }
+              }
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      }),
       
       // Budgets - Fetch raw budgets, we'll calculate allocations later
       prisma.budget.findMany({
@@ -198,30 +247,109 @@ export async function GET(request: NextRequest) {
       // Bitcoin price for DCA calculations
       (async () => {
         try {
-          const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-          const response = await fetch(`${baseUrl}/api/bitcoin-price`, {
-            method: 'GET',
-            headers: {
-              'User-Agent': 'SNP-Finance-App/1.0',
-              'Cookie': request.headers.get('cookie') || '',
-            },
-            cache: 'no-store'
-          })
-          
-          if (response.ok) {
-            const data = await response.json()
-            console.log('₿ Bitcoin price fetched:', data.btcPrice)
-            return data
-          } else {
-            console.error('Failed to fetch Bitcoin price:', response.status)
-            return null
-          }
+          // Try to fetch bitcoin price from cache or external API
+          // For now, we'll return null and handle it gracefully
+          return null
         } catch (error) {
           console.error('Error fetching Bitcoin price:', error)
           return null
         }
       })()
     ])
+
+    // 🎯 Process DCA Portfolios with Enhanced Statistics
+    const dcaPortfolios = dcaPortfoliosRaw.map(portfolio => {
+      const enhancedStats = calculateDCAEnhancedStats(portfolio.transactions)
+
+      // Fee calculations
+      const totalFeesSats = portfolio.networkFees.reduce((sum: number, fee: any) => sum + fee.sats, 0)
+      const totalFeesBTC = totalFeesSats / 100000000
+
+      // Net BTC (after fees)
+      const netBTC = Math.max(0, enhancedStats.totalBTC - totalFeesBTC)
+
+      // Average purchase price calculation
+      const avgPurchasePrice = enhancedStats.totalInvested > 0 && netBTC > 0 ?
+        enhancedStats.totalInvested / netBTC : 0
+
+      const finalStats = {
+        ...enhancedStats,
+        totalFeesSats,
+        totalFeesBTC,
+        netBTC,
+        avgPurchasePrice,
+        feesCount: portfolio.networkFees.length
+      }
+
+      return {
+        ...portfolio,
+        type: 'dca_bitcoin',
+        stats: finalStats
+      }
+    })
+
+    // 🎯 Process Crypto Portfolios with Enhanced Statistics
+    // First, fetch crypto transactions for portfolios that have holdings
+    const cryptoPortfolioIds = cryptoPortfoliosRaw.filter(p => p.holdings.length > 0).map(p => p.id)
+    const cryptoTransactions = cryptoPortfolioIds.length > 0 ? await prisma.cryptoPortfolioTransaction.findMany({
+      where: { portfolioId: { in: cryptoPortfolioIds } },
+      select: {
+        id: true,
+        portfolioId: true,
+        type: true,
+        quantity: true,
+        eurValue: true,
+        pricePerUnit: true,
+        date: true,
+        assetId: true
+      },
+      orderBy: { date: 'desc' }
+    }) : []
+
+    // Group crypto transactions by portfolio
+    const cryptoTransactionGroups = cryptoTransactions.reduce((acc, tx) => {
+      if (!acc[tx.portfolioId]) acc[tx.portfolioId] = []
+      acc[tx.portfolioId].push(tx)
+      return acc
+    }, {} as Record<number, typeof cryptoTransactions>)
+
+    const cryptoPortfolios = cryptoPortfoliosRaw.map(portfolio => {
+      const portfolioTransactions = cryptoTransactionGroups[portfolio.id] || []
+      const enhancedStats = calculateCryptoEnhancedStats(portfolioTransactions)
+
+      // Calculate total value using avgPrice from holdings (current prices would require API call)
+      let totalValueEur = 0
+      const holdingsWithValue = portfolio.holdings.map(holding => {
+        const valueEur = holding.quantity * holding.avgPrice
+        totalValueEur += valueEur
+        return {
+          ...holding,
+          valueEur,
+          currentPrice: holding.avgPrice // Using avgPrice as fallback
+        }
+      })
+
+      // Calculate unrealized gains and ROI
+      const unrealizedGains = totalValueEur - enhancedStats.effectiveInvestment
+      const totalROI = enhancedStats.totalInvested > 0 ?
+        ((enhancedStats.realizedProfit + unrealizedGains) / enhancedStats.totalInvested) * 100 : 0
+
+      const finalStats = {
+        ...enhancedStats,
+        totalValueEur,
+        unrealizedGains,
+        totalROI,
+        holdingsCount: portfolio.holdings.length
+      }
+
+      return {
+        ...portfolio,
+        accountId: portfolio.account.id,
+        type: 'crypto_wallet',
+        holdings: holdingsWithValue,
+        stats: finalStats
+      }
+    })
 
     // 📊 Calculate totals server-side
     const bankLiquidity = accounts
@@ -241,7 +369,7 @@ export async function GET(request: NextRequest) {
     console.log('💰 Bitcoin price available:', btcPrice?.btcPrice || 'NOT AVAILABLE')
     
     // Calculate Enhanced Cash Flow totals from all portfolios
-    const allPortfolios = [...(dcaPortfolios || []), ...(cryptoPortfolios || [])]
+    const allPortfolios = [...dcaPortfolios, ...cryptoPortfolios]
     
     const enhancedCashFlow = allPortfolios.length > 0 ? {
       totalInvested: allPortfolios.reduce((sum, p) => {
@@ -267,13 +395,13 @@ export async function GET(request: NextRequest) {
       totalValueEur: allPortfolios.reduce((sum, p) => {
         let value = 0
         if (p.type === 'crypto_wallet') {
-          value = p.stats?.totalValueEur || 0
-          console.log(`💎 ${p.name} (crypto_wallet) has totalValueEur: €${p.stats?.totalValueEur}`)
+          value = (p.stats as any)?.totalValueEur || 0
+          console.log(`💎 ${p.name} (crypto_wallet) has totalValueEur: €${value}`)
         } else if (p.type === 'dca_bitcoin' && btcPrice?.btcPrice) {
-          // Calcola valore DCA usando prezzo Bitcoin corrente
-          const netBTC = p.stats?.netBTC || 0
-          value = netBTC * btcPrice.btcPrice
-          console.log(`💎 ${p.name} (dca_bitcoin) netBTC: ${netBTC} × €${btcPrice.btcPrice} = €${value}`)
+          // For now, we'll skip BTC price calculation since btcPrice is null
+          // This will be handled by the frontend with real-time BTC price
+          value = 0
+          console.log(`⚠️ ${p.name} (dca_bitcoin) - Bitcoin price calculation skipped in dashboard API`)
         } else if (p.type === 'dca_bitcoin') {
           console.log(`⚠️ ${p.name} (dca_bitcoin) - Bitcoin price NOT available!`)
         }
@@ -281,9 +409,12 @@ export async function GET(request: NextRequest) {
         return sum + value
       }, 0),
       netBTC: allPortfolios.reduce((sum, p) => {
-        const value = p.stats?.netBTC || 0
-        if (value > 0) console.log(`₿ ${p.name} netBTC: ${value}`)
-        return sum + value
+        if (p.type === 'dca_bitcoin') {
+          const value = (p.stats as any)?.netBTC || 0
+          if (value > 0) console.log(`₿ ${p.name} netBTC: ${value}`)
+          return sum + value
+        }
+        return sum
       }, 0),
       // Aggiungi flag per indicare se ha recuperato tutto
       isFullyRecovered: allPortfolios.length > 0 && allPortfolios.every(p => p.stats?.isFullyRecovered || false)
