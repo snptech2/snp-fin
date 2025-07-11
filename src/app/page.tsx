@@ -123,6 +123,8 @@ interface DashboardData {
   budgets: Budget[];
   budgetTotals: { totalLiquidity: number; totalAllocated: number };
   transactions: Transaction[];
+  recentIncome?: Transaction[];
+  recentExpenses?: Transaction[];
   enhancedCashFlow: EnhancedCashFlow | null;
   totals: DashboardTotals;
   partitaIVAStats: PartitaIVAGlobalStats | null;
@@ -269,6 +271,21 @@ const Dashboard = () => {
     return 0;
   };
 
+  // Calculate ROI for DCA portfolios
+  const getDCAROI = (portfolio: Portfolio, btcPrice: BitcoinPrice | null): number => {
+    if (portfolio.type !== 'dca_bitcoin') {
+      return portfolio.stats?.totalROI || 0;
+    }
+    
+    const effectiveInvestment = portfolio.stats?.effectiveInvestment || 0;
+    if (effectiveInvestment <= 0) return 0;
+    
+    const currentValue = getDCACurrentValue(portfolio, btcPrice);
+    const roi = ((currentValue - effectiveInvestment) / effectiveInvestment) * 100;
+    
+    return roi;
+  };
+
   useEffect(() => {
     // Only load data if user is authenticated
     if (!user || authLoading) {
@@ -322,29 +339,20 @@ const Dashboard = () => {
       const nonCurrentAssets: NonCurrentAsset[] = dashboardData.nonCurrentAssets || [];
       const credits: Credit[] = dashboardData.credits || [];
 
-      // 📊 AGGIUNTA: Fetch entrate Partita IVA per le transazioni recenti
-      let partitaIVAIncomes: Transaction[] = [];
-      try {
-        const pivaRes = await fetch('/api/partita-iva/income');
-        if (pivaRes.ok) {
-          const pivaData = await pivaRes.json();
-          // Trasforma le entrate partita IVA in formato Transaction
-          partitaIVAIncomes = pivaData.slice(0, 5).map((income: any) => ({
-            id: income.id,
-            description: income.riferimento || 'Fattura Partita IVA',
-            amount: income.entrata,
-            date: income.dataIncasso,
-            type: 'income' as const
-          }));
-        }
-      } catch (error) {
-        console.log('Partita IVA incomes not available:', error);
-      }
+      // Fetch recent transactions separately for better display
+      const [recentIncomeRes, recentExpenseRes] = await Promise.all([
+        fetch('/api/transactions?type=income&limit=4'),
+        fetch('/api/transactions?type=expense&limit=4')
+      ]);
 
-      // Combina transazioni regolari e partita IVA
-      const allTransactions = [...transactions, ...partitaIVAIncomes]
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 10); // Prendiamo le 10 più recenti
+      const recentIncomeData = recentIncomeRes.ok ? await recentIncomeRes.json() : { transactions: [] };
+      const recentExpensesData = recentExpenseRes.ok ? await recentExpenseRes.json() : { transactions: [] };
+      
+      const recentIncome = recentIncomeData.transactions || [];
+      const recentExpenses = recentExpensesData.transactions || [];
+      
+      console.log('📈 Recent income transactions:', recentIncome.length);
+      console.log('📉 Recent expense transactions:', recentExpenses.length);
 
       // Use precalculated totals from unified API
       const budgetTotals = {
@@ -415,7 +423,9 @@ const Dashboard = () => {
         investments: [...cryptoPortfolios, ...dcaPortfolios],
         budgets,
         budgetTotals,
-        transactions: allTransactions.slice(0, 5),
+        transactions: [], // Not used anymore
+        recentIncome,
+        recentExpenses,
         enhancedCashFlow,
         totals: {
           bankLiquidity,
@@ -774,7 +784,7 @@ const Dashboard = () => {
                   {(() => {
                     // Calcola ROI% totale da tutti i portfolio
                     const totalROI = dashboardData.investments.reduce((sum, portfolio) => {
-                      const roi = portfolio.stats?.totalROI || 0
+                      const roi = getDCAROI(portfolio, btcPrice)
                       return sum + roi
                     }, 0)
                     const avgROI = dashboardData.investments.length > 0 ? totalROI / dashboardData.investments.length : 0
@@ -1042,8 +1052,8 @@ const Dashboard = () => {
                         <div className="text-base font-bold text-green-600">
                           {formatCurrencyWithUserCurrency(portfolio.stats?.totalValueEur || getDCACurrentValue(portfolio, btcPrice))}
                         </div>
-                        <div className={`text-sm font-medium ${(portfolio.stats?.totalROI || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {(portfolio.stats?.totalROI || 0) >= 0 ? '+' : ''}{(portfolio.stats?.totalROI || 0).toFixed(1)}%
+                        <div className={`text-sm font-medium ${getDCAROI(portfolio, btcPrice) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {getDCAROI(portfolio, btcPrice) >= 0 ? '+' : ''}{getDCAROI(portfolio, btcPrice).toFixed(1)}%
                         </div>
                       </div>
                     </div>
@@ -1070,15 +1080,15 @@ const Dashboard = () => {
                   </Link>
                 </div>
                 <div className="space-y-4">
-                  {dashboardData.transactions.filter(t => t.type === 'income').slice(0, 4).map((transaction: Transaction, index: number) => (
+                  {Array.isArray(dashboardData.recentIncome) && dashboardData.recentIncome.map((transaction: Transaction, index: number) => (
                     <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-200">
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-green-500" />
                         <div>
-                          <p className="text-sm font-medium text-adaptive-900">
+                          <p className="text-sm font-medium text-black">
                             {transaction.description || 'Entrata'}
                           </p>
-                          <p className="text-xs text-adaptive-500">
+                          <p className="text-xs text-black">
                             {new Date(transaction.date).toLocaleDateString('it-IT')}
                           </p>
                         </div>
@@ -1088,7 +1098,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                   ))}
-                  {dashboardData.transactions.filter(t => t.type === 'income').length === 0 && (
+                  {(!Array.isArray(dashboardData.recentIncome) || dashboardData.recentIncome.length === 0) && (
                     <div className="text-center py-4">
                       <p className="text-adaptive-500">Nessuna entrata recente</p>
                     </div>
@@ -1105,7 +1115,7 @@ const Dashboard = () => {
                   </Link>
                 </div>
                 <div className="space-y-4">
-                  {dashboardData.transactions.filter(t => t.type === 'expense').slice(0, 4).map((transaction: Transaction, index: number) => (
+                  {Array.isArray(dashboardData.recentExpenses) && dashboardData.recentExpenses.map((transaction: Transaction, index: number) => (
                     <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-red-50 border border-red-200">
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-red-500" />
@@ -1123,7 +1133,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                   ))}
-                  {dashboardData.transactions.filter(t => t.type === 'expense').length === 0 && (
+                  {(!Array.isArray(dashboardData.recentExpenses) || dashboardData.recentExpenses.length === 0) && (
                     <div className="text-center py-4">
                       <p className="text-adaptive-500">Nessuna uscita recente</p>
                     </div>
