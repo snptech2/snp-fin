@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
       return acc
     }, {} as Record<number, typeof transactionsByPortfolio>)
 
-    // Fetch current prices using localhost to avoid NEXTAUTH_URL issues in production
+    // Fetch current prices using internal utility
     const allSymbols = new Set<string>()
     portfolios.forEach(portfolio => {
       portfolio.holdings.forEach(holding => {
@@ -113,25 +113,13 @@ export async function GET(request: NextRequest) {
     
     if (allSymbols.size > 0) {
       try {
-        const symbolsParam = Array.from(allSymbols).join(',')
-        const response = await fetch(`http://localhost:3000/api/crypto-prices?symbols=${symbolsParam}`, {
-          method: 'GET',
-          headers: {
-            'User-Agent': 'SNP-Finance-App/1.0',
-            'Cookie': request.headers.get('cookie') || '',
-          },
-          cache: 'no-store'
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          currentPrices = data.prices || {}
-          console.log('✅ Current prices fetched via localhost:', Object.keys(currentPrices).length, 'symbols')
-        } else {
-          console.warn('⚠️ Failed to fetch prices via localhost, using avgPrice fallback')
-        }
+        const { fetchCryptoPrices } = await import('@/lib/cryptoPrices')
+        const symbolsArray = Array.from(allSymbols)
+        const cryptoPricesResult = await fetchCryptoPrices(symbolsArray, userId, false)
+        currentPrices = cryptoPricesResult.prices || {}
+        console.log('✅ Current prices fetched:', Object.keys(currentPrices).length, 'symbols')
       } catch (error) {
-        console.warn('⚠️ Error fetching prices via localhost, using avgPrice fallback:', error)
+        console.warn('⚠️ Error fetching prices, using avgPrice fallback:', error)
       }
     }
 

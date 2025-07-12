@@ -37,7 +37,7 @@ export default function Sidebar() {
     <div className="fixed inset-y-0 left-0 z-50 w-64 sidebar-adaptive shadow-lg border-r border-adaptive">
       <div className="flex h-full flex-col">
         {/* Logo */}
-        <div className="flex h-16 shrink-0 items-center px-6 border-b border-adaptive">
+        <div className="flex h-16 shrink-0 items-center justify-center px-6 border-b border-adaptive">
           <h1 className="text-xl font-bold">
             <span className="text-adaptive-900">SNP</span>
             <span className="ml-2 text-green-500 animate-pulse">Finance</span>

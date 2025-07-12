@@ -363,25 +363,13 @@ export async function GET(request: NextRequest) {
     
     if (allCryptoSymbols.size > 0) {
       try {
-        const symbolsParam = Array.from(allCryptoSymbols).join(',')
-        const response = await fetch(`http://localhost:3000/api/crypto-prices?symbols=${symbolsParam}`, {
-          method: 'GET',
-          headers: {
-            'User-Agent': 'SNP-Finance-App/1.0',
-            'Cookie': request.headers.get('cookie') || '',
-          },
-          cache: 'no-store'
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          cryptoCurrentPrices = data.prices || {}
-          console.log('✅ Dashboard crypto prices fetched via localhost:', Object.keys(cryptoCurrentPrices).length, 'symbols')
-        } else {
-          console.warn('⚠️ Dashboard failed to fetch crypto prices via localhost, using avgPrice fallback')
-        }
+        const { fetchCryptoPrices } = await import('@/lib/cryptoPrices')
+        const symbolsArray = Array.from(allCryptoSymbols)
+        const cryptoPricesResult = await fetchCryptoPrices(symbolsArray, userId, false)
+        cryptoCurrentPrices = cryptoPricesResult.prices || {}
+        console.log('✅ Dashboard crypto prices fetched:', Object.keys(cryptoCurrentPrices).length, 'symbols')
       } catch (error) {
-        console.warn('⚠️ Dashboard error fetching crypto prices via localhost, using avgPrice fallback:', error)
+        console.warn('⚠️ Dashboard error fetching crypto prices, using avgPrice fallback:', error)
       }
     }
 
