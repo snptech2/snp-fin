@@ -79,45 +79,8 @@ function calculateEnhancedStats(transactions: any[], networkFees: any[] = [], cu
   }
 }
 
-// 🆕 NUOVA FUNZIONE: Ottieni prezzi correnti per gli asset
-async function fetchCurrentPrices(symbols: string[], request: NextRequest): Promise<Record<string, number>> {
-  try {
-    if (symbols.length === 0) return {}
-    
-    console.log('🔍 Fetching current prices for:', symbols.join(', '))
-    
-    // Costruisci URL interno per l'API crypto-prices
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    const symbolsParam = symbols.join(',')
-    const url = `${baseUrl}/api/crypto-prices?symbols=${symbolsParam}`
-    
-    // Passa i cookie di autenticazione dalla richiesta originale
-    const authCookie = request.headers.get('cookie')
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'SNP-Finance-App/1.0',
-        ...(authCookie ? { 'Cookie': authCookie } : {}),
-      },
-      // Force fresh data per backend calculations
-      cache: 'no-store'
-    })
-
-    if (!response.ok) {
-      console.warn('⚠️ Errore API crypto-prices:', response.status)
-      return {}
-    }
-
-    const data = await response.json()
-    console.log('✅ Current prices fetched:', data.prices)
-    return data.prices || {}
-    
-  } catch (error) {
-    console.error('❌ Errore fetch prezzi correnti:', error)
-    return {}
-  }
-}
+// Note: fetchCurrentPrices removed to avoid HTTP internal calls that fail in production
+// Using avgPrice from holdings as fallback for consistent calculations
 
 // GET - Dettaglio crypto portfolio specifico
 export async function GET(
@@ -160,15 +123,54 @@ export async function GET(
       return NextResponse.json({ error: 'Portfolio non trovato' }, { status: 404 })
     }
 
-    // 🆕 Fetch prezzi correnti per holdings E per staking rewards
+    // Fetch current prices using localhost to avoid NEXTAUTH_URL issues in production
     const holdingsSymbols = portfolio.holdings.map(h => h.asset.symbol.toUpperCase())
     const stakeSymbols = portfolio.transactions
       .filter(tx => tx.type === 'stake_reward')
       .map(tx => tx.asset.symbol.toUpperCase())
     const allSymbols = [...new Set([...holdingsSymbols, ...stakeSymbols])]
-    const currentPrices = await fetchCurrentPrices(allSymbols, request)
+    
+    let currentPrices: Record<string, number> = {}
+    
+    try {
+      // Use localhost to avoid DNS issues
+      const symbolsParam = allSymbols.join(',')
+      const response = await fetch(`http://localhost:3000/api/crypto-prices?symbols=${symbolsParam}`, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'SNP-Finance-App/1.0',
+          'Cookie': request.headers.get('cookie') || '',
+        },
+        cache: 'no-store'
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        currentPrices = data.prices || {}
+        console.log('✅ Current prices fetched via localhost:', Object.keys(currentPrices).length, 'symbols')
+      } else {
+        console.warn('⚠️ Failed to fetch prices via localhost, using avgPrice fallback')
+      }
+    } catch (error) {
+      console.warn('⚠️ Error fetching prices via localhost, using avgPrice fallback:', error)
+    }
+    
+    // Fallback to avgPrice if price fetching failed
+    if (Object.keys(currentPrices).length === 0) {
+      portfolio.holdings.forEach(holding => {
+        currentPrices[holding.asset.symbol.toUpperCase()] = holding.avgPrice
+      })
+      portfolio.transactions
+        .filter(tx => tx.type === 'stake_reward')
+        .forEach(tx => {
+          const symbol = tx.asset.symbol.toUpperCase()
+          if (!currentPrices[symbol]) {
+            currentPrices[symbol] = tx.pricePerUnit || 0
+          }
+        })
+    }
 
-    // 🎯 Applica Enhanced Statistics (con network fees E prezzi correnti)
+    // 🎯 Applica Enhanced Statistics (con network fees E prezzi da holdings)
     const enhancedStats = calculateEnhancedStats(portfolio.transactions, portfolio.networkFees, currentPrices)
 
     // 🆕 Valore totale calcolato successivamente dai holdings aggiornati (con fees detratte)
@@ -176,7 +178,7 @@ export async function GET(
 
     // 🆕 Aggiorna i holdings con i prezzi correnti e network fees
     const holdingsWithCurrentPrices = portfolio.holdings.map(holding => {
-      const currentPrice = currentPrices[holding.asset.symbol] || holding.currentPrice || holding.avgPrice
+      const currentPrice = currentPrices[holding.asset.symbol.toUpperCase()] || holding.avgPrice
       
       // 🆕 Calcola fees per questo asset
       const assetFees = enhancedStats.feesByAsset[holding.asset.symbol]

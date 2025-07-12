@@ -38,45 +38,8 @@ function calculateEnhancedStats(transactions: any[]) {
   }
 }
 
-// 🆕 NUOVA FUNZIONE: Ottieni prezzi correnti per gli asset
-async function fetchCurrentPrices(symbols: string[], request: NextRequest): Promise<Record<string, number>> {
-  try {
-    if (symbols.length === 0) return {}
-    
-    console.log('🔍 Fetching current prices for:', symbols.join(', '))
-    
-    // Costruisci URL interno per l'API crypto-prices
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    const symbolsParam = symbols.join(',')
-    const url = `${baseUrl}/api/crypto-prices?symbols=${symbolsParam}`
-    
-    // Passa i cookie di autenticazione dalla richiesta originale
-    const authCookie = request.headers.get('cookie')
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'SNP-Finance-App/1.0',
-        ...(authCookie ? { 'Cookie': authCookie } : {}),
-      },
-      // Force fresh data per backend calculations
-      cache: 'no-store'
-    })
-
-    if (!response.ok) {
-      console.warn('⚠️ Errore API crypto-prices:', response.status)
-      return {}
-    }
-
-    const data = await response.json()
-    console.log('✅ Current prices fetched:', data.prices)
-    return data.prices || {}
-    
-  } catch (error) {
-    console.error('❌ Errore fetch prezzi correnti:', error)
-    return {}
-  }
-}
+// Note: fetchCurrentPrices removed to avoid HTTP internal calls that fail in production
+// Using avgPrice from holdings as fallback for consistent calculations
 
 // GET - Lista crypto portfolios con Enhanced Statistics e PREZZI CORRENTI
 export async function GET(request: NextRequest) {
@@ -138,7 +101,7 @@ export async function GET(request: NextRequest) {
       return acc
     }, {} as Record<number, typeof transactionsByPortfolio>)
 
-    // 🆕 Raccogli tutti i simboli unici per fetch prezzi
+    // Fetch current prices using localhost to avoid NEXTAUTH_URL issues in production
     const allSymbols = new Set<string>()
     portfolios.forEach(portfolio => {
       portfolio.holdings.forEach(holding => {
@@ -146,18 +109,41 @@ export async function GET(request: NextRequest) {
       })
     })
 
-    // 🆕 Fetch prezzi correnti per tutti gli asset
-    const currentPrices = await fetchCurrentPrices(Array.from(allSymbols), request)
+    let currentPrices: Record<string, number> = {}
+    
+    if (allSymbols.size > 0) {
+      try {
+        const symbolsParam = Array.from(allSymbols).join(',')
+        const response = await fetch(`http://localhost:3000/api/crypto-prices?symbols=${symbolsParam}`, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'SNP-Finance-App/1.0',
+            'Cookie': request.headers.get('cookie') || '',
+          },
+          cache: 'no-store'
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          currentPrices = data.prices || {}
+          console.log('✅ Current prices fetched via localhost:', Object.keys(currentPrices).length, 'symbols')
+        } else {
+          console.warn('⚠️ Failed to fetch prices via localhost, using avgPrice fallback')
+        }
+      } catch (error) {
+        console.warn('⚠️ Error fetching prices via localhost, using avgPrice fallback:', error)
+      }
+    }
 
     // 🎯 FASE 1: Applica Enhanced Statistics + Current Prices
     const portfoliosWithEnhancedStats = portfolios.map(portfolio => {
       const portfolioTransactions = transactionGroups[portfolio.id] || []
       const enhancedStats = calculateEnhancedStats(portfolioTransactions)
 
-      // 🆕 Calcola valore attuale usando prezzi correnti
+      // Calculate current value using fetched prices or avgPrice as fallback
       let totalValueEur = 0
       const holdingsWithCurrentPrices = portfolio.holdings.map(holding => {
-        const currentPrice = currentPrices[holding.asset.symbol] || holding.avgPrice
+        const currentPrice = currentPrices[holding.asset.symbol.toUpperCase()] || holding.avgPrice
         const valueEur = holding.quantity * currentPrice
         totalValueEur += valueEur
 
@@ -191,7 +177,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    console.log(`✅ Crypto portfolios list with Enhanced stats and current prices (${allSymbols.size} assets)`)
+    console.log(`✅ Crypto portfolios list with Enhanced stats and ${Object.keys(currentPrices).length > 0 ? 'current' : 'avgPrice'} prices`)
 
     return NextResponse.json(portfoliosWithEnhancedStats)
   } catch (error) {
