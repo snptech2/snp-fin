@@ -351,6 +351,70 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // 🎯 Fetch current prices for crypto portfolios to align with individual APIs
+    const allCryptoSymbols = new Set<string>()
+    cryptoPortfolios.forEach(portfolio => {
+      portfolio.holdings.forEach(holding => {
+        allCryptoSymbols.add(holding.asset.symbol.toUpperCase())
+      })
+    })
+
+    let cryptoCurrentPrices: Record<string, number> = {}
+    
+    if (allCryptoSymbols.size > 0) {
+      try {
+        const symbolsParam = Array.from(allCryptoSymbols).join(',')
+        const response = await fetch(`http://localhost:3000/api/crypto-prices?symbols=${symbolsParam}`, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'SNP-Finance-App/1.0',
+            'Cookie': request.headers.get('cookie') || '',
+          },
+          cache: 'no-store'
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          cryptoCurrentPrices = data.prices || {}
+          console.log('✅ Dashboard crypto prices fetched via localhost:', Object.keys(cryptoCurrentPrices).length, 'symbols')
+        } else {
+          console.warn('⚠️ Dashboard failed to fetch crypto prices via localhost, using avgPrice fallback')
+        }
+      } catch (error) {
+        console.warn('⚠️ Dashboard error fetching crypto prices via localhost, using avgPrice fallback:', error)
+      }
+    }
+
+    // 🎯 Recalculate crypto portfolios with current prices for accurate dashboard totals
+    const cryptoPortfoliosWithCurrentPrices = cryptoPortfolios.map(portfolio => {
+      let totalValueEur = 0
+      const holdingsWithCurrentPrices = portfolio.holdings.map(holding => {
+        const currentPrice = cryptoCurrentPrices[holding.asset.symbol.toUpperCase()] || holding.avgPrice
+        const valueEur = holding.quantity * currentPrice
+        totalValueEur += valueEur
+        return {
+          ...holding,
+          valueEur,
+          currentPrice
+        }
+      })
+
+      // Update stats with current value
+      const updatedStats = {
+        ...portfolio.stats,
+        totalValueEur,
+        unrealizedGains: totalValueEur - portfolio.stats.effectiveInvestment,
+        totalROI: portfolio.stats.totalInvested > 0 ?
+          ((portfolio.stats.realizedProfit + (totalValueEur - portfolio.stats.effectiveInvestment)) / portfolio.stats.totalInvested) * 100 : 0
+      }
+
+      return {
+        ...portfolio,
+        holdings: holdingsWithCurrentPrices,
+        stats: updatedStats
+      }
+    })
+
     // 📊 Calculate totals server-side
     const bankLiquidity = accounts
       .filter(account => account.type === 'bank')
@@ -368,8 +432,8 @@ export async function GET(request: NextRequest) {
     console.log('🔍 Crypto Portfolios found:', cryptoPortfolios.length)
     console.log('💰 Bitcoin price available:', btcPrice?.btcPrice || 'NOT AVAILABLE')
     
-    // Calculate Enhanced Cash Flow totals from all portfolios
-    const allPortfolios = [...dcaPortfolios, ...cryptoPortfolios]
+    // Calculate Enhanced Cash Flow totals from all portfolios (use updated crypto portfolios with current prices)
+    const allPortfolios = [...dcaPortfolios, ...cryptoPortfoliosWithCurrentPrices]
     
     const enhancedCashFlow = allPortfolios.length > 0 ? {
       totalInvested: allPortfolios.reduce((sum, p) => {
@@ -469,7 +533,7 @@ export async function GET(request: NextRequest) {
       accounts,
       portfolios: {
         dca: dcaPortfolios,
-        crypto: cryptoPortfolios
+        crypto: cryptoPortfoliosWithCurrentPrices
       },
       budgets: allocatedBudgets, // Use budgets with calculated allocations
       transactions: recentTransactions,
