@@ -734,20 +734,21 @@ const openEditTransaction = (transaction: DCATransaction) => {
   return (
     <ProtectedRoute>  {/* ← AGGIUNTO */}
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        {/* Header - Mobile Optimized */}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center gap-4 mb-4">
             <Link href="/investments" className="text-adaptive-500 hover:text-adaptive-700">
               <ArrowLeftIcon className="w-6 h-6" />
             </Link>
-            <div>
-              <h1 className="text-3xl font-bold text-adaptive-900">{portfolio.name}</h1>
-              <p className="text-adaptive-600">
+            <div className="flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-adaptive-900">{portfolio.name}</h1>
+              <p className="text-adaptive-600 text-sm sm:text-base">
                 Portfolio DCA Bitcoin • Account: {portfolio.account.name}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          {/* Desktop */}
+          <div className="hidden sm:flex items-center justify-end gap-2">
             <button
               onClick={() => setShowEditPortfolio(true)}
               className="p-2 text-adaptive-500 hover:text-adaptive-700"
@@ -757,21 +758,39 @@ const openEditTransaction = (transaction: DCATransaction) => {
             <button
               onClick={fetchBitcoinPrice}
               disabled={priceLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 text-sm"
             >
               <ArrowPathIcon className={`w-4 h-4 ${priceLoading ? 'animate-spin' : ''}`} />
               Aggiorna Prezzo
             </button>
           </div>
+          {/* Mobile */}
+          <div className="sm:hidden flex flex-col gap-2">
+            <button
+              onClick={fetchBitcoinPrice}
+              disabled={priceLoading}
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 text-sm font-medium"
+            >
+              <ArrowPathIcon className={`w-4 h-4 ${priceLoading ? 'animate-spin' : ''}`} />
+              Aggiorna Prezzo
+            </button>
+            <button
+              onClick={() => setShowEditPortfolio(true)}
+              className="flex items-center justify-center gap-2 w-full px-4 py-2 text-adaptive-700 border border-adaptive-300 rounded-lg hover:bg-adaptive-50 text-sm"
+            >
+              <Cog6ToothIcon className="w-4 h-4" />
+              Impostazioni Portfolio
+            </button>
+          </div>
         </div>
 
-        {/* Bitcoin Price Display */}
+        {/* Bitcoin Price Display - Mobile Optimized */}
         {btcPrice && (
-          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive">
             <div className="flex items-center justify-between">
-              <div>
+              <div className="flex-1">
                 <h3 className="text-sm font-medium text-adaptive-500">Prezzo Bitcoin Corrente</h3>
-                <p className="text-2xl font-bold text-orange-600">
+                <p className="text-xl sm:text-2xl font-bold text-orange-600">
                   {formatCurrency(btcPrice.btcPrice, user?.currency || 'EUR')}
                 </p>
                 <p className="text-sm text-adaptive-600">
@@ -779,17 +798,17 @@ const openEditTransaction = (transaction: DCATransaction) => {
                   {btcPrice.cached && <span className="text-orange-500 ml-2">(Cache)</span>}
                 </p>
               </div>
-              <div className="text-4xl">₿</div>
+              <div className="text-3xl sm:text-4xl">₿</div>
             </div>
           </div>
         )}
 
-        {/* 🎯 ENHANCED STATS GRID - Cash Flow Focus */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 🎯 ENHANCED STATS GRID - Cash Flow Focus - Mobile Optimized */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Investimento Effettivo */}
-          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left">
             <h3 className="text-sm font-medium text-adaptive-500 mb-1">Investimento Effettivo</h3>
-            <p className="text-2xl font-bold text-blue-600">
+            <p className="text-xl sm:text-2xl font-bold text-blue-600">
               {formatCurrencyWithUserCurrency(effectiveInvestment)}
             </p>
             <p className="text-xs text-adaptive-600">
@@ -798,9 +817,9 @@ const openEditTransaction = (transaction: DCATransaction) => {
           </div>
 
           {/* Profitto Realizzato */}
-          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left">
             <h3 className="text-sm font-medium text-adaptive-500 mb-1">Profitto Realizzato</h3>
-            <p className={`text-2xl font-bold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <p className={`text-xl sm:text-2xl font-bold ${realizedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {formatCurrencyWithUserCurrency(realizedProfit)}
             </p>
             <p className="text-xs text-adaptive-600">
@@ -809,9 +828,9 @@ const openEditTransaction = (transaction: DCATransaction) => {
           </div>
 
           {/* Plus/Minus Non Realizzati */}
-          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left">
             <h3 className="text-sm font-medium text-adaptive-500 mb-1">Plus/Minus Non Realizzati</h3>
-            <p className={`text-2xl font-bold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <p className={`text-xl sm:text-2xl font-bold ${unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {formatCurrencyWithUserCurrency(unrealizedGains)}
             </p>
             <p className="text-xs text-adaptive-600">
@@ -820,9 +839,9 @@ const openEditTransaction = (transaction: DCATransaction) => {
           </div>
 
           {/* ROI Effettivo */}
-          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left">
             <h3 className="text-sm font-medium text-adaptive-500 mb-1">ROI Effettivo</h3>
-            <p className={`text-2xl font-bold ${effectiveROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <p className={`text-xl sm:text-2xl font-bold ${effectiveROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {formatPercentage(effectiveROI)}
             </p>
             <p className="text-xs text-adaptive-600">
@@ -831,12 +850,12 @@ const openEditTransaction = (transaction: DCATransaction) => {
           </div>
         </div>
 
-        {/* BTC Holdings & Fees Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* BTC Holdings & Fees Grid - Mobile Optimized */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* BTC Holdings */}
-          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left">
             <h3 className="text-sm font-medium text-adaptive-500 mb-1">BTC Detenuti (Netti)</h3>
-            <p className="text-xl font-bold text-orange-600">
+            <p className="text-lg sm:text-xl font-bold text-orange-600">
               {formatBTC(netBTC)}
             </p>
             <p className="text-xs text-adaptive-600">
@@ -845,9 +864,9 @@ const openEditTransaction = (transaction: DCATransaction) => {
           </div>
 
           {/* Network Fees */}
-          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left">
             <h3 className="text-sm font-medium text-adaptive-500 mb-1">Commissioni di Rete</h3>
-            <p className="text-xl font-bold text-red-600">
+            <p className="text-lg sm:text-xl font-bold text-red-600">
               -{formatBTC(totalFeesBTC)}
             </p>
             <p className="text-xs text-adaptive-600">
@@ -856,9 +875,9 @@ const openEditTransaction = (transaction: DCATransaction) => {
           </div>
 
           {/* Valore Corrente */}
-          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left sm:col-span-2 lg:col-span-1">
             <h3 className="text-sm font-medium text-adaptive-500 mb-1">Valore Corrente</h3>
-            <p className="text-xl font-bold text-blue-600">
+            <p className="text-lg sm:text-xl font-bold text-blue-600">
               {formatCurrencyWithUserCurrency(currentValue)}
             </p>
             <p className="text-xs text-adaptive-600">
@@ -867,8 +886,9 @@ const openEditTransaction = (transaction: DCATransaction) => {
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-4">
+        {/* Action Buttons - Mobile Optimized */}
+        {/* Desktop */}
+        <div className="hidden sm:flex gap-4">
           <button
             onClick={() => setShowImportModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
@@ -906,25 +926,74 @@ const openEditTransaction = (transaction: DCATransaction) => {
             </button>
           )}
         </div>
+        
+        {/* Mobile */}
+        <div className="sm:hidden space-y-3">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+          >
+            <DocumentArrowUpIcon className="w-4 h-4" />
+            Import CSV
+          </button>
+          <button
+            onClick={() => setShowAddTransaction(true)}
+            className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Aggiungi Transazione
+          </button>
+          <button
+            onClick={() => setShowAddFee(true)}
+            className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Aggiungi Commissione
+          </button>
+          
+          {/* Bulk Delete Button */}
+          {selectedTransactions.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              disabled={isDeleting}
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm font-medium"
+            >
+              <TrashIcon className="w-4 h-4" />
+              {isDeleting 
+                ? `Eliminando... ${deleteProgress.current}/${deleteProgress.total}`
+                : `Elimina ${selectedTransactions.length} selezionate`
+              }
+            </button>
+          )}
+        </div>
 
-        {/* Transactions Table */}
+        {/* Transactions Table - Mobile Optimized */}
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
-          <div className="p-6 border-b border-adaptive">
-            <h2 className="text-xl font-semibold text-adaptive-900">
-              Transazioni ({transactionCount})
-            </h2>
+          <div className="p-4 sm:p-6 border-b border-adaptive">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg sm:text-xl font-semibold text-adaptive-900">
+                Transazioni ({transactionCount})
+              </h2>
+              {/* Desktop Select All */}
+              <div className="hidden lg:block">
+                <input
+                  type="checkbox"
+                  checked={selectAll}
+                  onChange={handleSelectAll}
+                  className="h-4 w-4 text-blue-600 border-adaptive rounded focus:ring-blue-500"
+                />
+                <span className="ml-2 text-sm text-adaptive-600">Seleziona tutto</span>
+              </div>
+            </div>
           </div>
-          <div className="overflow-x-auto">
+          
+          {/* Desktop Table View */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-adaptive-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
-                    <input
-                      type="checkbox"
-                      checked={selectAll}
-                      onChange={handleSelectAll}
-                      className="h-4 w-4 text-blue-600 border-adaptive rounded focus:ring-blue-500"
-                    />
+                    Selezione
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">Data</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">Tipo</th>
@@ -991,16 +1060,107 @@ const openEditTransaction = (transaction: DCATransaction) => {
               </tbody>
             </table>
           </div>
+          
+          {/* Mobile Card View */}
+          <div className="lg:hidden space-y-4 p-4">
+            {/* Mobile Select All */}
+            <div className="flex items-center gap-2 pb-2 border-b border-adaptive">
+              <input
+                type="checkbox"
+                checked={selectAll}
+                onChange={handleSelectAll}
+                className="h-4 w-4 text-blue-600 border-adaptive rounded focus:ring-blue-500"
+              />
+              <span className="text-sm text-adaptive-600">Seleziona tutto</span>
+            </div>
+            
+            {portfolio.transactions.map((transaction) => (
+              <div key={transaction.id} className="card-adaptive rounded-lg p-4 border border-adaptive">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3 flex-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedTransactions.includes(transaction.id)}
+                      onChange={() => handleSelectTransaction(transaction.id)}
+                      className="h-4 w-4 text-blue-600 border-adaptive rounded focus:ring-blue-500 mt-1"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          transaction.type === 'buy' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {transaction.type === 'buy' ? 'Acquisto' : 'Vendita'}
+                        </span>
+                        <span className="text-sm text-adaptive-600">
+                          {new Date(transaction.date).toLocaleDateString('it-IT')}
+                        </span>
+                      </div>
+                      <p className="font-semibold text-adaptive-900 text-base mb-1">
+                        {transaction.broker}
+                      </p>
+                      <p className={`text-lg font-bold ${
+                        transaction.type === 'buy' ? 'text-blue-600' : 'text-green-600'
+                      }`}>
+                        {transaction.type === 'buy' ? '+' : '-'}{formatBTC(transaction.btcQuantity)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500 text-sm">💰</span>
+                    <div>
+                      <span className="text-xs text-adaptive-600">EUR</span>
+                      <p className="text-sm font-medium text-adaptive-900">
+                        {transaction.type === 'buy' ? '-' : '+'}{formatCurrencyWithUserCurrency(transaction.eurPaid)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500 text-sm">📊</span>
+                    <div>
+                      <span className="text-xs text-adaptive-600">Prezzo</span>
+                      <p className="text-sm font-medium text-adaptive-900">
+                        {formatCurrencyWithUserCurrency(transaction.purchasePrice)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-adaptive">
+                  <button
+                    onClick={() => openEditTransaction(transaction)}
+                    className="flex items-center gap-2 px-3 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                  >
+                    <PencilIcon className="w-4 h-4" />
+                    Modifica
+                  </button>
+                  <button
+                    onClick={() => handleDeleteTransaction(transaction.id)}
+                    className="flex items-center gap-2 px-3 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-sm"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                    Elimina
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Network Fees Table */}
+        {/* Network Fees Table - Mobile Optimized */}
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
-          <div className="p-6 border-b border-adaptive">
-            <h2 className="text-xl font-semibold text-adaptive-900">
+          <div className="p-4 sm:p-6 border-b border-adaptive">
+            <h2 className="text-lg sm:text-xl font-semibold text-adaptive-900">
               Commissioni di Rete ({feesCount})
             </h2>
           </div>
-          <div className="overflow-x-auto">
+          
+          {/* Desktop Table View */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-adaptive-50">
                 <tr>
@@ -1046,6 +1206,58 @@ const openEditTransaction = (transaction: DCATransaction) => {
                 ))}
               </tbody>
             </table>
+          </div>
+          
+          {/* Mobile Card View */}
+          <div className="lg:hidden space-y-4 p-4">
+            {networkFees.map((fee) => (
+              <div key={fee.id} className="card-adaptive rounded-lg p-4 border border-adaptive">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm text-adaptive-600">
+                        {new Date(fee.date).toLocaleDateString('it-IT')}
+                      </span>
+                    </div>
+                    <p className="font-semibold text-adaptive-900 text-base mb-1">
+                      {fee.description || 'Commissione di rete'}
+                    </p>
+                    <p className="text-lg font-bold text-red-600">
+                      -{formatBTC(fee.btcAmount)}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-2 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500 text-sm">⚡</span>
+                    <div>
+                      <span className="text-xs text-adaptive-600">Sats</span>
+                      <p className="text-sm font-medium text-adaptive-900">
+                        {fee.sats.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-adaptive">
+                  <button
+                    onClick={() => openEditFee(fee)}
+                    className="flex items-center gap-2 px-3 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                  >
+                    <PencilIcon className="w-4 h-4" />
+                    Modifica
+                  </button>
+                  <button
+                    onClick={() => handleDeleteFee(fee.id)}
+                    className="flex items-center gap-2 px-3 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-sm"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                    Elimina
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

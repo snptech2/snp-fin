@@ -880,14 +880,17 @@ export default function PartitaIVAPage() {
   return (
     <ProtectedRoute>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-adaptive-900">📋 Partita IVA</h1>
-            <p className="text-adaptive-600">Gestione entrate e pagamenti tasse</p>
+        {/* Header - Mobile Optimized */}
+        <div className="mb-6 sm:mb-8">
+          <div className="mb-4">
+            <h1 className="text-2xl sm:text-3xl font-bold text-adaptive-900">📋 Partita IVA</h1>
+            <p className="text-adaptive-600 text-sm sm:text-base">Gestione entrate e pagamenti tasse</p>
           </div>
-          <div className="flex items-center gap-4">
-            {/* Selettore Anno */}
+          
+          {/* Desktop Controls */}
+          <div className="hidden sm:flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              {/* Selettore Anno */}
             <div className="flex items-center gap-2">
               <select
                 value={currentYear}
@@ -915,6 +918,7 @@ export default function PartitaIVAPage() {
                 </button>
               )}
             </div>
+            </div>
             <button
               onClick={() => setShowConfigForm(true)}
               className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center gap-2"
@@ -922,6 +926,50 @@ export default function PartitaIVAPage() {
               <CogIcon className="w-5 h-5" />
               Configurazione
             </button>
+          </div>
+
+          {/* Mobile Controls */}
+          <div className="sm:hidden space-y-3">
+            {/* Anno Selector */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-adaptive-700">Anno:</label>
+              <select
+                value={currentYear}
+                onChange={(e) => setCurrentYear(parseInt(e.target.value))}
+                className="flex-1 px-3 py-2 border border-adaptive rounded-lg focus:ring-blue-500 focus:border-blue-500"
+              >
+                {availableYears.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => setShowYearForm(true)}
+                className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                title="Aggiungi nuovo anno"
+              >
+                <PlusIcon className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                onClick={() => setShowConfigForm(true)}
+                className="w-full px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center justify-center gap-2 font-medium"
+              >
+                <CogIcon className="w-5 h-5" />
+                Configurazione
+              </button>
+              {availableYears.length > 1 && !incomes.length && !payments.length && stats && !stats.riepilogo.haEntrate && !stats.riepilogo.haPagamenti && (
+                <button
+                  onClick={() => handleDeleteYear(currentYear)}
+                  className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center justify-center gap-2 font-medium"
+                >
+                  <TrashIcon className="w-5 h-5" />
+                  Elimina Anno {currentYear}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -936,19 +984,19 @@ export default function PartitaIVAPage() {
                 Riepilogo complessivo di tutti gli anni ({globalStats.conteggi.anniAttivi} anni attivi)
               </p>
             </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-green-50 p-4 rounded-lg">
+            <div className="p-4 sm:p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                <div className="bg-green-50 p-4 rounded-lg text-center sm:text-left">
                   <h4 className="text-sm font-medium text-green-600">💰 Entrate Totali</h4>
-                  <p className="text-2xl font-bold text-green-700">
+                  <p className="text-xl sm:text-2xl font-bold text-green-700">
                     {formatCurrency(globalStats.totali.entrate)}
                   </p>
                   <p className="text-sm text-green-600">{globalStats.conteggi.numeroFatture} fatture</p>
                 </div>
                 
-                <div className="bg-orange-50 p-4 rounded-lg">
+                <div className="bg-orange-50 p-4 rounded-lg text-center sm:text-left">
                   <h4 className="text-sm font-medium text-orange-600">🏛️ Tasse Dovute</h4>
-                  <p className="text-2xl font-bold text-orange-700">
+                  <p className="text-xl sm:text-2xl font-bold text-orange-700">
                     {formatCurrency(globalStats.totali.tasseDovute)}
                   </p>
                   <p className="text-sm text-orange-600">
@@ -956,15 +1004,15 @@ export default function PartitaIVAPage() {
                   </p>
                 </div>
                 
-                <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="bg-blue-50 p-4 rounded-lg text-center sm:text-left">
                   <h4 className="text-sm font-medium text-blue-600">💸 Tasse Pagate</h4>
-                  <p className="text-2xl font-bold text-blue-700">
+                  <p className="text-xl sm:text-2xl font-bold text-blue-700">
                     {formatCurrency(globalStats.totali.tassePagate)}
                   </p>
                   <p className="text-sm text-blue-600">{globalStats.conteggi.numeroPagamenti} pagamenti</p>
                 </div>
                 
-                <div className={`p-4 rounded-lg ${
+                <div className={`p-4 rounded-lg text-center sm:text-left sm:col-span-2 lg:col-span-1 ${
                   globalStats.riepilogo.inRegola ? 'bg-green-50' : 'bg-red-50'
                 }`}>
                   <h4 className={`text-sm font-medium ${
@@ -972,7 +1020,7 @@ export default function PartitaIVAPage() {
                   }`}>
                     {globalStats.riepilogo.inRegola ? '✅' : '⚠️'} Saldo Globale
                   </h4>
-                  <p className={`text-2xl font-bold ${
+                  <p className={`text-xl sm:text-2xl font-bold ${
                     globalStats.riepilogo.inRegola ? 'text-green-700' : 'text-red-700'
                   }`}>
                     {formatCurrency(globalStats.totali.saldoTasse)}
@@ -999,19 +1047,19 @@ export default function PartitaIVAPage() {
                 Dati specifici per l'anno selezionato
               </p>
             </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="card-adaptive p-4 rounded-lg border-adaptive">
+            <div className="p-4 sm:p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                <div className="card-adaptive p-4 rounded-lg border-adaptive text-center sm:text-left">
                   <h4 className="text-sm font-medium text-adaptive-500">💰 Entrate {currentYear}</h4>
-                  <p className="text-2xl font-bold text-green-600">
+                  <p className="text-xl sm:text-2xl font-bold text-green-600">
                     {formatCurrency(stats.totali.entrate)}
                   </p>
                   <p className="text-sm text-adaptive-600">{stats.conteggi.numeroFatture} fatture</p>
                 </div>
                 
-                <div className="card-adaptive p-4 rounded-lg border-adaptive">
+                <div className="card-adaptive p-4 rounded-lg border-adaptive text-center sm:text-left">
                   <h4 className="text-sm font-medium text-adaptive-500">🏛️ Tasse Dovute</h4>
-                  <p className="text-2xl font-bold text-orange-600">
+                  <p className="text-xl sm:text-2xl font-bold text-orange-600">
                     {formatCurrency(stats.totali.tasseDovute)}
                   </p>
                   <p className="text-sm text-adaptive-600">
@@ -1019,19 +1067,19 @@ export default function PartitaIVAPage() {
                   </p>
                 </div>
                 
-                <div className="card-adaptive p-4 rounded-lg border-adaptive">
+                <div className="card-adaptive p-4 rounded-lg border-adaptive text-center sm:text-left">
                   <h4 className="text-sm font-medium text-adaptive-500">💸 Tasse Pagate</h4>
-                  <p className="text-2xl font-bold text-blue-600">
+                  <p className="text-xl sm:text-2xl font-bold text-blue-600">
                     {formatCurrency(stats.totali.tassePagate)}
                   </p>
                   <p className="text-sm text-adaptive-600">{stats.conteggi.numeroPagamenti} pagamenti</p>
                 </div>
                 
-                <div className="card-adaptive p-4 rounded-lg border-adaptive">
+                <div className="card-adaptive p-4 rounded-lg border-adaptive text-center sm:text-left sm:col-span-2 lg:col-span-1">
                   <h4 className="text-sm font-medium text-adaptive-500">
                     {stats.riepilogo.inRegola ? '✅' : '⚠️'} Saldo Anno
                   </h4>
-                  <p className={`text-2xl font-bold ${
+                  <p className={`text-xl sm:text-2xl font-bold ${
                     stats.riepilogo.inRegola ? 'text-green-600' : 'text-red-600'
                   }`}>
                     {formatCurrency(stats.totali.saldoTasse)}
@@ -1047,11 +1095,13 @@ export default function PartitaIVAPage() {
 
         {/* Configurazione corrente */}
         {config && (
-          <div className="card-adaptive p-4 rounded-lg border-adaptive bg-blue-50">
-            <h3 className="text-lg font-medium text-adaptive-900 mb-2">
+          <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive bg-blue-50">
+            <h3 className="text-lg sm:text-xl font-medium text-adaptive-900 mb-3 sm:mb-4">
               ⚙️ Configurazione {currentYear}
             </h3>
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            
+            {/* Desktop Layout */}
+            <div className="hidden sm:grid grid-cols-3 gap-4 text-sm">
               <div>
                 <span className="text-adaptive-600">Imponibile:</span>
                 <span className="ml-2 font-semibold">{config.percentualeImponibile}%</span>
@@ -1065,13 +1115,30 @@ export default function PartitaIVAPage() {
                 <span className="ml-2 font-semibold">{config.percentualeContributi}%</span>
               </div>
             </div>
+
+            {/* Mobile Layout */}
+            <div className="sm:hidden space-y-3">
+              <div className="flex justify-between items-center py-2 border-b border-blue-200 last:border-b-0">
+                <span className="text-adaptive-600 text-sm">Imponibile:</span>
+                <span className="font-semibold text-lg text-adaptive-900">{config.percentualeImponibile}%</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-blue-200 last:border-b-0">
+                <span className="text-adaptive-600 text-sm">Imposta:</span>
+                <span className="font-semibold text-lg text-adaptive-900">{config.percentualeImposta}%</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-blue-200 last:border-b-0">
+                <span className="text-adaptive-600 text-sm">Contributi:</span>
+                <span className="font-semibold text-lg text-adaptive-900">{config.percentualeContributi}%</span>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Sezione Entrate */}
+        {/* Sezione Entrate - Mobile Optimized */}
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
-          <div className="p-6 border-b border-adaptive">
-            <div className="flex justify-between items-center">
+          <div className="p-4 sm:p-6 border-b border-adaptive">
+            {/* Desktop Header */}
+            <div className="hidden sm:flex justify-between items-center">
               <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
                 <DocumentTextIcon className="w-5 h-5" />
                 Entrate P.IVA ({incomes.length})
@@ -1108,8 +1175,44 @@ export default function PartitaIVAPage() {
                 </button>
               </div>
             </div>
+
+            {/* Mobile Header */}
+            <div className="sm:hidden">
+              <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2 mb-4">
+                <DocumentTextIcon className="w-5 h-5" />
+                Entrate P.IVA ({incomes.length})
+                {selectedIncomes.size > 0 && (
+                  <span className="text-sm text-blue-600 ml-2">
+                    ({selectedIncomes.size} selezionate)
+                  </span>
+                )}
+              </h3>
+              
+              {/* Mobile Action Buttons */}
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  onClick={() => setShowIncomeForm(true)}
+                  className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-medium"
+                >
+                  <PlusIcon className="w-5 h-5" />
+                  Nuova Entrata
+                </button>
+                
+                {showBulkActions && (
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={isSubmitting}
+                    className="w-full px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                    Elimina Selezionate ({selectedIncomes.size})
+                  </button>
+                )}
+              </div>
+            </div>
+            
             {incomes.length > 0 && (
-              <div className="mt-4 flex items-center gap-2 text-sm">
+              <div className="mt-4 flex items-center gap-2 text-sm px-4 sm:px-6">
                 <input
                   type="checkbox"
                   checked={selectedIncomes.size === incomes.length}
@@ -1123,7 +1226,7 @@ export default function PartitaIVAPage() {
             )}
           </div>
           
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {incomes.length === 0 ? (
               <div className="text-center py-8">
                 <DocumentTextIcon className="w-12 h-12 text-adaptive-400 mx-auto mb-4" />
@@ -1216,8 +1319,9 @@ export default function PartitaIVAPage() {
 
         {/* Sezione Pagamenti Tasse */}
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
-          <div className="p-6 border-b border-adaptive">
-            <div className="flex justify-between items-center">
+          <div className="p-4 sm:p-6 border-b border-adaptive">
+            {/* Desktop Header */}
+            <div className="hidden sm:flex justify-between items-center">
               <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
                 <BanknotesIcon className="w-5 h-5" />
                 Pagamenti Tasse ({payments.length})
@@ -1230,9 +1334,24 @@ export default function PartitaIVAPage() {
                 Nuovo Pagamento
               </button>
             </div>
+
+            {/* Mobile Header */}
+            <div className="sm:hidden">
+              <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2 mb-3">
+                <BanknotesIcon className="w-5 h-5" />
+                Pagamenti Tasse ({payments.length})
+              </h3>
+              <button
+                onClick={() => setShowPaymentForm(true)}
+                className="btn-primary w-full px-4 py-2 rounded-lg flex items-center justify-center gap-2"
+              >
+                <PlusIcon className="w-5 h-5" />
+                Nuovo Pagamento
+              </button>
+            </div>
           </div>
           
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {payments.length === 0 ? (
               <div className="text-center py-8">
                 <BanknotesIcon className="w-12 h-12 text-adaptive-400 mx-auto mb-4" />

@@ -634,7 +634,7 @@ const Dashboard = () => {
           <div className="rounded-xl p-8 text-white mb-8 shadow-lg" style={{
             background: 'linear-gradient(to right, oklch(0.35 0.1 265.43), oklch(0.24 0.06 265.97))'
           }}>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8 lg:items-center">
               {/* Informazioni Patrimonio */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -674,17 +674,17 @@ const Dashboard = () => {
               </div>
               
               {/* Grafico Patrimonio */}
-              <div className="flex justify-center">
+              <div className="flex justify-center lg:order-last">
                 {patrimonioData.length > 0 ? (
-                  <div className="w-64 h-64">
+                  <div className="w-40 h-40 sm:w-48 sm:h-48 lg:w-64 lg:h-64 mx-auto overflow-visible">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={patrimonioData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={40}
-                          outerRadius={120}
+                          innerRadius={20}
+                          outerRadius={80}
                           paddingAngle={2}
                           dataKey="value"
                           startAngle={90}
@@ -698,7 +698,7 @@ const Dashboard = () => {
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <div className="w-64 h-64 flex items-center justify-center">
+                  <div className="w-40 h-40 sm:w-48 sm:h-48 lg:w-64 lg:h-64 flex items-center justify-center mx-auto">
                     <div className="text-center text-white">
                       <div className="text-6xl mb-4">💎</div>
                       <div>Nessun dato disponibile</div>
@@ -712,7 +712,7 @@ const Dashboard = () => {
           
 
           {/* Liquidità Overview - Seconda Riga */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
             <Link href="/accounts">
               <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive hover:shadow-md transition-shadow cursor-pointer">
                 <div className="flex items-center justify-between mb-4">
@@ -825,7 +825,7 @@ const Dashboard = () => {
           </div>
           {/* Enhanced Cash Flow - Terza Riga */}
           {dashboardData.enhancedCashFlow && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
               <div className="card-adaptive rounded-lg p-6 shadow-sm border-adaptive">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-2 bg-gray-100 rounded-lg">
@@ -911,17 +911,17 @@ const Dashboard = () => {
                 </button>
               </div>
               
-              <div className="flex items-center gap-6">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-6">
                 {/* Pie Chart */}
-                <div className="w-40 h-40">
+                <div className="w-32 h-32 mx-auto lg:w-40 lg:h-40 lg:mx-0 flex-shrink-0 overflow-visible">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={allocationData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={35}
-                        outerRadius={70}
+                        innerRadius={20}
+                        outerRadius={50}
                         paddingAngle={2}
                         dataKey="value"
                         startAngle={90}

@@ -143,28 +143,41 @@ export default function CreditiPage() {
   return (
     <ProtectedRoute>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-adaptive-900">💰 Crediti</h1>
-            <p className="text-adaptive-600">Prestiti e crediti verso terzi</p>
+        {/* Header - Mobile Optimized */}
+        <div className="mb-6 sm:mb-8">
+          <div className="mb-4">
+            <h1 className="text-2xl sm:text-3xl font-bold text-adaptive-900">💰 Crediti</h1>
+            <p className="text-adaptive-600 text-sm sm:text-base">Prestiti e crediti verso terzi</p>
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2"
-          >
-            <PlusIcon className="w-5 h-5" />
-            Nuovo Credito
-          </button>
+          {/* Desktop */}
+          <div className="hidden sm:flex justify-end">
+            <button
+              onClick={() => setShowForm(true)}
+              className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2 text-sm"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Nuovo Credito
+            </button>
+          </div>
+          {/* Mobile */}
+          <div className="sm:hidden">
+            <button
+              onClick={() => setShowForm(true)}
+              className="w-full btn-primary px-4 py-3 rounded-lg flex items-center justify-center gap-2 text-sm font-medium"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Nuovo Credito
+            </button>
+          </div>
         </div>
 
-        {/* Totale */}
-        <div className="card-adaptive p-6 rounded-lg border-adaptive bg-blue-50">
-          <div className="flex items-center gap-4">
+        {/* Totale - Mobile Optimized */}
+        <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive bg-blue-50 text-center sm:text-left">
+          <div className="flex items-center justify-center sm:justify-start gap-4">
             <CurrencyEuroIcon className="w-8 h-8 text-blue-600" />
             <div>
-              <h3 className="text-lg font-medium text-adaptive-900">Totale Crediti</h3>
-              <p className="text-3xl font-bold text-blue-600">
+              <h3 className="text-base sm:text-lg font-medium text-adaptive-900">Totale Crediti</h3>
+              <p className="text-2xl sm:text-3xl font-bold text-blue-600">
                 {formatCurrency(totalAmount)}
               </p>
               <p className="text-sm text-adaptive-600">{credits.length} crediti registrati</p>
@@ -197,45 +210,95 @@ export default function CreditiPage() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {credits.map(credit => (
-                  <div key={credit.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h4 className="font-semibold text-adaptive-900">{credit.name}</h4>
-                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-                            Credito
-                          </span>
-                        </div>
-                        {credit.description && (
-                          <p className="text-sm text-adaptive-600 mb-2">{credit.description}</p>
-                        )}
-                        <div className="bg-blue-50 p-3 rounded">
-                          <div className="text-xs text-blue-600 font-medium mb-1">Importo Credito</div>
-                          <div className="text-xl font-bold text-blue-700">{formatCurrency(credit.amount)}</div>
+              <>
+                {/* Desktop View */}
+                <div className="hidden lg:block">
+                  <div className="space-y-3">
+                    {credits.map(credit => (
+                      <div key={credit.id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-semibold text-adaptive-900">{credit.name}</h4>
+                              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                                Credito
+                              </span>
+                            </div>
+                            {credit.description && (
+                              <p className="text-sm text-adaptive-600 mb-2">{credit.description}</p>
+                            )}
+                            <div className="bg-blue-50 p-3 rounded">
+                              <div className="text-xs text-blue-600 font-medium mb-1">Importo Credito</div>
+                              <div className="text-xl font-bold text-blue-700">{formatCurrency(credit.amount)}</div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-2 ml-4">
+                            <button
+                              onClick={() => handleEdit(credit)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                              title="Modifica credito"
+                            >
+                              <PencilIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(credit.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                              title="Elimina credito"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex flex-col gap-2 ml-4">
+                    ))}
+                  </div>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden space-y-4">
+                  {credits.map((credit) => (
+                    <div key={credit.id} className="card-adaptive rounded-lg p-4 border border-adaptive">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3 flex-1">
+                          <CurrencyEuroIcon className="w-6 h-6 text-blue-600" />
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-adaptive-900 text-base mb-1">{credit.name}</h4>
+                            <p className="text-xl font-bold text-blue-600">
+                              {formatCurrency(credit.amount)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {credit.description && (
+                        <div className="grid grid-cols-1 gap-2 mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500 text-sm">📝</span>
+                            <span className="text-sm text-adaptive-700">{credit.description}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex justify-end gap-2 pt-2 border-t border-adaptive">
                         <button
                           onClick={() => handleEdit(credit)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                          title="Modifica credito"
+                          className="flex items-center gap-2 px-3 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-sm"
                         >
                           <PencilIcon className="w-4 h-4" />
+                          Modifica
                         </button>
                         <button
                           onClick={() => handleDelete(credit.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                          title="Elimina credito"
+                          className="flex items-center gap-2 px-3 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-sm"
                         >
                           <TrashIcon className="w-4 h-4" />
+                          Elimina
                         </button>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </div>

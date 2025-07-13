@@ -151,3 +151,55 @@ export const filterFiscalTransactions = <T extends { category: { name: string } 
 ): T[] => {
   return transactions.filter(transaction => isFiscalTransaction(transaction))
 }
+
+/**
+ * Formatta quantità crypto con gestione intelligente dei decimali per valori piccoli
+ */
+export const formatCryptoSmart = (amount: number, decimals = 8): string => {
+  if (amount === 0) return '0'
+  
+  // Per valori molto piccoli (< 0.01), mostra i primi 2-6 decimali significativi
+  if (Math.abs(amount) < 0.01) {
+    // Trova la posizione del primo digit significativo
+    const absAmount = Math.abs(amount)
+    const magnitude = Math.floor(Math.log10(absAmount))
+    
+    // Mostra 2-6 decimali significativi dopo l'ultimo zero
+    const significantDecimals = Math.max(2, Math.min(8, Math.abs(magnitude) + 3))
+    return new Intl.NumberFormat('it-IT', {
+      minimumFractionDigits: significantDecimals,
+      maximumFractionDigits: significantDecimals
+    }).format(amount)
+  }
+  
+  // Per valori normali, usa la formattazione standard
+  return new Intl.NumberFormat('it-IT', { 
+    minimumFractionDigits: Math.min(decimals, 8),
+    maximumFractionDigits: Math.min(decimals, 8)
+  }).format(amount)
+}
+
+/**
+ * Formatta valuta EUR con gestione intelligente per valori molto piccoli
+ */
+export const formatCurrencySmart = (amount: number, currency: string = 'EUR'): string => {
+  if (amount === 0) return formatCurrency(0, currency)
+  
+  // Per valori molto piccoli (< 0.01), non usare il simbolo della valuta
+  // e mostra più decimali significativi
+  if (Math.abs(amount) < 0.01) {
+    const absAmount = Math.abs(amount)
+    const magnitude = Math.floor(Math.log10(absAmount))
+    const significantDecimals = Math.max(2, Math.min(10, Math.abs(magnitude) + 3))
+    
+    const formatted = new Intl.NumberFormat('it-IT', {
+      minimumFractionDigits: significantDecimals,
+      maximumFractionDigits: significantDecimals
+    }).format(amount)
+    
+    return `${formatted} €`
+  }
+  
+  // Per valori normali, usa la formattazione standard
+  return formatCurrency(amount, currency)
+}

@@ -135,7 +135,8 @@ export const CSVImportModal = ({
       </div>
 
       <div className="bg-adaptive-50 rounded-lg p-4 max-h-96 overflow-auto">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-adaptive">
               <th className="text-left p-2 text-adaptive-900">Data</th>
@@ -166,6 +167,7 @@ export const CSVImportModal = ({
             ))}
           </tbody>
         </table>
+        </div>
         {csvData.length > 10 && (
           <p className="text-center text-adaptive-500 mt-2">
             ... e altre {csvData.length - 10} righe

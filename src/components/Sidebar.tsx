@@ -9,7 +9,13 @@ import { useNotifications } from '@/contexts/NotificationContext'
 import { useState } from 'react'
 import { SimpleThemeToggle } from '@/components/theme/SimpleThemeToggle'
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean
+  onClose?: () => void
+  headerVisible?: boolean
+}
+
+export default function Sidebar({ isOpen = true, onClose, headerVisible = true }: SidebarProps) {
   const pathname = usePathname()
   const { user, logout } = useAuth()
   const { getEnabledModulesList, loading: modulesLoading, refreshModuleSettings } = useUserModules()
@@ -30,14 +36,39 @@ export default function Sidebar() {
     }
   }
 
+  const handleLinkClick = () => {
+    // Chiudi la sidebar su mobile dopo aver cliccato un link
+    if (onClose && window.innerWidth < 1024) {
+      onClose()
+    }
+  }
+
   // Se non c'è utente, non mostrare la sidebar
   if (!user) return null
 
   return (
-    <div className="fixed inset-y-0 left-0 z-50 w-64 sidebar-adaptive shadow-lg border-r border-adaptive">
-      <div className="flex h-full flex-col">
-        {/* Logo */}
-        <div className="flex h-16 shrink-0 items-center justify-center px-6 border-b border-adaptive">
+    <>
+      {/* Backdrop per mobile - solo quando aperto */}
+      {isOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 z-10 bg-black bg-opacity-50 transition-opacity"
+          onClick={onClose}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <div className={`
+        fixed sidebar-adaptive shadow-lg border-adaptive
+        transition-all duration-300 ease-in-out
+        lg:inset-y-0 lg:left-0 lg:w-64 lg:border-r lg:translate-y-0 lg:z-50
+        ${isOpen 
+          ? `inset-x-0 ${headerVisible ? 'top-16' : 'top-0'} bottom-0 translate-y-0 border-b z-20 lg:block` 
+          : `inset-x-0 ${headerVisible ? 'top-16' : 'top-0'} bottom-0 -translate-y-full border-b z-20 lg:block`
+        }
+      `}>
+        <div className="flex h-full flex-col">
+        {/* Logo - Solo Desktop */}
+        <div className="hidden lg:flex h-16 shrink-0 items-center justify-center px-6 border-b border-adaptive">
           <h1 className="text-xl font-bold">
             <span className="text-adaptive-900">SNP</span>
             <span className="ml-2 text-green-500 animate-pulse">Finance</span>
@@ -45,52 +76,59 @@ export default function Sidebar() {
         </div>
         
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 px-4 py-6">
+        <nav className="flex-1 px-4 py-6 lg:space-y-1 flex lg:flex-col items-center lg:items-stretch justify-center lg:justify-start">
           {modulesLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-600 border-t-transparent"></div>
             </div>
           ) : (
-            <>
+            <div className="grid grid-cols-2 gap-4 lg:space-y-1 lg:grid-cols-1 lg:gap-0 w-full max-w-md lg:max-w-none">
               {getEnabledModulesList().map((module) => {
                 const isActive = pathname === module.href
                 return (
                   <Link
                     key={module.id}
                     href={module.href}
+                    onClick={handleLinkClick}
                     className={`
-                      group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors
+                      group flex flex-col lg:flex-row items-center justify-center lg:justify-start rounded-md px-3 py-4 lg:py-2 text-sm font-medium transition-colors
                       ${isActive 
                         ? 'bg-blue-500 text-white' 
                         : 'text-adaptive-700 hover:bg-sidebar-hover hover:text-adaptive-900'
                       }
                     `}
                   >
-                    <span className="mr-3 text-lg">
+                    <span className="mb-1 lg:mb-0 lg:mr-3 text-2xl lg:text-lg">
                       {module.icon}
                     </span>
-                    {module.name}
+                    <span className="text-xs lg:text-sm">{module.name}</span>
                   </Link>
                 )
               })}
               
-              {/* Spacer */}
-              <div className="py-2"></div>
-              
               {/* Settings Button */}
               <button
-                onClick={() => setShowSettings(true)}
-                className="group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors text-adaptive-700 w-full"
+                onClick={() => {
+                  console.log('🔧 Settings button clicked')
+                  setShowSettings(true)
+                }}
+                className="group flex flex-col lg:flex-row items-center justify-center lg:justify-start rounded-md px-3 py-4 lg:py-2 text-sm font-medium transition-colors text-adaptive-700 hover:bg-sidebar-hover hover:text-adaptive-900 w-full"
               >
-                <span className="mr-3 text-lg">⚙️</span>
-                Impostazioni
+                <span className="mb-1 lg:mb-0 lg:mr-3 text-2xl lg:text-lg">⚙️</span>
+                <span className="text-xs lg:text-sm">Impostazioni</span>
               </button>
-            </>
+              
+              {/* Theme Toggle - Solo Mobile */}
+              <div className="flex flex-col items-center space-y-2 lg:hidden col-span-2">
+                <SimpleThemeToggle />
+                <span className="text-xs text-adaptive-600 font-medium">Seleziona Tema</span>
+              </div>
+            </div>
           )}
         </nav>
 
-        {/* User Section */}
-        <div className="border-t border-adaptive p-4">
+        {/* User Section - Solo Desktop */}
+        <div className="hidden lg:block border-t border-adaptive p-4">
           <div className="flex items-center mb-3">
             <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
               {user.name.charAt(0).toUpperCase()}
@@ -115,14 +153,16 @@ export default function Sidebar() {
         </div>
       </div>
       
-      {/* Settings Modal */}
+      </div>
+      
+      {/* Settings Modal - Renderizzato fuori dalla sidebar */}
       {showSettings && (
         <SettingsModal 
           onClose={() => setShowSettings(false)}
           onModulesChanged={refreshModuleSettings}
         />
       )}
-    </div>
+    </>
   )
 }
 
@@ -142,10 +182,10 @@ function SettingsModal({ onClose, onModulesChanged }: {
   }
   
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={handleClose}>
-      <div className="card-adaptive rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden border border-adaptive" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-6 border-b border-adaptive">
-          <h2 className="text-xl font-semibold text-adaptive-900">⚙️ Impostazioni</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" onClick={handleClose}>
+      <div className="card-adaptive rounded-lg shadow-xl max-w-4xl w-full mx-2 sm:mx-4 max-h-[90vh] overflow-hidden border border-adaptive" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-adaptive">
+          <h2 className="text-lg sm:text-xl font-semibold text-adaptive-900">⚙️ Impostazioni</h2>
           <button
             onClick={handleClose}
             className="text-adaptive-600 hover:text-adaptive-800"
@@ -154,19 +194,18 @@ function SettingsModal({ onClose, onModulesChanged }: {
           </button>
         </div>
         
-        <div className="flex">
-          {/* Sidebar Tabs */}
-          <div className="w-64 card-adaptive border-r border-adaptive p-4">
-            <nav className="space-y-2">
+        <div className="flex flex-col lg:flex-row">
+          {/* Sidebar Tabs - Horizontal su mobile */}
+          <div className="lg:w-64 card-adaptive lg:border-r border-adaptive p-4">
+            <nav className="flex lg:flex-col lg:space-y-2 space-x-2 lg:space-x-0 overflow-x-auto lg:overflow-x-visible">
               {[
                 { id: 'modules', name: 'Moduli', icon: '📦' },
-                // { id: 'theme', name: 'Tema', icon: '🎨' },
                 { id: 'account', name: 'Account', icon: '🔐' }
               ].map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-shrink-0 lg:w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     activeTab === tab.id
                       ? 'bg-info text-white'
                       : 'text-adaptive-600 hover:bg-adaptive-50'
@@ -180,7 +219,7 @@ function SettingsModal({ onClose, onModulesChanged }: {
           </div>
           
           {/* Content */}
-          <div className="flex-1 p-6 overflow-y-auto max-h-[70vh]">
+          <div className="flex-1 p-4 sm:p-6 overflow-y-auto max-h-[60vh] lg:max-h-[70vh]">
             {activeTab === 'modules' && (
               <ModulesSettings 
                 moduleSettings={moduleSettings}
@@ -437,7 +476,7 @@ function DeleteAccountModal({ onClose, onConfirm }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" onClick={onClose}>
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-red-900">⚠️ Elimina Account</h3>

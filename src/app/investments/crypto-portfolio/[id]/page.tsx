@@ -9,7 +9,7 @@ import {
   CheckIcon
 } from '@heroicons/react/24/outline'
 import { useAuth } from '@/contexts/AuthContext'
-import { formatCurrency } from '@/utils/formatters'
+import { formatCurrency, formatCryptoSmart, formatCurrencySmart } from '@/utils/formatters'
 
 interface Asset {
   id: number
@@ -165,15 +165,13 @@ export default function CryptoPortfolioDetailPage() {
   // Format functions
   const formatCurrencyWithUserCurrency = (amount: number) =>
     formatCurrency(amount, user?.currency || 'EUR')
+  
+  const formatCurrencySmartWithUserCurrency = (amount: number) =>
+    formatCurrencySmart(amount, user?.currency || 'EUR')
 
   const formatPercentage = (value: number) =>
     `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
 
-  const formatCrypto = (amount: number, decimals = 8) =>
-    new Intl.NumberFormat('it-IT', { 
-      minimumFractionDigits: Math.min(decimals, 8),
-      maximumFractionDigits: Math.min(decimals, 8)
-    }).format(amount)
 
   // 🔄 FUNZIONE HELPER PER RAGGRUPPARE SWAP
   const groupTransactions = (transactions: Transaction[]) => {
@@ -902,29 +900,31 @@ export default function CryptoPortfolioDetailPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
+    <div className="container mx-auto px-4 py-4 sm:py-8">
+      {/* Header - Mobile Optimized */}
+      <div className="mb-6 sm:mb-8">
+        <div className="flex items-center gap-4 mb-4">
           <Link
             href="/investments"
             className="p-2 text-adaptive-600 hover:text-adaptive-900 hover:bg-adaptive-100 rounded-lg"
           >
             <ArrowLeftIcon className="w-5 h-5" />
           </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-adaptive-900 flex items-center gap-3">
+          <div className="flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-adaptive-900 flex items-center gap-2 sm:gap-3">
               🚀 {portfolio.name}
             </h1>
             {portfolio.description && (
-              <p className="text-adaptive-600 mt-1">{portfolio.description}</p>
+              <p className="text-adaptive-600 mt-1 text-sm sm:text-base">{portfolio.description}</p>
             )}
-            <p className="text-sm text-adaptive-500 mt-1">
+            <p className="text-xs sm:text-sm text-adaptive-500 mt-1">
               Collegato a: {portfolio.account.name} ({formatCurrencyWithUserCurrency(portfolio.account.balance)})
             </p>
           </div>
         </div>
-        <div className="flex gap-3">
+        
+        {/* Desktop Buttons */}
+        <div className="hidden sm:flex gap-3 justify-end">
           <button
             onClick={() => setShowEditPortfolio(true)}
             className="flex items-center gap-2 px-4 py-2 text-adaptive-600 border border-adaptive-300 rounded-md hover:bg-adaptive-50"
@@ -960,19 +960,56 @@ export default function CryptoPortfolioDetailPage() {
             Nuova Transazione
           </button>
         </div>
+        
+        {/* Mobile Buttons */}
+        <div className="sm:hidden space-y-3">
+          <button
+            onClick={() => setShowAddTransaction(true)}
+            className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Nuova Transazione
+          </button>
+          
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center justify-center gap-1 px-3 py-2 text-green-600 border border-green-300 rounded-lg hover:bg-green-50 text-xs"
+            >
+              <DocumentArrowUpIcon className="w-4 h-4" />
+              Import
+            </button>
+            
+            <button
+              onClick={() => setShowEditPortfolio(true)}
+              className="flex items-center justify-center gap-1 px-3 py-2 text-adaptive-600 border border-adaptive-300 rounded-lg hover:bg-adaptive-50 text-xs"
+            >
+              <Cog6ToothIcon className="w-4 h-4" />
+              Impostazioni
+            </button>
+            
+            <button
+              onClick={handleDeletePortfolio}
+              className="flex items-center justify-center gap-1 px-3 py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50 text-xs"
+            >
+              <TrashIcon className="w-4 h-4" />
+              Elimina
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* 🚀 Enhanced Statistics Overview - Sostituisce le 4 card esistenti */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
+      {/* 🚀 Enhanced Statistics Overview - Mobile Optimized */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4 sm:p-6 text-center sm:text-left">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">💰 Investimento Totale</h3>
-          <p className="text-2xl font-bold text-adaptive-900">{formatCurrencyWithUserCurrency(portfolio.stats.totalInvested)}</p>
+          <p className="text-xl sm:text-2xl font-bold text-adaptive-900">{formatCurrencyWithUserCurrency(portfolio.stats.totalInvested)}</p>
           <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.buyCount} acquisti</p>
         </div>
         
-        <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4 sm:p-6 text-center sm:text-left">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">💸 Capitale Recuperato</h3>
-          <p className="text-2xl font-bold text-adaptive-900">{formatCurrencyWithUserCurrency(portfolio.stats.capitalRecovered)}</p>
+          <p className="text-xl sm:text-2xl font-bold text-adaptive-900">{formatCurrencyWithUserCurrency(portfolio.stats.capitalRecovered)}</p>
           <p className="text-xs text-adaptive-600 mt-1">
             {portfolio.stats.sellCount} vendite
             {portfolio.stats.capitalFromSwaps > 0 && (
@@ -983,15 +1020,15 @@ export default function CryptoPortfolioDetailPage() {
           </p>
         </div>
         
-        <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4 sm:p-6 text-center sm:text-left">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">📈 Valore Attuale</h3>
-          <p className="text-2xl font-bold text-green-600">{formatCurrencyWithUserCurrency(portfolio.stats.totalValueEur)}</p>
+          <p className="text-xl sm:text-2xl font-bold text-green-600">{formatCurrencyWithUserCurrency(portfolio.stats.totalValueEur)}</p>
           <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.holdingsCount} asset</p>
         </div>
         
-        <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4 sm:p-6 text-center sm:text-left sm:col-span-2 lg:col-span-1">
           <h3 className="text-sm font-medium text-adaptive-500 mb-2">🎯 ROI Totale</h3>
-          <p className={`text-2xl font-bold ${portfolio.stats.totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <p className={`text-xl sm:text-2xl font-bold ${portfolio.stats.totalROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatPercentage(portfolio.stats.totalROI)}
           </p>
           <p className="text-xs text-adaptive-600 mt-1">
@@ -1000,25 +1037,25 @@ export default function CryptoPortfolioDetailPage() {
         </div>
       </div>
 
-      {/* 🆕 Riepilogo P&L Multi-Asset */}
-      <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-8">
-        <div className="p-6 border-b border-adaptive">
-          <h2 className="text-lg font-semibold text-adaptive-900">📊 Riepilogo P&L Multi-Asset</h2>
+      {/* 🆕 Riepilogo P&L Multi-Asset - Mobile Optimized */}
+      <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-6 sm:mb-8">
+        <div className="p-4 sm:p-6 border-b border-adaptive">
+          <h2 className="text-base sm:text-lg font-semibold text-adaptive-900">📊 Riepilogo P&L Multi-Asset</h2>
         </div>
         
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            <div className="text-center">
-              <div className="text-sm text-adaptive-500 mb-1">Profitti Realizzati</div>
-              <div className="text-2xl font-bold text-green-600">
+        <div className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-4 sm:mb-6">
+            <div className="card-adaptive p-4 rounded-lg border border-adaptive text-center sm:text-left">
+              <div className="text-sm text-adaptive-500 mb-1">💰 Profitti Realizzati</div>
+              <div className="text-xl sm:text-2xl font-bold text-green-600">
                 {formatCurrencyWithUserCurrency(portfolio.stats.realizedProfit - (portfolio.stats.stakeRewards || 0))}
               </div>
               <div className="text-xs text-adaptive-600 mt-1">Da vendite</div>
             </div>
             
-            <div className="text-center">
+            <div className="card-adaptive p-4 rounded-lg border border-adaptive text-center sm:text-left">
               <div className="text-sm text-adaptive-500 mb-1">🏆 Staking Rewards</div>
-              <div className="text-2xl font-bold text-blue-600">
+              <div className="text-xl sm:text-2xl font-bold text-blue-600">
                 {formatCurrencyWithUserCurrency(portfolio.stats.stakeRewards || 0)}
               </div>
               <div className="text-xs text-adaptive-600 mt-1">
@@ -1029,49 +1066,66 @@ export default function CryptoPortfolioDetailPage() {
               </div>
             </div>
             
-            <div className="text-center">
-              <div className="text-sm text-adaptive-500 mb-1">Plus/Minus Non Realizzati</div>
-              <div className={`text-2xl font-bold ${portfolio.stats.unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className="card-adaptive p-4 rounded-lg border border-adaptive text-center sm:text-left">
+              <div className="text-sm text-adaptive-500 mb-1">📈 Plus/Minus Non Realizzati</div>
+              <div className={`text-xl sm:text-2xl font-bold ${portfolio.stats.unrealizedGains >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {formatCurrencyWithUserCurrency(portfolio.stats.unrealizedGains)}
               </div>
               <div className="text-xs text-adaptive-600 mt-1">Su holdings correnti</div>
             </div>
             
-            <div className="text-center">
-              <div className="text-sm text-adaptive-500 mb-1">Totale P&L</div>
-              <div className={`text-2xl font-bold ${(portfolio.stats.realizedProfit + portfolio.stats.unrealizedGains) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className="card-adaptive p-4 rounded-lg border border-adaptive text-center sm:text-left sm:col-span-2 lg:col-span-1">
+              <div className="text-sm text-adaptive-500 mb-1">🎯 Totale P&L</div>
+              <div className={`text-xl sm:text-2xl font-bold ${(portfolio.stats.realizedProfit + portfolio.stats.unrealizedGains) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {formatCurrencyWithUserCurrency(portfolio.stats.realizedProfit + portfolio.stats.unrealizedGains)}
               </div>
               <div className="text-xs text-adaptive-600 mt-1">Performance totale</div>
             </div>
           </div>
 
-          {/* 🆕 Performance per Asset */}
-          <div className="mt-6">
+          {/* 🆕 Performance per Asset - Mobile Optimized */}
+          <div className="mt-4 sm:mt-6">
             <h3 className="text-sm font-medium text-adaptive-500 mb-4">📈 Performance per Asset</h3>
-            <div className="space-y-3">
+            
+            {/* Desktop View */}
+            <div className="hidden lg:block space-y-3">
               {portfolio.holdings
                 .filter(holding => (holding.netQuantity || holding.quantity) > 0.0000001)
                 .sort((a, b) => {
                   const aLivePrice = livePrices[a.asset.symbol]
-                  const aCurrentPrice = aLivePrice || a.currentPrice || a.avgPrice
                   const aNetQuantity = a.netQuantity || a.quantity
-                  const aValue = aLivePrice ? aNetQuantity * aLivePrice : aNetQuantity * (a.currentPrice || a.avgPrice)
+                  const aValue = (aLivePrice && aLivePrice > 0) ? aNetQuantity * aLivePrice : 
+                    (a.currentPrice && Math.abs(a.currentPrice - a.avgPrice) > 0.000001 && !(Math.abs(a.currentPrice - a.avgPrice) < 0.000001 && a.currentPrice > 0.001 && (!aLivePrice || aLivePrice === 0))) ? aNetQuantity * a.currentPrice : 
+                    (Math.abs(a.currentPrice - a.avgPrice) < 0.000001 && a.currentPrice > 0.001 && (!aLivePrice || aLivePrice === 0)) ? 0 : aNetQuantity * a.avgPrice
                   
                   const bLivePrice = livePrices[b.asset.symbol]
-                  const bCurrentPrice = bLivePrice || b.currentPrice || b.avgPrice
                   const bNetQuantity = b.netQuantity || b.quantity
-                  const bValue = bLivePrice ? bNetQuantity * bLivePrice : bNetQuantity * (b.currentPrice || b.avgPrice)
+                  const bValue = (bLivePrice && bLivePrice > 0) ? bNetQuantity * bLivePrice : 
+                    (b.currentPrice && Math.abs(b.currentPrice - b.avgPrice) > 0.000001 && !(Math.abs(b.currentPrice - b.avgPrice) < 0.000001 && b.currentPrice > 0.001 && (!bLivePrice || bLivePrice === 0))) ? bNetQuantity * b.currentPrice : 
+                    (Math.abs(b.currentPrice - b.avgPrice) < 0.000001 && b.currentPrice > 0.001 && (!bLivePrice || bLivePrice === 0)) ? 0 : bNetQuantity * b.avgPrice
                   
-                  return bValue - aValue // Ordine decrescente (maggior valore prima)
+                  return bValue - aValue
                 })
                 .map(holding => {
                 const livePrice = livePrices[holding.asset.symbol]
-                const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                const currentPrice = livePrice || ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
                 const netQuantity = holding.netQuantity || holding.quantity
-                const currentValue = livePrice 
+                const isPriceDataSuspect = Math.abs(holding.currentPrice - holding.avgPrice) < 0.000001 && 
+                  holding.currentPrice > 0.001 && // Prezzo sospettosamente alto
+                  (!livePrice || livePrice === 0) // Ma API dice 0
+                
+                const shouldUseLivePrice = livePrice && livePrice > 0
+                const shouldUseCurrentPrice = holding.currentPrice && 
+                  Math.abs(holding.currentPrice - holding.avgPrice) > 0.000001 && // Non identici
+                  !isPriceDataSuspect // E non sospetti
+                
+                const currentValue = shouldUseLivePrice
                   ? netQuantity * livePrice 
-                  : netQuantity * (holding.currentPrice || holding.avgPrice)
+                  : shouldUseCurrentPrice 
+                    ? netQuantity * holding.currentPrice
+                    : isPriceDataSuspect 
+                      ? 0 // Forza a 0 se i dati sono sospetti
+                      : netQuantity * holding.avgPrice
                 const investedValue = netQuantity * holding.avgPrice
                 const assetPnL = currentValue - investedValue
                 const assetROI = investedValue > 0 ? ((assetPnL / investedValue) * 100) : 0
@@ -1115,6 +1169,98 @@ export default function CryptoPortfolioDetailPage() {
                 )
               })}
             </div>
+            
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-3">
+              {portfolio.holdings
+                .filter(holding => (holding.netQuantity || holding.quantity) > 0.0000001)
+                .sort((a, b) => {
+                  const aLivePrice = livePrices[a.asset.symbol]
+                  const aNetQuantity = a.netQuantity || a.quantity
+                  const aValue = (aLivePrice && aLivePrice > 0) ? aNetQuantity * aLivePrice : 
+                    (a.currentPrice && Math.abs(a.currentPrice - a.avgPrice) > 0.000001 && !(Math.abs(a.currentPrice - a.avgPrice) < 0.000001 && a.currentPrice > 0.001 && (!aLivePrice || aLivePrice === 0))) ? aNetQuantity * a.currentPrice : 
+                    (Math.abs(a.currentPrice - a.avgPrice) < 0.000001 && a.currentPrice > 0.001 && (!aLivePrice || aLivePrice === 0)) ? 0 : aNetQuantity * a.avgPrice
+                  
+                  const bLivePrice = livePrices[b.asset.symbol]
+                  const bNetQuantity = b.netQuantity || b.quantity
+                  const bValue = (bLivePrice && bLivePrice > 0) ? bNetQuantity * bLivePrice : 
+                    (b.currentPrice && Math.abs(b.currentPrice - b.avgPrice) > 0.000001 && !(Math.abs(b.currentPrice - b.avgPrice) < 0.000001 && b.currentPrice > 0.001 && (!bLivePrice || bLivePrice === 0))) ? bNetQuantity * b.currentPrice : 
+                    (Math.abs(b.currentPrice - b.avgPrice) < 0.000001 && b.currentPrice > 0.001 && (!bLivePrice || bLivePrice === 0)) ? 0 : bNetQuantity * b.avgPrice
+                  
+                  return bValue - aValue
+                })
+                .map(holding => {
+                const livePrice = livePrices[holding.asset.symbol]
+                const currentPrice = livePrice || ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
+                const netQuantity = holding.netQuantity || holding.quantity
+                const isPriceDataSuspect = Math.abs(holding.currentPrice - holding.avgPrice) < 0.000001 && 
+                  holding.currentPrice > 0.001 && // Prezzo sospettosamente alto
+                  (!livePrice || livePrice === 0) // Ma API dice 0
+                
+                const shouldUseLivePrice = livePrice && livePrice > 0
+                const shouldUseCurrentPrice = holding.currentPrice && 
+                  Math.abs(holding.currentPrice - holding.avgPrice) > 0.000001 && // Non identici
+                  !isPriceDataSuspect // E non sospetti
+                
+                const currentValue = shouldUseLivePrice
+                  ? netQuantity * livePrice 
+                  : shouldUseCurrentPrice 
+                    ? netQuantity * holding.currentPrice
+                    : isPriceDataSuspect 
+                      ? 0 // Forza a 0 se i dati sono sospetti
+                      : netQuantity * holding.avgPrice
+                const investedValue = netQuantity * holding.avgPrice
+                const assetPnL = currentValue - investedValue
+                const assetROI = investedValue > 0 ? ((assetPnL / investedValue) * 100) : 0
+                const portfolioWeight = portfolio.stats.totalValueEur > 0 ? ((currentValue / portfolio.stats.totalValueEur) * 100) : 0
+
+                return (
+                  <div key={holding.asset.symbol} className="card-adaptive p-4 rounded-lg border border-adaptive">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="text-lg font-bold text-adaptive-900">{holding.asset.symbol}</h4>
+                          {livePrice && (
+                            <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">LIVE</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-adaptive-600 mb-2">{holding.asset.name}</p>
+                        <p className="text-lg font-bold text-adaptive-900">
+                          {formatCurrencyWithUserCurrency(currentValue)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-adaptive-500">% Portfolio</div>
+                        <div className="text-sm font-bold text-adaptive-900">
+                          {portfolioWeight.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500 text-sm">📈</span>
+                        <div>
+                          <span className="text-xs text-adaptive-600">P&L</span>
+                          <p className={`text-sm font-bold ${assetPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrencyWithUserCurrency(assetPnL)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500 text-sm">🎯</span>
+                        <div>
+                          <span className="text-xs text-adaptive-600">ROI</span>
+                          <p className={`text-sm font-bold ${assetROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatPercentage(assetROI)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -1147,18 +1293,18 @@ export default function CryptoPortfolioDetailPage() {
               <div className="flex flex-col lg:flex-row gap-6">
                 <div className="lg:w-1/3">
                   <div className="bg-adaptive-50 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-adaptive-900 mb-4">📊 Distribuzione Portfolio</h3>
+                    <h3 className="text-base sm:text-lg font-semibold text-adaptive-900 mb-4">📊 Distribuzione Portfolio</h3>
                     <div className="relative">
-                      <svg viewBox="0 0 200 200" className="w-48 h-48 mx-auto">
+                      <svg viewBox="0 0 200 200" className="w-40 h-40 sm:w-48 sm:h-48 mx-auto">
                         {(() => {
                           const filteredHoldings = portfolio.holdings.filter(holding => (holding.netQuantity || holding.quantity) > 0.0000001)
                           const totalValue = filteredHoldings.reduce((sum, holding) => {
                             const livePrice = livePrices[holding.asset.symbol]
-                            const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                            const currentPrice = livePrice || ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
                             const netQuantity = holding.netQuantity || holding.quantity
                             const currentValue = livePrice 
                               ? netQuantity * livePrice 
-                              : netQuantity * (holding.currentPrice || holding.avgPrice)
+                              : netQuantity * ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
                             return sum + currentValue
                           }, 0)
                           
@@ -1169,21 +1315,25 @@ export default function CryptoPortfolioDetailPage() {
                             .sort((a, b) => {
                               const aLivePrice = livePrices[a.asset.symbol]
                               const aNetQuantity = a.netQuantity || a.quantity
-                              const aValue = aLivePrice ? aNetQuantity * aLivePrice : aNetQuantity * (a.currentPrice || a.avgPrice)
+                              const aValue = (aLivePrice && aLivePrice > 0) ? aNetQuantity * aLivePrice : 
+                    (a.currentPrice && Math.abs(a.currentPrice - a.avgPrice) > 0.000001 && !(Math.abs(a.currentPrice - a.avgPrice) < 0.000001 && a.currentPrice > 0.001 && (!aLivePrice || aLivePrice === 0))) ? aNetQuantity * a.currentPrice : 
+                    (Math.abs(a.currentPrice - a.avgPrice) < 0.000001 && a.currentPrice > 0.001 && (!aLivePrice || aLivePrice === 0)) ? 0 : aNetQuantity * a.avgPrice
                               
                               const bLivePrice = livePrices[b.asset.symbol]
                               const bNetQuantity = b.netQuantity || b.quantity
-                              const bValue = bLivePrice ? bNetQuantity * bLivePrice : bNetQuantity * (b.currentPrice || b.avgPrice)
+                              const bValue = (bLivePrice && bLivePrice > 0) ? bNetQuantity * bLivePrice : 
+                    (b.currentPrice && Math.abs(b.currentPrice - b.avgPrice) > 0.000001 && !(Math.abs(b.currentPrice - b.avgPrice) < 0.000001 && b.currentPrice > 0.001 && (!bLivePrice || bLivePrice === 0))) ? bNetQuantity * b.currentPrice : 
+                    (Math.abs(b.currentPrice - b.avgPrice) < 0.000001 && b.currentPrice > 0.001 && (!bLivePrice || bLivePrice === 0)) ? 0 : bNetQuantity * b.avgPrice
                               
                               return bValue - aValue // Ordine decrescente
                             })
                             .map((holding, index) => {
                             const livePrice = livePrices[holding.asset.symbol]
-                            const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                            const currentPrice = livePrice || ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
                             const netQuantity = holding.netQuantity || holding.quantity
                             const currentValue = livePrice 
                               ? netQuantity * livePrice 
-                              : netQuantity * (holding.currentPrice || holding.avgPrice)
+                              : netQuantity * ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
                             const percentage = (currentValue / totalValue) * 100
                             const angle = (percentage / 100) * 360
                             
@@ -1228,11 +1378,11 @@ export default function CryptoPortfolioDetailPage() {
                         const filteredHoldings = portfolio.holdings.filter(holding => (holding.netQuantity || holding.quantity) > 0.0000001)
                         const totalValue = filteredHoldings.reduce((sum, holding) => {
                           const livePrice = livePrices[holding.asset.symbol]
-                          const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                          const currentPrice = livePrice || ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
                           const netQuantity = holding.netQuantity || holding.quantity
                           const currentValue = livePrice 
                             ? netQuantity * livePrice 
-                            : netQuantity * (holding.currentPrice || holding.avgPrice)
+                            : netQuantity * ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
                           return sum + currentValue
                         }, 0)
                         
@@ -1242,21 +1392,25 @@ export default function CryptoPortfolioDetailPage() {
                           .sort((a, b) => {
                             const aLivePrice = livePrices[a.asset.symbol]
                             const aNetQuantity = a.netQuantity || a.quantity
-                            const aValue = aLivePrice ? aNetQuantity * aLivePrice : aNetQuantity * (a.currentPrice || a.avgPrice)
+                            const aValue = (aLivePrice && aLivePrice > 0) ? aNetQuantity * aLivePrice : 
+                    (a.currentPrice && Math.abs(a.currentPrice - a.avgPrice) > 0.000001 && !(Math.abs(a.currentPrice - a.avgPrice) < 0.000001 && a.currentPrice > 0.001 && (!aLivePrice || aLivePrice === 0))) ? aNetQuantity * a.currentPrice : 
+                    (Math.abs(a.currentPrice - a.avgPrice) < 0.000001 && a.currentPrice > 0.001 && (!aLivePrice || aLivePrice === 0)) ? 0 : aNetQuantity * a.avgPrice
                             
                             const bLivePrice = livePrices[b.asset.symbol]
                             const bNetQuantity = b.netQuantity || b.quantity
-                            const bValue = bLivePrice ? bNetQuantity * bLivePrice : bNetQuantity * (b.currentPrice || b.avgPrice)
+                            const bValue = (bLivePrice && bLivePrice > 0) ? bNetQuantity * bLivePrice : 
+                    (b.currentPrice && Math.abs(b.currentPrice - b.avgPrice) > 0.000001 && !(Math.abs(b.currentPrice - b.avgPrice) < 0.000001 && b.currentPrice > 0.001 && (!bLivePrice || bLivePrice === 0))) ? bNetQuantity * b.currentPrice : 
+                    (Math.abs(b.currentPrice - b.avgPrice) < 0.000001 && b.currentPrice > 0.001 && (!bLivePrice || bLivePrice === 0)) ? 0 : bNetQuantity * b.avgPrice
                             
                             return bValue - aValue // Ordine decrescente
                           })
                           .map((holding, index) => {
                           const livePrice = livePrices[holding.asset.symbol]
-                          const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
+                          const currentPrice = livePrice || ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
                           const netQuantity = holding.netQuantity || holding.quantity
                           const currentValue = livePrice 
                             ? netQuantity * livePrice 
-                            : netQuantity * (holding.currentPrice || holding.avgPrice)
+                            : netQuantity * ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
                           const percentage = (currentValue / totalValue) * 100
                           
                           return (
@@ -1278,89 +1432,227 @@ export default function CryptoPortfolioDetailPage() {
                 </div>
                 
                 <div className="lg:w-2/3">
-                  <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-adaptive bg-adaptive-50">
-                    <th className="text-left py-3 px-4 font-medium text-adaptive-700">Asset</th>
-                    <th className="text-right py-3 px-4 font-medium text-adaptive-700">Quantità</th>
-                    <th className="text-right py-3 px-4 font-medium text-adaptive-700">Prezzo Medio</th>
-                    <th className="text-right py-3 px-4 font-medium text-adaptive-700">Prezzo Corrente</th>
-                    <th className="text-right py-3 px-4 font-medium text-adaptive-700">Valore</th>
-                    <th className="text-right py-3 px-4 font-medium text-adaptive-700">P&L</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {portfolio.holdings
-                    .filter(holding => (holding.netQuantity || holding.quantity) > 0.0000001)
-                    .sort((a, b) => {
-                      const aLivePrice = livePrices[a.asset.symbol]
-                      const aCurrentPrice = aLivePrice || a.currentPrice || a.avgPrice
-                      const aNetQuantity = a.netQuantity || a.quantity
-                      const aValue = aLivePrice ? aNetQuantity * aLivePrice : aNetQuantity * (a.currentPrice || a.avgPrice)
-                      
-                      const bLivePrice = livePrices[b.asset.symbol]
-                      const bCurrentPrice = bLivePrice || b.currentPrice || b.avgPrice
-                      const bNetQuantity = b.netQuantity || b.quantity
-                      const bValue = bLivePrice ? bNetQuantity * bLivePrice : bNetQuantity * (b.currentPrice || b.avgPrice)
-                      
-                      return bValue - aValue // Ordine decrescente (maggior valore prima)
-                    })
-                    .map(holding => {
-                    const livePrice = livePrices[holding.asset.symbol]
-                    const currentPrice = livePrice || holding.currentPrice || holding.avgPrice
-                    const netQuantity = holding.netQuantity || holding.quantity
-                    const currentValue = livePrice 
-                      ? netQuantity * livePrice 
-                      : netQuantity * (holding.currentPrice || holding.avgPrice)
-                    const investedValue = netQuantity * holding.avgPrice
-                    const unrealizedPnL = currentValue - investedValue
+                  {/* Desktop Table View */}
+                  <div className="hidden lg:block overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-adaptive bg-adaptive-50">
+                          <th className="text-left py-3 px-4 font-medium text-adaptive-700">Asset</th>
+                          <th className="text-right py-3 px-4 font-medium text-adaptive-700">Quantità</th>
+                          <th className="text-right py-3 px-4 font-medium text-adaptive-700">Prezzo Medio</th>
+                          <th className="text-right py-3 px-4 font-medium text-adaptive-700">Prezzo Corrente</th>
+                          <th className="text-right py-3 px-4 font-medium text-adaptive-700">Valore</th>
+                          <th className="text-right py-3 px-4 font-medium text-adaptive-700">P&L</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {portfolio.holdings
+                          .filter(holding => (holding.netQuantity || holding.quantity) > 0.0000001)
+                          .sort((a, b) => {
+                            const aLivePrice = livePrices[a.asset.symbol]
+                            const aCurrentPrice = aLivePrice || a.currentPrice || a.avgPrice
+                            const aNetQuantity = a.netQuantity || a.quantity
+                            const aValue = (aLivePrice && aLivePrice > 0) ? aNetQuantity * aLivePrice : 
+                    (a.currentPrice && Math.abs(a.currentPrice - a.avgPrice) > 0.000001 && !(Math.abs(a.currentPrice - a.avgPrice) < 0.000001 && a.currentPrice > 0.001 && (!aLivePrice || aLivePrice === 0))) ? aNetQuantity * a.currentPrice : 
+                    (Math.abs(a.currentPrice - a.avgPrice) < 0.000001 && a.currentPrice > 0.001 && (!aLivePrice || aLivePrice === 0)) ? 0 : aNetQuantity * a.avgPrice
+                            
+                            const bLivePrice = livePrices[b.asset.symbol]
+                            const bCurrentPrice = bLivePrice || b.currentPrice || b.avgPrice
+                            const bNetQuantity = b.netQuantity || b.quantity
+                            const bValue = (bLivePrice && bLivePrice > 0) ? bNetQuantity * bLivePrice : 
+                    (b.currentPrice && Math.abs(b.currentPrice - b.avgPrice) > 0.000001 && !(Math.abs(b.currentPrice - b.avgPrice) < 0.000001 && b.currentPrice > 0.001 && (!bLivePrice || bLivePrice === 0))) ? bNetQuantity * b.currentPrice : 
+                    (Math.abs(b.currentPrice - b.avgPrice) < 0.000001 && b.currentPrice > 0.001 && (!bLivePrice || bLivePrice === 0)) ? 0 : bNetQuantity * b.avgPrice
+                            
+                            return bValue - aValue // Ordine decrescente (maggior valore prima)
+                          })
+                          .map(holding => {
+                          const livePrice = livePrices[holding.asset.symbol]
+                          const currentPrice = livePrice || ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
+                          const netQuantity = holding.netQuantity || holding.quantity
+                          // Fix temporaneo per token con prezzi chiaramente sbagliati
+                          // Se currentPrice e avgPrice sono identici E molto più alti del livePrice (0),
+                          // probabilmente sono entrambi sbagliati
+                          const isPriceDataSuspect = Math.abs(holding.currentPrice - holding.avgPrice) < 0.000001 && 
+                            holding.currentPrice > 0.001 && // Prezzo sospettosamente alto
+                            (!livePrice || livePrice === 0) // Ma API dice 0
+                          
+                          const shouldUseLivePrice = livePrice && livePrice > 0
+                          const shouldUseCurrentPrice = holding.currentPrice && 
+                            Math.abs(holding.currentPrice - holding.avgPrice) > 0.000001 && // Non identici
+                            !isPriceDataSuspect // E non sospetti
+                          
+                          const currentValue = shouldUseLivePrice
+                            ? netQuantity * livePrice 
+                            : shouldUseCurrentPrice 
+                              ? netQuantity * holding.currentPrice
+                              : isPriceDataSuspect 
+                                ? 0 // Forza a 0 se i dati sono sospetti
+                                : netQuantity * holding.avgPrice
+                          
+                          const investedValue = netQuantity * holding.avgPrice
+                          const unrealizedPnL = currentValue - investedValue
 
-                    return (
-                      <tr key={holding.id} className="border-b border-adaptive hover:bg-adaptive-50">
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-3">
-                            <div>
-                              <div className="font-semibold text-adaptive-900">{holding.asset.symbol}</div>
-                              <div className="text-sm text-adaptive-600">{holding.asset.name}</div>
+                          // Debug per LUNC
+                          if (holding.asset.symbol === 'LUNC') {
+                            console.log('🔍 LUNC Debug v2:', {
+                              symbol: holding.asset.symbol,
+                              netQuantity,
+                              currentPrice: holding.currentPrice,
+                              avgPrice: holding.avgPrice,
+                              livePrice,
+                              isPriceDataSuspect,
+                              shouldUseLivePrice,
+                              shouldUseCurrentPrice,
+                              finalPrice: shouldUseLivePrice ? livePrice : shouldUseCurrentPrice ? holding.currentPrice : isPriceDataSuspect ? 0 : holding.avgPrice,
+                              currentValue,
+                              investedValue,
+                              unrealizedPnL
+                            })
+                          }
+
+                          return (
+                            <tr key={holding.id} className="border-b border-adaptive hover:bg-adaptive-50">
+                              <td className="py-4 px-4">
+                                <div className="flex items-center gap-3">
+                                  <div>
+                                    <div className="font-semibold text-adaptive-900">{holding.asset.symbol}</div>
+                                    <div className="text-sm text-adaptive-600">{holding.asset.name}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-4 px-4 text-right font-mono">
+                                {formatCryptoSmart(holding.netQuantity || holding.quantity, holding.asset.decimals)}
+                                {holding.feesQuantity > 0 && (
+                                  <div className="text-xs text-red-500">
+                                    -{formatCryptoSmart(holding.feesQuantity, holding.asset.decimals)} fees
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-4 px-4 text-right">
+                                {formatCurrencySmartWithUserCurrency(holding.avgPrice)}
+                              </td>
+                              <td className="py-4 px-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  {formatCurrencySmartWithUserCurrency(currentPrice)}
+                                  {livePrice && (
+                                    <span className="text-xs bg-green-100 text-green-600 px-1 rounded">LIVE</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-4 px-4 text-right font-semibold">
+                                {formatCurrencyWithUserCurrency(currentValue)}
+                              </td>
+                              <td className="py-4 px-4 text-right">
+                                <div className={`font-semibold ${unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {formatCurrencyWithUserCurrency(unrealizedPnL)}
+                                </div>
+                                <div className={`text-xs ${unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {formatPercentage(investedValue > 0 ? (unrealizedPnL / investedValue) * 100 : 0)}
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {/* Mobile Card View */}
+                  <div className="lg:hidden space-y-4">
+                    {portfolio.holdings
+                      .filter(holding => (holding.netQuantity || holding.quantity) > 0.0000001)
+                      .sort((a, b) => {
+                        const aLivePrice = livePrices[a.asset.symbol]
+                        const aNetQuantity = a.netQuantity || a.quantity
+                        const aValue = (aLivePrice && aLivePrice > 0) ? aNetQuantity * aLivePrice : 
+                    (a.currentPrice && Math.abs(a.currentPrice - a.avgPrice) > 0.000001 && !(Math.abs(a.currentPrice - a.avgPrice) < 0.000001 && a.currentPrice > 0.001 && (!aLivePrice || aLivePrice === 0))) ? aNetQuantity * a.currentPrice : 
+                    (Math.abs(a.currentPrice - a.avgPrice) < 0.000001 && a.currentPrice > 0.001 && (!aLivePrice || aLivePrice === 0)) ? 0 : aNetQuantity * a.avgPrice
+                        
+                        const bLivePrice = livePrices[b.asset.symbol]
+                        const bNetQuantity = b.netQuantity || b.quantity
+                        const bValue = (bLivePrice && bLivePrice > 0) ? bNetQuantity * bLivePrice : 
+                    (b.currentPrice && Math.abs(b.currentPrice - b.avgPrice) > 0.000001 && !(Math.abs(b.currentPrice - b.avgPrice) < 0.000001 && b.currentPrice > 0.001 && (!bLivePrice || bLivePrice === 0))) ? bNetQuantity * b.currentPrice : 
+                    (Math.abs(b.currentPrice - b.avgPrice) < 0.000001 && b.currentPrice > 0.001 && (!bLivePrice || bLivePrice === 0)) ? 0 : bNetQuantity * b.avgPrice
+                        
+                        return bValue - aValue
+                      })
+                      .map(holding => {
+                      const livePrice = livePrices[holding.asset.symbol]
+                      const currentPrice = livePrice || ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
+                      const netQuantity = holding.netQuantity || holding.quantity
+                      const currentValue = livePrice 
+                        ? netQuantity * livePrice 
+                        : netQuantity * ((holding.currentPrice !== null && holding.currentPrice !== undefined) ? holding.currentPrice : holding.avgPrice)
+                      const investedValue = netQuantity * holding.avgPrice
+                      const unrealizedPnL = currentValue - investedValue
+                      const roiPercentage = investedValue > 0 ? (unrealizedPnL / investedValue) * 100 : 0
+
+                      return (
+                        <div key={holding.id} className="card-adaptive rounded-lg p-4 border border-adaptive">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-bold text-adaptive-900 text-lg">{holding.asset.symbol}</h4>
+                                {livePrice && (
+                                  <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">LIVE</span>
+                                )}
+                              </div>
+                              <p className="text-sm text-adaptive-600 mb-2">{holding.asset.name}</p>
+                              <p className="text-lg font-bold text-adaptive-900">
+                                {formatCurrencyWithUserCurrency(currentValue)}
+                              </p>
                             </div>
                           </div>
-                        </td>
-                        <td className="py-4 px-4 text-right font-mono">
-                          {formatCrypto(holding.netQuantity || holding.quantity, holding.asset.decimals)}
-                          {holding.feesQuantity > 0 && (
-                            <div className="text-xs text-red-500">
-                              -{formatCrypto(holding.feesQuantity, holding.asset.decimals)} fees
+                          
+                          <div className="grid grid-cols-2 gap-3 mb-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500 text-sm">💰</span>
+                              <div>
+                                <span className="text-xs text-adaptive-600">Quantità</span>
+                                <p className="text-sm font-medium text-adaptive-900 font-mono">
+                                  {formatCryptoSmart(netQuantity, holding.asset.decimals)}
+                                </p>
+                                {holding.feesQuantity > 0 && (
+                                  <p className="text-xs text-red-500">
+                                    -{formatCryptoSmart(holding.feesQuantity, holding.asset.decimals)} fees
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </td>
-                        <td className="py-4 px-4 text-right">
-                          {formatCurrencyWithUserCurrency(holding.avgPrice)}
-                        </td>
-                        <td className="py-4 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {formatCurrencyWithUserCurrency(currentPrice)}
-                            {livePrice && (
-                              <span className="text-xs bg-green-100 text-green-600 px-1 rounded">LIVE</span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500 text-sm">📈</span>
+                              <div>
+                                <span className="text-xs text-adaptive-600">P&L</span>
+                                <p className={`text-sm font-bold ${unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {formatCurrencyWithUserCurrency(unrealizedPnL)}
+                                </p>
+                                <p className={`text-xs ${unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {formatPercentage(roiPercentage)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500 text-sm">⚖️</span>
+                              <div>
+                                <span className="text-xs text-adaptive-600">Prezzo Medio</span>
+                                <p className="text-sm font-medium text-adaptive-900">
+                                  {formatCurrencySmartWithUserCurrency(holding.avgPrice)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500 text-sm">🔥</span>
+                              <div>
+                                <span className="text-xs text-adaptive-600">Prezzo Corrente</span>
+                                <p className="text-sm font-medium text-adaptive-900">
+                                  {formatCurrencySmartWithUserCurrency(currentPrice)}
+                                </p>
+                              </div>
+                            </div>
                           </div>
-                        </td>
-                        <td className="py-4 px-4 text-right font-semibold">
-                          {formatCurrencyWithUserCurrency(currentValue)}
-                        </td>
-                        <td className="py-4 px-4 text-right">
-                          <div className={`font-semibold ${unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatCurrencyWithUserCurrency(unrealizedPnL)}
-                          </div>
-                          <div className={`text-xs ${unrealizedPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatPercentage(investedValue > 0 ? (unrealizedPnL / investedValue) * 100 : 0)}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
@@ -1369,11 +1661,12 @@ export default function CryptoPortfolioDetailPage() {
         </div>
       </div>
 
-      {/* Network Fees Section */}
-      <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-8">
-        <div className="flex items-center justify-between p-6 border-b border-adaptive">
-          <h2 className="text-xl font-bold text-adaptive-900">🌐 Network Fees</h2>
-          <div className="flex gap-3">
+      {/* Network Fees Section - Mobile Optimized */}
+      <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 border-b border-adaptive gap-3 sm:gap-0">
+          <h2 className="text-lg sm:text-xl font-bold text-adaptive-900">🌐 Network Fees</h2>
+          {/* Desktop */}
+          <div className="hidden sm:flex gap-3">
             <button
               onClick={() => setShowNetworkFees(!showNetworkFees)}
               className="flex items-center gap-2 px-3 py-1 text-sm bg-adaptive-100 text-adaptive-700 rounded-md hover:bg-adaptive-200"
@@ -1383,6 +1676,22 @@ export default function CryptoPortfolioDetailPage() {
             <button
               onClick={() => setShowAddFee(true)}
               className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium"
+            >
+              <PlusIcon className="w-4 h-4" />
+              Aggiungi Fee
+            </button>
+          </div>
+          {/* Mobile */}
+          <div className="sm:hidden grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setShowNetworkFees(!showNetworkFees)}
+              className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-adaptive-100 text-adaptive-700 rounded-lg hover:bg-adaptive-200"
+            >
+              {showNetworkFees ? '🔼 Nascondi' : '🔽 Mostra'}
+            </button>
+            <button
+              onClick={() => setShowAddFee(true)}
+              className="flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm"
             >
               <PlusIcon className="w-4 h-4" />
               Aggiungi Fee
@@ -1404,7 +1713,7 @@ export default function CryptoPortfolioDetailPage() {
                         <div className="text-sm text-red-600">{feeData.count} fees</div>
                       </div>
                       <div className="text-sm text-red-700">
-                        <div>Quantità: {formatCrypto(feeData.quantity, feeData.asset?.decimals || 6)}</div>
+                        <div>Quantità: {formatCryptoSmart(feeData.quantity, feeData.asset?.decimals || 6)}</div>
                         <div>Valore: {formatCurrencyWithUserCurrency(feeData.eurValue)}</div>
                       </div>
                     </div>
@@ -1448,7 +1757,7 @@ export default function CryptoPortfolioDetailPage() {
                           <div className="text-xs text-adaptive-600">{fee.asset?.name}</div>
                         </td>
                         <td className="py-3 px-4 text-right font-mono text-red-600">
-                          -{formatCrypto(fee.quantity, fee.asset?.decimals || 6)}
+                          -{formatCryptoSmart(fee.quantity, fee.asset?.decimals || 6)}
                         </td>
                         <td className="py-3 px-4 text-right text-red-600">
                           {fee.eurValue ? formatCurrencyWithUserCurrency(fee.eurValue) : '-'}
@@ -1475,11 +1784,13 @@ export default function CryptoPortfolioDetailPage() {
         )}
       </div>
 
-      {/* Transactions Table */}
+      {/* Transactions Table - Mobile Optimized */}
       <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
-        <div className="flex items-center justify-between p-6 border-b border-adaptive">
-          <h2 className="text-xl font-bold text-adaptive-900">📊 Transazioni ({portfolio.transactions.length})</h2>
-          <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 border-b border-adaptive gap-3 sm:gap-0">
+          <h2 className="text-lg sm:text-xl font-bold text-adaptive-900">📊 Transazioni ({portfolio.transactions.length})</h2>
+          
+          {/* Desktop Actions */}
+          <div className="hidden sm:flex gap-3">
             {selectedTransactions.length > 0 && (
               <button
                 onClick={handleBulkDelete}
@@ -1504,9 +1815,38 @@ export default function CryptoPortfolioDetailPage() {
               Aggiungi
             </button>
           </div>
+          
+          {/* Mobile Actions */}
+          <div className="sm:hidden space-y-2">
+            <button
+              onClick={() => setShowAddTransaction(true)}
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+            >
+              <PlusIcon className="w-4 h-4" />
+              Aggiungi Transazione
+            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setShowSwap(true)}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium text-sm"
+              >
+                🔄 Swap
+              </button>
+              {selectedTransactions.length > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:opacity-50 text-sm"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                  {isDeleting ? `${deleteProgress.current}/${deleteProgress.total}` : `Elimina ${selectedTransactions.length}`}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
         
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {portfolio.transactions.length === 0 ? (
             <div className="text-center py-8">
               <div className="text-4xl mb-4">📊</div>
@@ -1514,7 +1854,9 @@ export default function CryptoPortfolioDetailPage() {
               <p className="text-adaptive-600">Le tue transazioni appariranno qui</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden lg:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-adaptive bg-adaptive-50">
@@ -1563,7 +1905,7 @@ export default function CryptoPortfolioDetailPage() {
                               </span>
                             </td>
                             <td className="py-4 px-4 text-right font-mono">
-                              <div>{formatCrypto(item.swapOut.quantity, item.swapOut.asset.decimals)} → {formatCrypto(item.swapIn.quantity, item.swapIn.asset.decimals)}</div>
+                              <div>{formatCryptoSmart(item.swapOut.quantity, item.swapOut.asset.decimals)} → {formatCryptoSmart(item.swapIn.quantity, item.swapIn.asset.decimals)}</div>
                             </td>
                             <td className="py-4 px-4 text-right font-semibold">
                               {formatCurrencyWithUserCurrency(item.swapOut.eurValue)}
@@ -1626,7 +1968,7 @@ export default function CryptoPortfolioDetailPage() {
                                   </span>
                                 </td>
                                 <td className="py-2 px-8 text-right font-mono text-sm text-gray-900">
-                                  -{formatCrypto(item.swapOut.quantity, item.swapOut.asset.decimals)}
+                                  -{formatCryptoSmart(item.swapOut.quantity, item.swapOut.asset.decimals)}
                                 </td>
                                 <td className="py-2 px-8 text-right text-sm font-medium text-gray-900">
                                   {formatCurrencyWithUserCurrency(item.swapOut.eurValue)}
@@ -1655,7 +1997,7 @@ export default function CryptoPortfolioDetailPage() {
                                   </span>
                                 </td>
                                 <td className="py-2 px-8 text-right font-mono text-sm text-gray-900">
-                                  +{formatCrypto(item.swapIn.quantity, item.swapIn.asset.decimals)}
+                                  +{formatCryptoSmart(item.swapIn.quantity, item.swapIn.asset.decimals)}
                                 </td>
                                 <td className="py-2 px-8 text-right text-sm font-medium text-gray-900">
                                   {formatCurrencyWithUserCurrency(item.swapIn.eurValue)}
@@ -1712,7 +2054,7 @@ export default function CryptoPortfolioDetailPage() {
                         </span>
                       </td>
                       <td className="py-4 px-4 text-right font-mono">
-                        {formatCrypto(transaction.quantity, transaction.asset.decimals)}
+                        {formatCryptoSmart(transaction.quantity, transaction.asset.decimals)}
                       </td>
                       <td className="py-4 px-4 text-right font-semibold">
                         {formatCurrencyWithUserCurrency(transaction.eurValue)}
@@ -1744,7 +2086,222 @@ export default function CryptoPortfolioDetailPage() {
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+              
+              {/* Mobile Card View */}
+              <div className="lg:hidden space-y-4">
+                {/* Mobile Select All */}
+                <div className="flex items-center gap-2 pb-2 border-b border-adaptive">
+                  <input
+                    type="checkbox"
+                    checked={selectAll}
+                    onChange={handleSelectAll}
+                    className="h-4 w-4 text-blue-600 border-adaptive rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-adaptive-600">Seleziona tutto</span>
+                </div>
+                
+                {groupTransactions(portfolio.transactions).map(item => {
+                  // Se è un gruppo swap
+                  if ('swapOut' in item) {
+                    const isExpanded = expandedSwaps.has(item.id)
+                    return (
+                      <div key={item.id} className="card-adaptive rounded-lg p-4 border border-adaptive">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-600">
+                                🔄 Swap
+                              </span>
+                              <span className="text-sm text-adaptive-600">
+                                {new Date(item.date).toLocaleDateString('it-IT')}
+                              </span>
+                            </div>
+                            <h4 className="font-semibold text-adaptive-900 text-base mb-1">
+                              {item.swapOut.asset.symbol} → {item.swapIn.asset.symbol}
+                            </h4>
+                            <p className="text-lg font-bold text-adaptive-900">
+                              {formatCurrencyWithUserCurrency(item.swapOut.eurValue)}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 gap-2 mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500 text-sm">🔄</span>
+                            <div>
+                              <span className="text-xs text-adaptive-600">Quantità</span>
+                              <p className="text-sm font-medium text-adaptive-900 font-mono">
+                                {formatCryptoSmart(item.swapOut.quantity, item.swapOut.asset.decimals)} → {formatCryptoSmart(item.swapIn.quantity, item.swapIn.asset.decimals)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-3 border-t border-adaptive">
+                          <button
+                            onClick={() => {
+                              const newExpanded = new Set(expandedSwaps)
+                              if (isExpanded) {
+                                newExpanded.delete(item.id)
+                              } else {
+                                newExpanded.add(item.id)
+                              }
+                              setExpandedSwaps(newExpanded)
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors text-sm sm:hidden"
+                          >
+                            <ChevronDownIcon className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              const newExpanded = new Set(expandedSwaps)
+                              if (isExpanded) {
+                                newExpanded.delete(item.id)
+                              } else {
+                                newExpanded.add(item.id)
+                              }
+                              setExpandedSwaps(newExpanded)
+                            }}
+                            className="hidden sm:flex items-center gap-2 px-3 py-2 text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors text-sm"
+                          >
+                            <ChevronDownIcon className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            {isExpanded ? 'Nascondi' : 'Dettagli'}
+                          </button>
+                          <button
+                            onClick={() => handleEditSwap(item)}
+                            className="flex items-center gap-2 px-3 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                            Modifica
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSwap(item)}
+                            className="flex items-center gap-2 px-3 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-sm"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                            Elimina
+                          </button>
+                        </div>
+                        
+                        {/* Dettagli espansi */}
+                        {isExpanded && (
+                          <div className="mt-4 space-y-3 pt-3 border-t border-adaptive">
+                            <div className="card-adaptive p-3 rounded border-l-4 border-red-500">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Swap Out</span>
+                                <span className="text-sm font-medium">{item.swapOut.asset.symbol}</span>
+                              </div>
+                              <p className="text-sm text-adaptive-900 font-mono">
+                                -{formatCryptoSmart(item.swapOut.quantity, item.swapOut.asset.decimals)}
+                              </p>
+                              <p className="text-sm text-adaptive-600">
+                                {formatCurrencyWithUserCurrency(item.swapOut.eurValue)} ({formatCurrencyWithUserCurrency(item.swapOut.pricePerUnit)}/unità)
+                              </p>
+                            </div>
+                            <div className="card-adaptive p-3 rounded border-l-4 border-green-500">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Swap In</span>
+                                <span className="text-sm font-medium">{item.swapIn.asset.symbol}</span>
+                              </div>
+                              <p className="text-sm text-adaptive-900 font-mono">
+                                +{formatCryptoSmart(item.swapIn.quantity, item.swapIn.asset.decimals)}
+                              </p>
+                              <p className="text-sm text-adaptive-600">
+                                {formatCurrencyWithUserCurrency(item.swapIn.eurValue)} ({formatCurrencyWithUserCurrency(item.swapIn.pricePerUnit)}/unità)
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  } else {
+                    // Transazione normale
+                    const transaction = item as Transaction
+                    return (
+                      <div key={transaction.id} className="card-adaptive rounded-lg p-4 border border-adaptive">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3 flex-1">
+                            <input
+                              type="checkbox"
+                              checked={selectedTransactions.includes(transaction.id)}
+                              onChange={() => handleSelectTransaction(transaction.id)}
+                              className="h-4 w-4 text-blue-600 border-adaptive rounded focus:ring-blue-500 mt-1"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  transaction.type === 'buy' 
+                                    ? 'bg-green-100 text-green-600' 
+                                    : transaction.type === 'sell'
+                                    ? 'bg-red-100 text-red-600'
+                                    : transaction.type === 'stake_reward'
+                                    ? 'bg-blue-100 text-blue-600'
+                                    : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {transaction.type === 'buy' ? '💰 Buy' 
+                                   : transaction.type === 'sell' ? '💸 Sell'
+                                   : transaction.type === 'stake_reward' ? '🏆 Stake'
+                                   : transaction.type}
+                                </span>
+                                <span className="text-sm text-adaptive-600">
+                                  {new Date(transaction.date).toLocaleDateString('it-IT')}
+                                </span>
+                              </div>
+                              <h4 className="font-semibold text-adaptive-900 text-base mb-1">
+                                {transaction.asset.symbol}
+                              </h4>
+                              <p className="text-sm text-adaptive-600 mb-2">{transaction.asset.name}</p>
+                              <p className="text-lg font-bold text-adaptive-900">
+                                {formatCurrencyWithUserCurrency(transaction.eurValue)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500 text-sm">💰</span>
+                            <div>
+                              <span className="text-xs text-adaptive-600">Quantità</span>
+                              <p className="text-sm font-medium text-adaptive-900 font-mono">
+                                {formatCryptoSmart(transaction.quantity, transaction.asset.decimals)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500 text-sm">📊</span>
+                            <div>
+                              <span className="text-xs text-adaptive-600">Prezzo/Unità</span>
+                              <p className="text-sm font-medium text-adaptive-900">
+                                {formatCurrencyWithUserCurrency(transaction.pricePerUnit)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-3 border-t border-adaptive">
+                          <button
+                            onClick={() => openEditTransaction(transaction)}
+                            className="flex items-center gap-2 px-3 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                            Modifica
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTransaction(transaction.id)}
+                            className="flex items-center gap-2 px-3 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-sm"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                            Elimina
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  }
+                })}
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -1830,7 +2387,7 @@ export default function CryptoPortfolioDetailPage() {
                 />
                 {currentPrice && (
                   <div className="text-xs text-green-600 mt-1">
-                    💹 Prezzo corrente: {formatCurrencyWithUserCurrency(currentPrice)}
+                    💹 Prezzo corrente: {formatCurrencySmartWithUserCurrency(currentPrice)}
                   </div>
                 )}
               </div>
@@ -1869,7 +2426,7 @@ export default function CryptoPortfolioDetailPage() {
                 />
                 {currentPrice && transactionForm.quantity && !isNaN(parseFloat(transactionForm.quantity)) && (
                   <div className="text-xs text-gray-500 mt-1">
-                    💡 {transactionForm.quantity} × {formatCurrencyWithUserCurrency(currentPrice)} = {formatCurrencyWithUserCurrency(parseFloat(transactionForm.quantity) * currentPrice)}
+                    💡 {transactionForm.quantity} × {formatCurrencySmartWithUserCurrency(currentPrice)} = {formatCurrencyWithUserCurrency(parseFloat(transactionForm.quantity) * currentPrice)}
                   </div>
                 )}
               </div>
@@ -2002,7 +2559,7 @@ export default function CryptoPortfolioDetailPage() {
                 />
                 {currentPrice && (
                   <div className="text-xs text-green-600 mt-1">
-                    💹 Prezzo corrente: {formatCurrencyWithUserCurrency(currentPrice)}
+                    💹 Prezzo corrente: {formatCurrencySmartWithUserCurrency(currentPrice)}
                   </div>
                 )}
               </div>
@@ -2041,7 +2598,7 @@ export default function CryptoPortfolioDetailPage() {
                 />
                 {currentPrice && transactionForm.quantity && !isNaN(parseFloat(transactionForm.quantity)) && (
                   <div className="text-xs text-gray-500 mt-1">
-                    💡 {transactionForm.quantity} × {formatCurrencyWithUserCurrency(currentPrice)} = {formatCurrencyWithUserCurrency(parseFloat(transactionForm.quantity) * currentPrice)}
+                    💡 {transactionForm.quantity} × {formatCurrencySmartWithUserCurrency(currentPrice)} = {formatCurrencyWithUserCurrency(parseFloat(transactionForm.quantity) * currentPrice)}
                   </div>
                 )}
               </div>
@@ -2181,7 +2738,7 @@ export default function CryptoPortfolioDetailPage() {
                   <option value="">Seleziona asset...</option>
                   {portfolio.holdings.map(holding => (
                     <option key={holding.asset.symbol} value={holding.asset.symbol}>
-                      {holding.asset.symbol} - {formatCrypto(holding.quantity)} disponibili
+                      {holding.asset.symbol} - {formatCryptoSmart(holding.quantity)} disponibili
                     </option>
                   ))}
                 </select>

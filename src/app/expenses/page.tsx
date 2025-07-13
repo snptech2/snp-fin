@@ -814,12 +814,13 @@ export default function ExpensesPage() {
   const currentMonthTotal = currentMonthChartData.reduce((sum, item) => sum + item.value, 0)
   const grandTotal = totalChartData.reduce((sum, item) => sum + item.value, 0)
 
-  // === COMPONENTE GRAFICO ===
+  // === COMPONENTE GRAFICO - Mobile Optimized ===
   const renderPieChart = (data, title, total) => (
-    <div className="card-adaptive p-6 rounded-lg shadow-sm border-adaptive">
-      <h3 className="text-lg font-medium text-adaptive-900 mb-6">{title}</h3>
+    <div className="card-adaptive p-4 sm:p-6 rounded-lg shadow-sm border-adaptive">
+      <h3 className="text-base sm:text-lg font-medium text-adaptive-900 mb-4 sm:mb-6 text-center lg:text-left">{title}</h3>
       
-      <div className="flex items-start gap-6">
+      {/* Desktop Layout */}
+      <div className="hidden lg:flex items-start gap-6">
         {/* Pie Chart */}
         <div className="w-40 h-40">
           <ResponsiveContainer width="100%" height="100%">
@@ -877,6 +878,66 @@ export default function ExpensesPage() {
           </div>
         </div>
       </div>
+
+      {/* Mobile/Tablet Layout */}
+      <div className="lg:hidden">
+        {/* Pie Chart - Larger on mobile */}
+        <div className="w-48 h-48 sm:w-56 sm:h-56 mx-auto mb-6">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={45}
+                outerRadius={85}
+                paddingAngle={2}
+                dataKey="value"
+                startAngle={90}
+                endAngle={-270}
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        
+        {/* Legend - Full width cards on mobile */}
+        <div className="space-y-2">
+          {data.map((item, index) => {
+            const percentage = total > 0 ? (item.value / total) * 100 : 0
+            return (
+              <div key={index} className="bg-adaptive-50 rounded-lg p-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-4 h-4 rounded-full" 
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="text-sm font-medium text-adaptive-700">{item.name}</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-semibold text-adaptive-900">
+                    {formatCurrency(item.value)}
+                  </div>
+                  <div className="text-xs text-adaptive-500">
+                    {percentage.toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+          
+          {/* Total */}
+          <div className="bg-adaptive-100 rounded-lg p-3 border-t border-adaptive">
+            <div className="flex justify-between">
+              <span className="text-sm font-semibold text-adaptive-700">Totale:</span>
+              <span className="text-base font-bold text-adaptive-900">{formatCurrency(total)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 
@@ -901,57 +962,75 @@ export default function ExpensesPage() {
   return (
     <ProtectedRoute>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-adaptive-900">Uscite</h1>
-            <p className="text-adaptive-600">Gestisci le tue uscite e categorie</p>
+        {/* Header - Mobile Optimized */}
+        <div className="mb-6 sm:mb-8">
+          <div className="mb-4">
+            <h1 className="text-2xl sm:text-3xl font-bold text-adaptive-900">Uscite</h1>
+            <p className="text-adaptive-600 text-sm sm:text-base">Gestisci le tue uscite e categorie</p>
           </div>
-          <div className="flex gap-3">
+          {/* Desktop: Side by side */}
+          <div className="hidden sm:flex justify-end gap-3">
             <button
               onClick={() => setShowImportModal(true)}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 transition-colors"
+              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 transition-colors text-sm"
             >
               <DocumentArrowUpIcon className="w-5 h-5" />
               Import CSV
             </button>
             <button
               onClick={() => setShowTransactionForm(true)}
-              className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2"
+              className="btn-primary px-4 py-2 rounded-lg flex items-center gap-2 text-sm"
             >
               <PlusIcon className="w-5 h-5" />
               Nuova Uscita
             </button>
           </div>
+          {/* Mobile: Stacked */}
+          <div className="sm:hidden space-y-3">
+            <button
+              onClick={() => setShowTransactionForm(true)}
+              className="w-full btn-primary px-4 py-3 rounded-lg flex items-center justify-center gap-2 text-sm font-medium"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Nuova Uscita
+            </button>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="w-full bg-green-600 text-white px-4 py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-green-700 transition-colors text-sm font-medium"
+            >
+              <DocumentArrowUpIcon className="w-5 h-5" />
+              Import CSV
+            </button>
+          </div>
         </div>
 
-        {/* Statistiche */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="card-adaptive rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-2">💸 Spese Operative</h3>
-            <p className="text-3xl font-bold text-red-600">{formatCurrency(totalExpenses)}</p>
+        {/* Statistiche - Mobile Optimized */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="card-adaptive rounded-lg p-4 sm:p-6 text-center sm:text-left">
+            <h3 className="text-base sm:text-lg font-semibold text-adaptive-900 mb-2">💸 Spese Operative</h3>
+            <p className="text-2xl sm:text-3xl font-bold text-red-600">{formatCurrency(totalExpenses)}</p>
             <p className="text-sm text-adaptive-600">{operationalTransactions.length} transazioni</p>
           </div>
           
-          <div className="card-adaptive rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-2">📅 Questo Mese</h3>
-            <p className="text-3xl font-bold text-orange-600">{formatCurrency(currentMonthExpenses)}</p>
+          <div className="card-adaptive rounded-lg p-4 sm:p-6 text-center sm:text-left">
+            <h3 className="text-base sm:text-lg font-semibold text-adaptive-900 mb-2">📅 Questo Mese</h3>
+            <p className="text-2xl sm:text-3xl font-bold text-orange-600">{formatCurrency(currentMonthExpenses)}</p>
             <p className="text-sm text-adaptive-600">
               {totalExpenses > 0 ? `${((currentMonthExpenses / totalExpenses) * 100).toFixed(1)}% del totale` : '0% del totale'}
             </p>
           </div>
           
-          <div className="card-adaptive rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-2">💰 Tasse Pagate</h3>
-            <p className="text-3xl font-bold text-purple-600">{formatCurrency(totalFiscalExpenses)}</p>
+          <div className="card-adaptive rounded-lg p-4 sm:p-6 text-center sm:text-left">
+            <h3 className="text-base sm:text-lg font-semibold text-adaptive-900 mb-2">💰 Tasse Pagate</h3>
+            <p className="text-2xl sm:text-3xl font-bold text-purple-600">{formatCurrency(totalFiscalExpenses)}</p>
             <p className="text-sm text-adaptive-600">
               {fiscalTransactions.length} pagamenti fiscali
             </p>
           </div>
           
-          <div className="card-adaptive rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-2">🏷️ Categorie</h3>
-            <p className="text-3xl font-bold text-blue-600">{categories.length}</p>
+          <div className="card-adaptive rounded-lg p-4 sm:p-6 text-center sm:text-left sm:col-span-2 lg:col-span-1">
+            <h3 className="text-base sm:text-lg font-semibold text-adaptive-900 mb-2">🏷️ Categorie</h3>
+            <p className="text-2xl sm:text-3xl font-bold text-blue-600">{categories.length}</p>
             <button 
               onClick={() => setShowCategories(!showCategories)}
               className="text-sm text-blue-600 hover:text-blue-700 mt-1"
@@ -1282,52 +1361,120 @@ export default function ExpensesPage() {
                   </span>
                 </div>
 
-                {/* Lista transazioni */}
-                {paginatedTransactions.map(transaction => (
-                  <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedTransactions.includes(transaction.id)}
-                        onChange={() => handleTransactionSelect(transaction.id)}
-                        className="rounded"
-                      />
-                      <div className="flex items-center gap-3">
-                        <div 
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: transaction.category.color || '#EF4444' }}
-                        />
-                        <div>
-                          <p className="font-medium text-adaptive-900">
-                            {transaction.description || 'Uscita'}
+                {/* Desktop Table View */}
+                <div className="hidden lg:block">
+                  <div className="space-y-2">
+                    {paginatedTransactions.map(transaction => (
+                      <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedTransactions.includes(transaction.id)}
+                            onChange={() => handleTransactionSelect(transaction.id)}
+                            className="rounded"
+                          />
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: transaction.category.color || '#EF4444' }}
+                            />
+                            <div>
+                              <p className="font-medium text-adaptive-900">
+                                {transaction.description || 'Uscita'}
+                              </p>
+                              <p className="text-sm text-adaptive-600">
+                                {transaction.category.name} • {transaction.account.name} • {new Date(transaction.date).toLocaleDateString('it-IT')}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <p className="text-lg font-semibold text-red-600">
+                            -{formatCurrency(transaction.amount)}
                           </p>
-                          <p className="text-sm text-adaptive-600">
-                            {transaction.category.name} • {transaction.account.name} • {new Date(transaction.date).toLocaleDateString('it-IT')}
-                          </p>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleEditTransaction(transaction)}
+                              className="p-1 text-adaptive-600 hover:text-blue-600"
+                            >
+                              <PencilIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTransaction(transaction.id)}
+                              className="p-1 text-adaptive-600 hover:text-red-600"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <p className="text-lg font-semibold text-red-600">
-                        -{formatCurrency(transaction.amount)}
-                      </p>
-                      <div className="flex gap-1">
+                    ))}
+                  </div>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden space-y-4">
+                  {paginatedTransactions.map((transaction) => (
+                    <div key={transaction.id} className="card-adaptive rounded-lg p-4 border border-adaptive">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3 flex-1">
+                          <input
+                            type="checkbox"
+                            checked={selectedTransactions.includes(transaction.id)}
+                            onChange={() => handleTransactionSelect(transaction.id)}
+                            className="rounded mt-1"
+                          />
+                          <div className="flex items-center gap-2 flex-1">
+                            <div 
+                              className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
+                              style={{ backgroundColor: transaction.category.color || '#EF4444' }}
+                            />
+                            <div className="flex-1">
+                              <p className="font-semibold text-adaptive-900 text-base mb-1">
+                                {transaction.description || 'Uscita'}
+                              </p>
+                              <p className="text-xl font-bold text-red-600">
+                                -{formatCurrency(transaction.amount)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-2 mb-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500 text-sm">📂</span>
+                          <span className="text-sm text-adaptive-700 font-medium">{transaction.category.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500 text-sm">🏦</span>
+                          <span className="text-sm text-adaptive-700">{transaction.account.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500 text-sm">📅</span>
+                          <span className="text-sm text-adaptive-700">{new Date(transaction.date).toLocaleDateString('it-IT')}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-2 border-t border-adaptive">
                         <button
                           onClick={() => handleEditTransaction(transaction)}
-                          className="p-1 text-adaptive-600 hover:text-blue-600"
+                          className="flex items-center gap-2 px-3 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-sm"
                         >
                           <PencilIcon className="w-4 h-4" />
+                          Modifica
                         </button>
                         <button
                           onClick={() => handleDeleteTransaction(transaction.id)}
-                          className="p-1 text-adaptive-600 hover:text-red-600"
+                          className="flex items-center gap-2 px-3 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-sm"
                         >
                           <TrashIcon className="w-4 h-4" />
+                          Elimina
                         </button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
 
                 {/* Paginazione */}
                 {totalPages > 1 && (

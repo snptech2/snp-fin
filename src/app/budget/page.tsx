@@ -272,9 +272,9 @@ export default function BudgetPage() {
       <div className="w-full">
         <h4 className="text-md font-medium text-adaptive-900 mb-4">📊 Visualizzazione Allocazione</h4>
         
-        <div className="flex items-center gap-6">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-6">
           {/* Pie Chart */}
-          <div className="w-40 h-40">
+          <div className="w-48 h-48 lg:w-40 lg:h-40 mx-auto lg:mx-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -355,46 +355,65 @@ export default function BudgetPage() {
   return (
     <ProtectedRoute>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-adaptive-900">Budget</h1>
-            <p className="text-adaptive-600">Gestione allocazione fondi per priorità</p>
+        {/* Header - Mobile Optimized */}
+        <div className="mb-6 sm:mb-8">
+          <div className="mb-4">
+            <h1 className="text-2xl sm:text-3xl font-bold text-adaptive-900">Budget</h1>
+            <p className="text-adaptive-600 text-sm sm:text-base">Gestione allocazione fondi per priorità</p>
           </div>
-          <button
-            onClick={openCreateForm}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            ➕ Nuovo Budget
-          </button>
+          {/* Desktop */}
+          <div className="hidden sm:flex justify-end">
+            <button
+              onClick={openCreateForm}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+            >
+              ➕ Nuovo Budget
+            </button>
+          </div>
+          {/* Mobile */}
+          <div className="sm:hidden">
+            <button
+              onClick={openCreateForm}
+              className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+            >
+              ➕ Nuovo Budget
+            </button>
+          </div>
         </div>
 
-        {/* Statistiche */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+        {/* Statistiche - Mobile Optimized */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left">
             <h3 className="text-sm font-medium text-adaptive-500">Liquidità Totale</h3>
-            <p className="text-2xl font-bold text-blue-600">
+            <p className="text-2xl sm:text-2xl font-bold text-blue-600">
               {formatCurrency(budgetData?.totalLiquidity || 0)}
             </p>
             <p className="text-sm text-adaptive-600">Da tutti i conti</p>
           </div>
           
-          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left">
             <h3 className="text-sm font-medium text-adaptive-500">Allocato</h3>
-            <p className="text-2xl font-bold text-green-600">
+            <p className="text-2xl sm:text-2xl font-bold text-green-600">
               {formatCurrency(budgetData?.totalAllocated || 0)}
             </p>
             <p className="text-sm text-adaptive-600">Budget assegnati</p>
           </div>
           
-          <div className="card-adaptive p-4 rounded-lg border-adaptive">
+          <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left sm:col-span-2 lg:col-span-1">
             <h3 className="text-sm font-medium text-adaptive-500">Non Allocato</h3>
-            <p className="text-2xl font-bold text-orange-600">
+            <p className="text-2xl sm:text-2xl font-bold text-orange-600">
               {formatCurrency(budgetData?.unallocated || 0)}
             </p>
             <p className="text-sm text-adaptive-600">Fondi liberi</p>
           </div>
         </div>
+
+        {/* Grafico Allocazione - Sezione separata */}
+        {budgetData?.budgets && budgetData.budgets.length > 0 && (
+          <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-6">
+            {renderPieChart()}
+          </div>
+        )}
 
         {/* Lista Budget */}
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
@@ -403,14 +422,13 @@ export default function BudgetPage() {
               Allocazione Budget ({budgetData?.budgets.length || 0})
             </h3>
           </div>
+          
           <div className="p-6">
             {budgetData?.budgets && budgetData.budgets.length > 0 ? (
               <div className="space-y-6">
-                {/* Grafico a torta */}
-                {renderPieChart()}
-                
-                {/* Lista budget */}
-                <div className="space-y-3">
+                {/* Desktop Table View */}
+                <div className="hidden lg:block">
+                  <div className="space-y-3">
                   {budgetData.budgets.map((budget) => (
                   <div key={budget.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                     <div className="flex items-center gap-4 flex-1">
@@ -508,6 +526,85 @@ export default function BudgetPage() {
                       </button>
                     </div>
                   </div>
+                  ))}
+                  </div>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden space-y-4">
+                  {budgetData.budgets.map((budget) => (
+                    <div key={budget.id} className="card-adaptive rounded-lg p-4 border border-adaptive">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="bg-gray-200 text-gray-700 px-2 py-1 rounded text-sm font-medium">
+                            #{budget.order}
+                          </div>
+                          <div 
+                            className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
+                            style={{ backgroundColor: budget.color }}
+                          />
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-adaptive-900 text-base mb-1">{budget.name}</h4>
+                            <p className="text-lg font-bold text-adaptive-900">
+                              {formatCurrency(budget.allocatedAmount || 0)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-2 mb-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500 text-sm">🎯</span>
+                          <span className="text-sm text-adaptive-700">
+                            {budget.type === 'fixed' 
+                              ? `Target: ${formatCurrency(budget.targetAmount)}`
+                              : 'Budget illimitato'
+                            }
+                          </span>
+                        </div>
+                        {budget.type === 'fixed' && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500 text-sm">📊</span>
+                            <span className="text-sm text-adaptive-700">
+                              Progresso: {((budget.allocatedAmount || 0) / budget.targetAmount * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="mb-4">
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div 
+                            className="h-3 rounded-full transition-all duration-300"
+                            style={{ 
+                              width: budget.type === 'fixed' ? `${Math.min(100, (budget.allocatedAmount || 0) / budget.targetAmount * 100)}%` : '100%',
+                              backgroundColor: budget.color 
+                            }}
+                          />
+                        </div>
+                        {budget.type === 'fixed' && (budget.allocatedAmount || 0) < budget.targetAmount && (
+                          <div className="text-xs text-red-600 mt-1">
+                            Deficit: {formatCurrency(budget.targetAmount - (budget.allocatedAmount || 0))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-2 border-t border-adaptive">
+                        <button
+                          onClick={() => openEditForm(budget)}
+                          className="flex items-center gap-2 px-3 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                        >
+                          ✏️ Modifica
+                        </button>
+                        <button
+                          onClick={() => deleteBudget(budget.id)}
+                          className="flex items-center gap-2 px-3 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-sm"
+                        >
+                          🗑️ Elimina
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>

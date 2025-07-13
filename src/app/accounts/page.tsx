@@ -411,60 +411,59 @@ const handleSetDefaultAccount = async (accountId: number) => {
     <ProtectedRoute>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-adaptive-900">Conti</h1>
-            <p className="text-adaptive-600 mt-2">Gestisci i tuoi conti bancari e di investimento con Enhanced Cash Flow.</p>
-            
+        <div className="mb-6 sm:mb-8">
+          <div className="mb-4">
+            <h1 className="text-2xl sm:text-3xl font-bold text-adaptive-900">Conti</h1>
+            <p className="text-adaptive-600 mt-2 text-sm sm:text-base">Gestisci i tuoi conti bancari e di investimento con Enhanced Cash Flow.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               onClick={() => setShowTransferModal(true)}
               disabled={accounts.length < 2}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm sm:text-base"
               title={accounts.length < 2 ? "Serve almeno 2 conti per trasferire" : "Trasferisci denaro tra conti"}
             >
-              <ArrowsRightLeftIcon className="w-5 h-5" />
+              <ArrowsRightLeftIcon className="w-4 h-4 sm:w-5 sm:h-5" />
               Trasferimento
             </button>
             
             <button
               onClick={() => setShowAccountModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm sm:text-base"
             >
-              <PlusIcon className="w-5 h-5" />
+              <PlusIcon className="w-4 h-4 sm:w-5 sm:h-5" />
               Nuovo Conto
             </button>
           </div>
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-          <div className="card-adaptive rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-2">💰 Saldo Totale</h3>
-            <p className="text-3xl font-bold text-adaptive-900">{formatCurrencyWithUserCurrency(totalBalance)}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-6 mb-6 sm:mb-8">
+          <div className="card-adaptive rounded-lg p-3 sm:p-6 col-span-2 sm:col-span-1 text-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-adaptive-900 mb-1 sm:mb-2">💰 Saldo Totale</h3>
+            <p className="text-lg sm:text-3xl font-bold text-adaptive-900">{formatCurrencyWithUserCurrency(totalBalance)}</p>
           </div>
           
-          <div className="card-adaptive rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-2">🏦 Conti Bancari</h3>
-            <p className="text-3xl font-bold text-adaptive-900">{bankAccounts.length}</p>
+          <div className="card-adaptive rounded-lg p-3 sm:p-6 text-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-adaptive-900 mb-1 sm:mb-2">🏦 Bancari</h3>
+            <p className="text-lg sm:text-3xl font-bold text-adaptive-900">{bankAccounts.length}</p>
           </div>
           
-          <div className="card-adaptive rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-2">📈 Investimenti</h3>
-            <p className="text-3xl font-bold text-adaptive-900">{investmentAccounts.length}</p>
+          <div className="card-adaptive rounded-lg p-3 sm:p-6 text-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-adaptive-900 mb-1 sm:mb-2">📈 Investimenti</h3>
+            <p className="text-lg sm:text-3xl font-bold text-adaptive-900">{investmentAccounts.length}</p>
           </div>
           
-          <div className="card-adaptive rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-2">🔄 Trasferimenti</h3>
-            <p className="text-3xl font-bold text-adaptive-900">
+          <div className="card-adaptive rounded-lg p-3 sm:p-6 text-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-adaptive-900 mb-1 sm:mb-2">🔄 Trasferimenti</h3>
+            <p className="text-lg sm:text-3xl font-bold text-adaptive-900">
               {Array.isArray(transfers) ? transfers.length : 0}
             </p>
           </div>
           
-          <div className="card-adaptive rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-adaptive-900 mb-2">💼 Portfolio</h3>
-            <p className="text-3xl font-bold text-adaptive-900">{dcaPortfolios.length + cryptoPortfolios.length}</p>
+          <div className="card-adaptive rounded-lg p-3 sm:p-6 text-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-adaptive-900 mb-1 sm:mb-2">💼 Portfolio</h3>
+            <p className="text-lg sm:text-3xl font-bold text-adaptive-900">{dcaPortfolios.length + cryptoPortfolios.length}</p>
           </div>
         </div>
 
@@ -508,7 +507,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
                 <p className="text-sm text-adaptive-600">Conto Bancario</p>
               </div>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-shrink-0">
               {/* 🔧 NUOVO: Bottone stella per impostare come predefinito */}
               <button
                 onClick={() => handleSetDefaultAccount(account.id)}
@@ -594,9 +593,9 @@ const handleSetDefaultAccount = async (accountId: number) => {
 </div>
 
         {/* Investment Accounts with Enhanced Breakdown */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-adaptive-900 mb-4">📈 Conti Investimento</h2>
-                        <p className="text-adaptive-600 mt-2">Collega uno o più Portfolio per gestire i tuoi investimenti.</p><br></br>
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-adaptive-900 mb-3 sm:mb-4">📈 Conti Investimento</h2>
+          <p className="text-adaptive-600 text-sm sm:text-base mb-4">Collega uno o più Portfolio per gestire i tuoi investimenti.</p>
 
           {investmentAccounts.length === 0 ? (
             <div className="text-center py-8">
@@ -619,50 +618,100 @@ const handleSetDefaultAccount = async (accountId: number) => {
                 
                 return (
                   <div key={account.id} className="card-adaptive rounded-lg p-6">
-                    {/* Account Header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-4">
-                        <span className="text-2xl">📈</span>
-                        <div>
-                          <h4 className="font-semibold text-adaptive-900 flex items-center gap-2">
-                            {account.name}
-                            {account.isDefault && (
-                              <span className="px-2 py-1 bg-green-100 text-green-600 text-xs rounded-full">
-                                Predefinito
-                              </span>
-                            )}
-                          </h4>
-                          <p className="text-sm text-adaptive-600">
-                            {breakdown?.linkedPortfolios || 0} portfolio collegati
-                          </p>
+                    {/* Account Header - Mobile Optimized */}
+                    <div className="mb-4">
+                      {/* Desktop Layout */}
+                      <div className="hidden lg:flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <span className="text-2xl">📈</span>
+                          <div>
+                            <h4 className="font-semibold text-adaptive-900 flex items-center gap-2">
+                              {account.name}
+                              {account.isDefault && (
+                                <span className="px-2 py-1 bg-green-100 text-green-600 text-xs rounded-full">
+                                  Predefinito
+                                </span>
+                              )}
+                            </h4>
+                            <p className="text-sm text-adaptive-600">
+                              {breakdown?.linkedPortfolios || 0} portfolio collegati
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-sm text-adaptive-500">Saldo Conto</p>
+                            <p className="text-xl font-bold text-adaptive-900">
+                              {formatCurrencyWithUserCurrency(account.balance)}
+                            </p>
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleRecalculateBalance(account.id, account.name)}
+                              className="p-1 text-adaptive-600 hover:text-green-600"
+                              title="Ricalcola saldo"
+                            >
+                              <ArrowPathIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleEditAccount(account)}
+                              className="p-1 text-adaptive-600 hover:text-blue-600"
+                            >
+                              <PencilIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAccount(account.id)}
+                              className="p-1 text-adaptive-600 hover:text-red-600"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
+
+                      {/* Mobile Layout */}
+                      <div className="lg:hidden text-center">
+                        <div className="flex items-center justify-center gap-3 mb-3">
+                          <span className="text-2xl">📈</span>
+                          <div>
+                            <h4 className="font-semibold text-adaptive-900 flex items-center gap-2">
+                              {account.name}
+                              {account.isDefault && (
+                                <span className="px-2 py-1 bg-green-100 text-green-600 text-xs rounded-full">
+                                  Predefinito
+                                </span>
+                              )}
+                            </h4>
+                            <p className="text-sm text-adaptive-600">
+                              {breakdown?.linkedPortfolios || 0} portfolio collegati
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mb-3">
                           <p className="text-sm text-adaptive-500">Saldo Conto</p>
-                          <p className="text-xl font-bold text-adaptive-900">
+                          <p className="text-2xl font-bold text-adaptive-900">
                             {formatCurrencyWithUserCurrency(account.balance)}
                           </p>
                         </div>
-                        <div className="flex gap-1">
+                        <div className="flex justify-center gap-2">
                           <button
                             onClick={() => handleRecalculateBalance(account.id, account.name)}
-                            className="p-1 text-adaptive-600 hover:text-green-600"
+                            className="p-2 text-adaptive-600 hover:text-green-600 bg-adaptive-100 rounded-lg"
                             title="Ricalcola saldo"
                           >
-                            <ArrowPathIcon className="w-4 h-4" />
+                            <ArrowPathIcon className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => handleEditAccount(account)}
-                            className="p-1 text-adaptive-600 hover:text-blue-600"
+                            className="p-2 text-adaptive-600 hover:text-blue-600 bg-adaptive-100 rounded-lg"
                           >
-                            <PencilIcon className="w-4 h-4" />
+                            <PencilIcon className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => handleDeleteAccount(account.id)}
-                            className="p-1 text-adaptive-600 hover:text-red-600"
+                            className="p-2 text-adaptive-600 hover:text-red-600 bg-adaptive-100 rounded-lg"
                           >
-                            <TrashIcon className="w-4 h-4" />
+                            <TrashIcon className="w-5 h-5" />
                           </button>
                         </div>
                       </div>
@@ -671,30 +720,31 @@ const handleSetDefaultAccount = async (accountId: number) => {
                     {/* Enhanced Breakdown */}
                     {breakdown && (
                       <div className="bg-adaptive-50 rounded-lg p-4 mb-4">
-                        <h5 className="font-semibold text-adaptive-900 mb-3">Enhanced Cash Flow Breakdown</h5>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <p className="text-adaptive-500">💰 Totale Investito</p>
-                            <p className="font-semibold text-adaptive-900">{formatCurrencyWithUserCurrency(breakdown.totalInvested)}</p>
+                        <h5 className="font-semibold text-adaptive-900 mb-3 text-center lg:text-left">Enhanced Cash Flow Breakdown</h5>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+                          <div className="text-center lg:text-left p-3 lg:p-0 bg-adaptive-100 lg:bg-transparent rounded-lg lg:rounded-none">
+                            <p className="text-adaptive-500 text-sm lg:text-sm">💰 Totale Investito</p>
+                            <p className="font-semibold text-adaptive-900 text-lg lg:text-base">{formatCurrencyWithUserCurrency(breakdown.totalInvested)}</p>
                           </div>
-                          <div>
-                            <p className="text-adaptive-500">🔄 Capitale Recuperato</p>
-                            <p className="font-semibold text-blue-600">{formatCurrencyWithUserCurrency(breakdown.totalCapitalRecovered)}</p>
+                          <div className="text-center lg:text-left p-3 lg:p-0 bg-adaptive-100 lg:bg-transparent rounded-lg lg:rounded-none">
+                            <p className="text-adaptive-500 text-sm lg:text-sm">🔄 Capitale Recuperato</p>
+                            <p className="font-semibold text-blue-600 text-lg lg:text-base">{formatCurrencyWithUserCurrency(breakdown.totalCapitalRecovered)}</p>
                           </div>
-                          <div>
-                            <p className="text-adaptive-500">⚠️ Soldi a Rischio</p>
-                            <p className="font-semibold text-orange-600">{formatCurrencyWithUserCurrency(breakdown.totalEffectiveInvestment)}</p>
+                          <div className="text-center lg:text-left p-3 lg:p-0 bg-adaptive-100 lg:bg-transparent rounded-lg lg:rounded-none">
+                            <p className="text-adaptive-500 text-sm lg:text-sm">⚠️ Soldi a Rischio</p>
+                            <p className="font-semibold text-orange-600 text-lg lg:text-base">{formatCurrencyWithUserCurrency(breakdown.totalEffectiveInvestment)}</p>
                           </div>
-                          <div>
-                            <p className="text-adaptive-500">📈 Valore Attuale</p>
-                            <p className="font-semibold text-green-600">{formatCurrencyWithUserCurrency(breakdown.totalCurrentValue)}</p>
+                          <div className="text-center lg:text-left p-3 lg:p-0 bg-adaptive-100 lg:bg-transparent rounded-lg lg:rounded-none">
+                            <p className="text-adaptive-500 text-sm lg:text-sm">📈 Valore Attuale</p>
+                            <p className="font-semibold text-green-600 text-lg lg:text-base">{formatCurrencyWithUserCurrency(breakdown.totalCurrentValue)}</p>
                           </div>
                         </div>
                         
                         {linkedPortfolios.length > 0 && (
                           <div className="mt-4 pt-4 border-t border-adaptive">
-                            <h6 className="font-medium text-adaptive-900 mb-2">Portfolio Collegati:</h6>
-                            <div className="flex flex-wrap gap-2">
+                            <h6 className="font-medium text-adaptive-900 mb-3 text-center lg:text-left">Portfolio Collegati:</h6>
+                            {/* Desktop: Tag style */}
+                            <div className="hidden lg:flex flex-wrap gap-2">
                               {linkedPortfolios.map((portfolio) => {
                                 const portfolioUrl = portfolio.type === 'dca_bitcoin' 
                                   ? `/investments/${portfolio.id}` 
@@ -711,27 +761,71 @@ const handleSetDefaultAccount = async (accountId: number) => {
                                 )
                               })}
                             </div>
+                            {/* Mobile: Card style */}
+                            <div className="lg:hidden space-y-2">
+                              {linkedPortfolios.map((portfolio) => {
+                                const portfolioUrl = portfolio.type === 'dca_bitcoin' 
+                                  ? `/investments/${portfolio.id}` 
+                                  : `/investments/crypto-portfolio/${portfolio.id}`
+                                
+                                return (
+                                  <a
+                                    key={`${portfolio.type}-${portfolio.id}`}
+                                    href={portfolioUrl}
+                                    className="block p-3 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-lg">{portfolio.type === 'dca_bitcoin' ? '🟠' : '🚀'}</span>
+                                      <div>
+                                        <p className="font-medium text-blue-800 text-sm">{portfolio.name}</p>
+                                        <p className="text-blue-600 text-xs">{portfolio.type === 'dca_bitcoin' ? 'DCA Bitcoin' : 'Crypto Wallet'}</p>
+                                      </div>
+                                    </div>
+                                  </a>
+                                )
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
                     )}
 
                     {/* Quick Actions for Investment Account */}
-                    <div className="flex gap-2 mt-4">
-                      <a
-                        href={`/investments?createDCA=true&accountId=${account.id}`}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors"
-                      >
-                        <span className="text-sm">🟠</span>
-                        Nuovo DCA Bitcoin
-                      </a>
-                      <a
-                        href={`/investments?createCrypto=true&accountId=${account.id}`}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
-                      >
-                        <span className="text-sm">🚀</span>
-                        Nuovo Crypto Wallet
-                      </a>
+                    <div className="mt-4">
+                      {/* Desktop: Side by side */}
+                      <div className="hidden sm:flex gap-2">
+                        <a
+                          href={`/investments?createDCA=true&accountId=${account.id}`}
+                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors"
+                        >
+                          <span className="text-sm">🟠</span>
+                          Nuovo DCA Bitcoin
+                        </a>
+                        <a
+                          href={`/investments?createCrypto=true&accountId=${account.id}`}
+                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                        >
+                          <span className="text-sm">🚀</span>
+                          Nuovo Crypto Wallet
+                        </a>
+                      </div>
+                      {/* Mobile: Stacked */}
+                      <div className="sm:hidden space-y-2">
+                        <a
+                          href={`/investments?createDCA=true&accountId=${account.id}`}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700 transition-colors"
+                        >
+                          <span className="text-lg">🟠</span>
+                          <span className="font-medium">Nuovo DCA Bitcoin</span>
+                        </a>
+                        <a
+                          href={`/investments?createCrypto=true&accountId=${account.id}`}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                        >
+                          <span className="text-lg">🚀</span>
+                          <span className="font-medium">Nuovo Crypto Wallet</span>
+                        </a>
+                      </div>
                     </div>
                   </div>
                 )
@@ -759,45 +853,92 @@ const handleSetDefaultAccount = async (accountId: number) => {
               </button>
             </div>
           ) : (
-            <div className="card-adaptive rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-adaptive-100">
-                    <tr>
-                      <th className="text-left py-3 px-4 font-semibold text-adaptive-900">Data</th>
-                      <th className="text-left py-3 px-4 font-semibold text-adaptive-900">Da</th>
-                      <th className="text-left py-3 px-4 font-semibold text-adaptive-900">A</th>
-                      <th className="text-right py-3 px-4 font-semibold text-adaptive-900">Importo</th>
-                      <th className="text-left py-3 px-4 font-semibold text-adaptive-900">Descrizione</th>
-                      <th className="text-center py-3 px-4 font-semibold text-adaptive-900">Azioni</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transfers.slice(0, 10).map((transfer) => (
-                      <tr key={transfer.id} className="border-b border-adaptive">
-                        <td className="py-3 px-4 text-adaptive-900">
-                          {new Date(transfer.date).toLocaleDateString('it-IT')}
-                        </td>
-                        <td className="py-3 px-4 text-adaptive-900">{transfer.fromAccount.name}</td>
-                        <td className="py-3 px-4 text-adaptive-900">{transfer.toAccount.name}</td>
-                        <td className="py-3 px-4 text-right font-semibold text-green-600">
+            <>
+              {/* Mobile Card View */}
+              <div className="lg:hidden space-y-4">
+                {transfers.slice(0, 10).map((transfer) => (
+                  <div key={transfer.id} className="card-adaptive rounded-lg p-4 border border-adaptive">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-lg">🔄</span>
+                          <span className="text-sm text-adaptive-600">
+                            {new Date(transfer.date).toLocaleDateString('it-IT')}
+                          </span>
+                        </div>
+                        <div className="text-lg font-semibold text-green-600 mb-2">
                           {formatCurrencyWithUserCurrency(transfer.amount)}
-                        </td>
-                        <td className="py-3 px-4 text-adaptive-600">{transfer.description}</td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => handleDeleteTransfer(transfer.id)}
-                            className="p-1 text-adaptive-600 hover:text-red-600"
-                          >
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteTransfer(transfer.id)}
+                        className="p-2 text-adaptive-600 hover:text-red-600 ml-2"
+                      >
+                        <TrashIcon className="w-5 h-5" />
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-adaptive-600">Da:</span>
+                        <span className="text-sm font-medium text-adaptive-900">{transfer.fromAccount.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-adaptive-600">A:</span>
+                        <span className="text-sm font-medium text-adaptive-900">{transfer.toAccount.name}</span>
+                      </div>
+                      {transfer.description && (
+                        <div className="flex items-start gap-2">
+                          <span className="text-sm text-adaptive-600">Nota:</span>
+                          <span className="text-sm text-adaptive-900">{transfer.description}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden lg:block card-adaptive rounded-lg overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-adaptive-100">
+                      <tr>
+                        <th className="text-left py-3 px-4 font-semibold text-adaptive-900">Data</th>
+                        <th className="text-left py-3 px-4 font-semibold text-adaptive-900">Da</th>
+                        <th className="text-left py-3 px-4 font-semibold text-adaptive-900">A</th>
+                        <th className="text-right py-3 px-4 font-semibold text-adaptive-900">Importo</th>
+                        <th className="text-left py-3 px-4 font-semibold text-adaptive-900">Descrizione</th>
+                        <th className="text-center py-3 px-4 font-semibold text-adaptive-900">Azioni</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {transfers.slice(0, 10).map((transfer) => (
+                        <tr key={transfer.id} className="border-b border-adaptive">
+                          <td className="py-3 px-4 text-adaptive-900">
+                            {new Date(transfer.date).toLocaleDateString('it-IT')}
+                          </td>
+                          <td className="py-3 px-4 text-adaptive-900">{transfer.fromAccount.name}</td>
+                          <td className="py-3 px-4 text-adaptive-900">{transfer.toAccount.name}</td>
+                          <td className="py-3 px-4 text-right font-semibold text-green-600">
+                            {formatCurrencyWithUserCurrency(transfer.amount)}
+                          </td>
+                          <td className="py-3 px-4 text-adaptive-600">{transfer.description}</td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              onClick={() => handleDeleteTransfer(transfer.id)}
+                              className="p-1 text-adaptive-600 hover:text-red-600"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           )}
         </div>
 

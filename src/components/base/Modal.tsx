@@ -120,14 +120,14 @@ export const Modal = ({
       />
       
       {/* Modal */}
-      <div className="flex min-h-full items-center justify-center p-4">
+      <div className="flex min-h-full items-center justify-center p-2 sm:p-4">
         <div 
           ref={modalRef}
-          className={`relative transform overflow-hidden rounded-lg card-adaptive shadow-xl transition-all w-full ${sizeClasses[size]}`}
+          className={`relative transform overflow-hidden rounded-lg card-adaptive shadow-xl transition-all w-full ${sizeClasses[size]} mx-2 sm:mx-0`}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-adaptive">
-            <h3 className="text-lg font-semibold text-adaptive-900">
+          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-adaptive">
+            <h3 className="text-base sm:text-lg font-semibold text-adaptive-900">
               {title}
             </h3>
             {showCloseButton && (
@@ -143,7 +143,7 @@ export const Modal = ({
           </div>
           
           {/* Content */}
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {children}
           </div>
         </div>
