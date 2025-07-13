@@ -34,10 +34,6 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 
   const handleHeaderVisibilityChange = (visible: boolean) => {
     setIsHeaderVisible(visible)
-    // Chiudi il menu se l'header scompare
-    if (!visible) {
-      setIsSidebarOpen(false)
-    }
   }
 
   // Mostra loading spinner durante la verifica dell'autenticazione

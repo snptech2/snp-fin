@@ -58,7 +58,7 @@ export default function Sidebar({ isOpen = true, onClose, headerVisible = true }
       
       {/* Sidebar */}
       <div className={`
-        fixed sidebar-adaptive shadow-lg border-adaptive
+        fixed sidebar-adaptive shadow-lg border-adaptive overflow-y-auto
         transition-all duration-300 ease-in-out
         lg:inset-y-0 lg:left-0 lg:w-64 lg:border-r lg:translate-y-0 lg:z-50
         ${isOpen 
@@ -121,7 +121,9 @@ export default function Sidebar({ isOpen = true, onClose, headerVisible = true }
               {/* Theme Toggle - Solo Mobile */}
               <div className="flex flex-col items-center space-y-2 lg:hidden col-span-2">
                 <SimpleThemeToggle />
-                <span className="text-xs text-adaptive-600 font-medium">Seleziona Tema</span>
+                {isOpen && (
+                  <span className="text-xs text-adaptive-600 font-medium">Seleziona Tema</span>
+                )}
               </div>
             </div>
           )}

@@ -116,7 +116,6 @@ export default function InvestmentsPage() {
 
       if (cryptoRes.ok) {
         const cryptoData = await cryptoRes.json()
-        console.log('🔍 Crypto portfolios data:', cryptoData)
         setCryptoPortfolios(Array.isArray(cryptoData) ? cryptoData : [])
       }
 

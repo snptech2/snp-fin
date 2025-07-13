@@ -219,54 +219,36 @@ const Dashboard = () => {
   // ✅ NUOVO: Fetch Bitcoin price
   const fetchBitcoinPrice = async (): Promise<void> => {
     try {
-      console.log('🔄 Fetching Bitcoin price...');
       const response = await fetch('/api/bitcoin-price');
       if (response.ok) {
         const data: BitcoinPrice = await response.json();
         setBtcPrice(data);
-        console.log('🟠 Bitcoin Price loaded:', data.btcPrice, data.currency);
-      } else {
-        console.error('❌ Bitcoin price fetch failed:', response.status);
       }
     } catch (error) {
-      console.error('💥 Error fetching Bitcoin price:', error);
+      console.error('Error fetching Bitcoin price:', error);
     }
   };
 
   // ✅ NUOVO: DCA Current Value Calculator (same as investments page)
   const getDCACurrentValue = (portfolio: Portfolio, btcPrice: BitcoinPrice | null): number => {
-    console.log(`🔍 getDCACurrentValue called for ${portfolio.name}:`, {
-      type: portfolio.type,
-      netBTC: portfolio.stats?.netBTC,
-      totalBTC: portfolio.stats?.totalBTC,
-      btcPriceAvailable: !!btcPrice?.btcPrice
-    });
-    
     if (portfolio.type !== 'dca_bitcoin' && !portfolio.stats?.totalBTC && !portfolio.stats?.netBTC) {
-      console.log(`❌ Portfolio ${portfolio.name} skipped: not DCA bitcoin and no BTC stats`);
       return 0;
     }
     
     if (!btcPrice?.btcPrice) {
-      console.warn(`❌ Bitcoin price not available for DCA calculation for ${portfolio.name}`);
       return 0;
     }
     
     // Priority: netBTC (includes network fees)
     if (portfolio.stats?.netBTC !== undefined && portfolio.stats?.netBTC !== null) {
-      const value = portfolio.stats.netBTC * btcPrice.btcPrice;
-      console.log(`✅ DCA ${portfolio.name}: €${value} (netBTC: ${portfolio.stats.netBTC})`);
-      return value;
+      return portfolio.stats.netBTC * btcPrice.btcPrice;
     }
     
     // Fallback: totalBTC (may not include network fees)
     if (portfolio.stats?.totalBTC !== undefined && portfolio.stats?.totalBTC !== null) {
-      const value = portfolio.stats.totalBTC * btcPrice.btcPrice;
-      console.log(`✅ DCA ${portfolio.name}: €${value} (totalBTC: ${portfolio.stats.totalBTC})`);
-      return value;
+      return portfolio.stats.totalBTC * btcPrice.btcPrice;
     }
     
-    console.log(`❌ No BTC stats found for ${portfolio.name}`);
     return 0;
   };
 
@@ -314,8 +296,7 @@ const Dashboard = () => {
 
   const loadDashboardData = async (): Promise<void> => {
     try {
-      setDataLoading(true); // Show data loading state
-      console.log('🔄 Loading dashboard data, btcPrice available:', !!btcPrice);
+      setDataLoading(true);
       
       // 🚀 PERFORMANCE: Single unified API call instead of 8 separate calls
       const dashboardRes = await fetch('/api/dashboard');
@@ -338,6 +319,7 @@ const Dashboard = () => {
       const nonCurrentAssets: NonCurrentAsset[] = dashboardData.nonCurrentAssets || [];
       const credits: Credit[] = dashboardData.credits || [];
 
+
       // Fetch recent transactions separately for better display
       const [recentIncomeRes, recentExpenseRes] = await Promise.all([
         fetch('/api/transactions?type=income&limit=4'),
@@ -349,9 +331,6 @@ const Dashboard = () => {
       
       const recentIncome = recentIncomeData.transactions || [];
       const recentExpenses = recentExpensesData.transactions || [];
-      
-      console.log('📈 Recent income transactions:', recentIncome.length);
-      console.log('📉 Recent expense transactions:', recentExpenses.length);
 
       // Use precalculated totals from unified API
       const budgetTotals = {
@@ -359,9 +338,6 @@ const Dashboard = () => {
         totalAllocated: dashboardData.totals?.budgetAllocated || 0
       };
 
-      // ✅ DEBUG: Dashboard unified response
-      console.log('🚀 Dashboard unified data loaded:', dashboardData.meta?.timestamp);
-      console.log('🏦 Budget Totals:', budgetTotals);
 
       // 🚀 PERFORMANCE: Use precalculated totals from unified API
       const bankLiquidity = dashboardData.totals?.bankLiquidity || 0;
@@ -373,24 +349,17 @@ const Dashboard = () => {
       // Calculate crypto portfolios value
       const cryptoValue = cryptoPortfolios.reduce((sum: number, portfolio: Portfolio) => {
         const value = portfolio.stats?.totalValueEur || 0;
-        console.log(`🚀 Crypto ${portfolio.name}: €${value} (from backend)`);
         return sum + value;
       }, 0);
       
       // Calculate DCA portfolios value - only if btcPrice is available
       const dcaValue = btcPrice ? dcaPortfolios.reduce((sum: number, portfolio: Portfolio) => {
         const value = getDCACurrentValue(portfolio, btcPrice);
-        console.log(`🟠 DCA ${portfolio.name}: €${value} (calculated with BTC price)`);
         return sum + value;
       }, 0) : 0;
       
-      if (!btcPrice && dcaPortfolios.length > 0) {
-        console.log('⚠️ DCA portfolios found but Bitcoin price not available yet');
-      }
-      
       holdingsValue = cryptoValue + dcaValue;
-
-      console.log(`🎯 Total Holdings Value: €${holdingsValue} (crypto: €${cryptoValue}, dca: €${dcaValue})`);
+      
       
       // 🚀 PERFORMANCE: Use precalculated totals from unified API
       const totalNonCurrentAssets = dashboardData.totals?.totalNonCurrentAssets || 0;
