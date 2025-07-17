@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { XMarkIcon } from '@heroicons/react/24/outline'
@@ -176,8 +176,8 @@ export default function InvestmentsPage() {
   const formatPercentage = (value: number) => 
     new Intl.NumberFormat('it-IT', { style: 'percent', minimumFractionDigits: 1 }).format(value / 100)
 
-  // DCA Current Value Calculator
-  const getDCACurrentValue = (portfolio: Portfolio) => {
+  // DCA Current Value Calculator - wrapped in useCallback to prevent React Error #310
+  const getDCACurrentValue = useCallback((portfolio: Portfolio) => {
     if (portfolio.type !== 'dca_bitcoin' && !portfolio.stats?.totalBTC && !portfolio.stats?.netBTC) {
       return 0
     }
@@ -197,7 +197,7 @@ export default function InvestmentsPage() {
     }
     
     return 0
-  }
+  }, [btcPrice])
 
   // Enhanced Overall Stats
   const overallStats = useMemo(() => {
@@ -246,7 +246,7 @@ export default function InvestmentsPage() {
       dcaCount: dcaPortfolios.length,
       cryptoCount: cryptoPortfolios.length
     }
-  }, [dcaPortfolios, cryptoPortfolios, btcPrice])
+  }, [dcaPortfolios, cryptoPortfolios, getDCACurrentValue])
 
   // Create DCA Portfolio
   const createDCAPortfolio = async () => {
@@ -614,12 +614,8 @@ export default function InvestmentsPage() {
                 const unrealizedGains = portfolio.stats.unrealizedGains || 0
                 const totalGains = realizedProfit + unrealizedGains
                 
-                console.log(`🔍 Portfolio ${portfolio.name}:`, {
-                  totalInvested,
-                  currentValue,
-                  totalValueEur: portfolio.stats.totalValueEur,
-                  stats: portfolio.stats
-                })
+                // Debug log removed - was causing noise in production
+                // console.log(`🔍 Portfolio ${portfolio.name}:`, { ... })
 
                 return (
                   <div key={portfolio.id}>
