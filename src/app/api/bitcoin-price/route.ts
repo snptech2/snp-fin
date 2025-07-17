@@ -16,6 +16,8 @@ let priceCache: {
 // PERFORMANCE: Cache estesa a 10 minuti per ridurre chiamate API esterne
 const CACHE_DURATION = 10 * 60 * 1000 // 10 minuti
 
+import { fetchYahooFinanceRate } from '@/lib/yahooFinance'
+
 // GET - Ottieni prezzo Bitcoin nella valuta dell'utente
 export async function GET(request: NextRequest) {
   try {
@@ -131,7 +133,7 @@ export async function GET(request: NextRequest) {
       // Se l'utente usa EUR, fetch sia USD che EUR rate
       console.log('💶 Fetching BTC-USD and converting to EUR')
       
-      const [btcResponse, usdEurResponse] = await Promise.all([
+      const [btcResponse, exchangeData] = await Promise.all([
         fetch('https://cryptoprices.cc/BTC', {
           method: 'GET',
           headers: {
@@ -139,21 +141,11 @@ export async function GET(request: NextRequest) {
           },
           cache: 'no-store'
         }),
-        fetch('https://api.exchangerate-api.com/v4/latest/USD', {
-          method: 'GET',
-          headers: {
-            'User-Agent': 'SNP-Finance-App/1.0'
-          },
-          cache: 'no-store'
-        })
+        fetchYahooFinanceRate()
       ])
       
       if (!btcResponse.ok) {
         throw new Error(`Errore API cryptoprices.cc: ${btcResponse.status}`)
-      }
-      
-      if (!usdEurResponse.ok) {
-        throw new Error(`Errore API exchange rate: ${usdEurResponse.status}`)
       }
       
       // Parse prezzo BTC USD
@@ -164,16 +156,20 @@ export async function GET(request: NextRequest) {
         throw new Error('Prezzo BTC non valido ricevuto')
       }
       
-      // Parse tasso USD→EUR
-      const exchangeData = await usdEurResponse.json()
+      // Parse tasso USD→EUR dalla nuova funzione Yahoo Finance
       usdEur = exchangeData.rates?.EUR
       
       if (!usdEur || isNaN(usdEur) || usdEur <= 0) {
         throw new Error('Tasso di cambio USD→EUR non valido')
       }
       
+      console.log('💱 Yahoo Finance USD/EUR rate:', usdEur)
+      console.log('💰 BTC USD price:', btcUsd)
+      
       // Calcola prezzo BTC in EUR
       btcEur = btcUsd * usdEur
+      
+      console.log('💰 BTC EUR price calculated:', btcEur)
     }
 
     // Aggiorna cache con entrambi i prezzi

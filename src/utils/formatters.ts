@@ -203,3 +203,34 @@ export const formatCurrencySmart = (amount: number, currency: string = 'EUR'): s
   // Per valori normali, usa la formattazione standard
   return formatCurrency(amount, currency)
 }
+
+/**
+ * Arrotonda i prezzi crypto in modo intelligente per evitare di troncare valori piccoli
+ * Risolve il problema di LUNC e altre crypto con valori in notazione scientifica
+ * 
+ * @param price - Prezzo in formato numero (es: 6.396e-05)
+ * @returns Prezzo arrotondato preservando la precisione necessaria
+ */
+export const smartRoundPrice = (price: number): number => {
+  if (price === 0) return 0
+  
+  const absPrice = Math.abs(price)
+  
+  // Per valori >= 0.01, usa 2 decimali standard
+  if (absPrice >= 0.01) {
+    return Math.round(price * 100) / 100
+  }
+  
+  // Per valori >= 0.001, usa 4 decimali  
+  if (absPrice >= 0.001) {
+    return Math.round(price * 10000) / 10000
+  }
+  
+  // Per valori >= 0.0001, usa 6 decimali
+  if (absPrice >= 0.0001) {
+    return Math.round(price * 1000000) / 1000000
+  }
+  
+  // Per valori molto piccoli (come LUNC), usa 8 decimali
+  return Math.round(price * 100000000) / 100000000
+}

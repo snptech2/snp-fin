@@ -9,7 +9,7 @@ import {
   CheckIcon
 } from '@heroicons/react/24/outline'
 import { useAuth } from '@/contexts/AuthContext'
-import { formatCurrency, formatCryptoSmart, formatCurrencySmart } from '@/utils/formatters'
+import { formatCurrency, formatCryptoSmart, formatCurrencySmart, smartRoundPrice } from '@/utils/formatters'
 
 interface Asset {
   id: number
@@ -537,7 +537,7 @@ export default function CryptoPortfolioDetailPage() {
           
           if (transactionForm.quantity && !isNaN(parseFloat(transactionForm.quantity))) {
             const quantity = parseFloat(transactionForm.quantity)
-            const calculatedValue = Math.round(quantity * price * 100) / 100
+            const calculatedValue = smartRoundPrice(quantity * price)
             setTransactionForm(prev => ({ ...prev, eurValue: calculatedValue.toString() }))
           }
         } else {
@@ -2403,7 +2403,7 @@ export default function CryptoPortfolioDetailPage() {
                     
                     if (currentPrice && e.target.value && !isNaN(parseFloat(e.target.value))) {
                       const quantity = parseFloat(e.target.value)
-                      const calculatedValue = Math.round(quantity * currentPrice * 100) / 100
+                      const calculatedValue = smartRoundPrice(quantity * currentPrice)
                       setTransactionForm(prev => ({ ...prev, eurValue: calculatedValue.toString() }))
                     }
                   }}
@@ -2575,7 +2575,7 @@ export default function CryptoPortfolioDetailPage() {
                     
                     if (currentPrice && e.target.value && !isNaN(parseFloat(e.target.value))) {
                       const quantity = parseFloat(e.target.value)
-                      const calculatedValue = Math.round(quantity * currentPrice * 100) / 100
+                      const calculatedValue = smartRoundPrice(quantity * currentPrice)
                       setTransactionForm(prev => ({ ...prev, eurValue: calculatedValue.toString() }))
                     }
                   }}

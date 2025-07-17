@@ -1,5 +1,7 @@
 // src/lib/cryptoPrices.ts - Utility per fetch prezzi crypto
 import { PrismaClient } from '@prisma/client'
+import { fetchYahooFinanceRateCached } from '@/lib/yahooFinance'
+import { smartRoundPrice } from '@/utils/formatters'
 
 const prisma = new PrismaClient()
 
@@ -70,25 +72,20 @@ export async function fetchCryptoPrices(
       let usdEur = 1.0 // Default per USD
       
       if (userCurrency === 'EUR') {
-        console.log('💶 User currency is EUR, fetching exchange rate...')
+        console.log('💶 User currency is EUR, fetching Yahoo Finance exchange rate...')
         
-        const usdEurResponse = await fetch('https://api.exchangerate-api.com/v4/latest/USD', {
-          headers: { 'User-Agent': 'SNP-Finance-App/1.0' },
-          cache: 'no-store'
-        })
-
-        if (!usdEurResponse.ok) {
-          throw new Error(`Errore API exchange rate: ${usdEurResponse.status}`)
+        try {
+          usdEur = await fetchYahooFinanceRateCached()
+          
+          if (!usdEur || isNaN(usdEur) || usdEur <= 0) {
+            throw new Error('Tasso di cambio USD→EUR non valido')
+          }
+          
+          console.log('💱 Yahoo Finance USD→EUR rate:', usdEur)
+        } catch (error) {
+          console.error('❌ Yahoo Finance failed, using fallback rate:', error)
+          usdEur = 0.85 // Conservative fallback
         }
-
-        const exchangeData = await usdEurResponse.json()
-        usdEur = exchangeData.rates?.EUR
-
-        if (!usdEur || isNaN(usdEur) || usdEur <= 0) {
-          throw new Error('Tasso di cambio USD→EUR non valido')
-        }
-        
-        console.log('💱 USD→EUR rate:', usdEur)
       } else {
         console.log('💵 User currency is USD, skipping exchange rate fetch')
       }
@@ -116,9 +113,9 @@ export async function fetchCryptoPrices(
             return { symbol, priceUsd: null, priceEur: null }
           }
 
-          // Calcola sempre entrambi i prezzi per la cache
-          const priceEur = Math.round(priceUsd * usdEur * 100) / 100
-          const roundedPriceUsd = Math.round(priceUsd * 100) / 100
+          // Calcola sempre entrambi i prezzi per la cache usando smart rounding
+          const priceEur = smartRoundPrice(priceUsd * usdEur)
+          const roundedPriceUsd = smartRoundPrice(priceUsd)
 
           // Aggiorna cache con entrambi i prezzi
           priceCache[symbol] = { 
