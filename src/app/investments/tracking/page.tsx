@@ -103,11 +103,6 @@ export default function TrackingPage() {
 
   useEffect(() => {
     fetchData()
-  }, [fetchData])
-
-  // Ricarica i dati quando cambia itemsPerPage
-  useEffect(() => {
-    fetchData()
   }, [itemsPerPage, fetchData])
 
   // Popola il form quando caricano le impostazioni
