@@ -94,7 +94,7 @@ export const useOnboarding = () => {
       })
       setLoading(false)
     }
-  }, [user, fetchOnboardingState]) // Aggiungi fetchOnboardingState alle dipendenze
+  }, [user]) // Rimossa dipendenza circolare fetchOnboardingState
 
   return {
     onboardingState,
