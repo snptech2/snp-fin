@@ -199,7 +199,7 @@ export default function InvestmentsPage() {
     return 0
   }, [btcPrice])
 
-  // Enhanced Overall Stats
+  // Enhanced Overall Stats - Ottimizzato per evitare dipendenze instabili
   const overallStats = useMemo(() => {
     const allPortfolios = [...dcaPortfolios, ...cryptoPortfolios]
     
@@ -211,6 +211,8 @@ export default function InvestmentsPage() {
     
     // Calcola current value usando helper functions Enhanced
     let totalCurrentValue = 0
+    const currentBtcPrice = btcPrice?.btcPrice || 0
+    
     allPortfolios.forEach(portfolio => {
       const portfolioType = dcaPortfolios.includes(portfolio) ? 'dca_bitcoin' : 'crypto_wallet'
       
@@ -218,8 +220,11 @@ export default function InvestmentsPage() {
         // Crypto portfolios: usa totalValueEur dal backend
         totalCurrentValue += portfolio.stats.totalValueEur || 0
       } else {
-        // DCA portfolios: usa Enhanced current value calculation
-        totalCurrentValue += getDCACurrentValue(portfolio)
+        // DCA portfolios: calcola direttamente senza useCallback
+        if (portfolio.type === 'dca_bitcoin' && currentBtcPrice > 0) {
+          const btcAmount = portfolio.stats?.netBTC ?? portfolio.stats?.totalBTC ?? 0
+          totalCurrentValue += btcAmount * currentBtcPrice
+        }
       }
     })
     
@@ -246,7 +251,7 @@ export default function InvestmentsPage() {
       dcaCount: dcaPortfolios.length,
       cryptoCount: cryptoPortfolios.length
     }
-  }, [dcaPortfolios, cryptoPortfolios, getDCACurrentValue])
+  }, [dcaPortfolios, cryptoPortfolios, btcPrice])
 
   // Create DCA Portfolio
   const createDCAPortfolio = async () => {
