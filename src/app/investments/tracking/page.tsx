@@ -134,7 +134,8 @@ export default function TrackingPage() {
         await response.json()
         alert({ title: 'Successo', message: 'Snapshot creato con successo!', variant: 'success' })
         setSnapshotNote('')
-        fetchData() // Ricarica i dati
+        // Ricarica i dati direttamente
+        fetchData()
       } else {
         const errorData = await response.json()
         alert({ title: 'Errore', message: errorData.error || 'Errore nella creazione dello snapshot', variant: 'error' })
@@ -145,7 +146,7 @@ export default function TrackingPage() {
     } finally {
       setCreateLoading(false)
     }
-  }, [snapshotNote, alert, fetchData])
+  }, [snapshotNote])
 
   const deleteSnapshot = useCallback(async (id: number) => {
     try {
@@ -166,7 +167,7 @@ export default function TrackingPage() {
       console.error('Error deleting snapshot:', error)
       alert({ title: 'Errore', message: 'Errore nell\'eliminazione dello snapshot', variant: 'error' })
     }
-  }, [alert, fetchData])
+  }, [])
 
   const exportCSV = useCallback(async () => {
     try {
@@ -190,7 +191,7 @@ export default function TrackingPage() {
       console.error('Error exporting:', error)
       alert({ title: 'Errore', message: 'Errore nell\'export', variant: 'error' })
     }
-  }, [alert])
+  }, [])
 
   const processFile = (file: File) => {
     if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
@@ -287,7 +288,7 @@ export default function TrackingPage() {
     } finally {
       setBulkDeleteLoading(false)
     }
-  }, [selectedSnapshots, alert, fetchData])
+  }, [selectedSnapshots])
 
   const updateSettings = useCallback(async () => {
     try {
@@ -316,7 +317,7 @@ export default function TrackingPage() {
     } finally {
       setSettingsLoading(false)
     }
-  }, [settingsForm, alert])
+  }, [settingsForm])
 
   const importCSV = useCallback(async () => {
     try {
@@ -351,7 +352,7 @@ export default function TrackingPage() {
     } finally {
       setImportLoading(false)
     }
-  }, [csvData, forceReimport, alert, fetchData])
+  }, [csvData, forceReimport])
 
   // Funzioni helper - non sono hooks, quindi possono essere definite ovunque
   const formatDate = (dateStr: string) => {
