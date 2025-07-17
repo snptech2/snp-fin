@@ -127,6 +127,10 @@ export default function IncomePage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0 })
   
+  // Stati per eliminazione singola
+  const [deleteTransactionId, setDeleteTransactionId] = useState<number | null>(null)
+  const [deleteCategoryId, setDeletingCategory] = useState<Category | null>(null)
+  
   // Stati per gestione errori e caricamento
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -243,8 +247,7 @@ export default function IncomePage() {
   }
 
   // === FUNZIONI IMPORT CSV ===
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+  const parseCSV = (file: File) => {
     if (!file) return
 
     setCsvFile(file)
@@ -312,6 +315,13 @@ export default function IncomePage() {
       setError('')
     }
     reader.readAsText(file)
+  }
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      parseCSV(file)
+    }
   }
 
   const handleImportCSV = async () => {
@@ -534,16 +544,18 @@ export default function IncomePage() {
   }
 
   // Gestione cancellazione categoria
-  const handleDeleteCategory = async (category: Category) => {
-    if (!confirm(`Sei sicuro di voler cancellare la categoria "${category.name}"?`)) return
-
+  const confirmDeleteCategory = async () => {
+    if (!deleteCategoryId) return
+    
     try {
-      const response = await fetch(`/api/categories/${category.id}`, {
+      const response = await fetch(`/api/categories/${deleteCategoryId.id}`, {
         method: 'DELETE'
       })
 
       if (response.ok) {
-        fetchData()
+        fetchCategories()
+        setShowCategoryForm(false)
+        setDeletingCategory(null)
       } else {
         const errorData = await response.json()
         setError(errorData.error || 'Errore durante la cancellazione')
@@ -551,6 +563,10 @@ export default function IncomePage() {
     } catch (error) {
       setError('Errore di rete durante la cancellazione')
     }
+  }
+  
+  const handleDeleteCategory = (category: Category) => {
+    setDeletingCategory(category)
   }
 
   // Gestione submit transazione
@@ -607,16 +623,17 @@ export default function IncomePage() {
   }
 
   // Gestione cancellazione transazione
-  const handleDeleteTransaction = async (transactionId: number) => {
-    if (!confirm('Sei sicuro di voler cancellare questa entrata?')) return
-
+  const confirmDeleteTransaction = async () => {
+    if (!deleteTransactionId) return
+    
     try {
-      const response = await fetch(`/api/transactions/${transactionId}`, {
+      const response = await fetch(`/api/transactions/${deleteTransactionId}`, {
         method: 'DELETE'
       })
 
       if (response.ok) {
         fetchData()
+        setDeleteTransactionId(null)
       } else {
         const errorData = await response.json()
         setError(errorData.error || 'Errore durante la cancellazione')
@@ -624,6 +641,10 @@ export default function IncomePage() {
     } catch (error) {
       setError('Errore di rete durante la cancellazione')
     }
+  }
+  
+  const handleDeleteTransaction = (transactionId: number) => {
+    setDeleteTransactionId(transactionId)
   }
 
   // Filtri e ricerca
@@ -1835,6 +1856,58 @@ export default function IncomePage() {
           </div>
         )}
         {/* End TODO blocks */}
+        
+        {/* Delete Transaction Confirmation Modal */}
+        {deleteTransactionId && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="card-adaptive rounded-lg p-6 max-w-md w-full">
+              <h3 className="text-lg font-medium mb-4">🗑️ Elimina Entrata</h3>
+              <p className="text-sm text-adaptive-600 mb-6">
+                Sei sicuro di voler cancellare questa entrata? Questa azione non può essere annullata.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={confirmDeleteTransaction}
+                  className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700"
+                >
+                  Elimina
+                </button>
+                <button
+                  onClick={() => setDeleteTransactionId(null)}
+                  className="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600"
+                >
+                  Annulla
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Delete Category Confirmation Modal */}
+        {deleteCategoryId && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="card-adaptive rounded-lg p-6 max-w-md w-full">
+              <h3 className="text-lg font-medium mb-4">🗑️ Elimina Categoria</h3>
+              <p className="text-sm text-adaptive-600 mb-6">
+                Sei sicuro di voler cancellare la categoria &quot;{deleteCategoryId.name}&quot;? Questa azione non può essere annullata.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={confirmDeleteCategory}
+                  className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700"
+                >
+                  Elimina
+                </button>
+                <button
+                  onClick={() => setDeletingCategory(null)}
+                  className="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600"
+                >
+                  Annulla
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ProtectedRoute>
   )

@@ -85,7 +85,7 @@ function calculateEnhancedStats(transactions: any[], networkFees: any[] = [], cu
 // GET - Dettaglio crypto portfolio specifico
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -93,6 +93,7 @@ export async function GET(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const portfolioId = parseInt(params.id)
 
     if (isNaN(portfolioId)) {
@@ -228,7 +229,7 @@ export async function GET(
 // PUT - Aggiorna crypto portfolio
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -236,6 +237,7 @@ export async function PUT(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const portfolioId = parseInt(params.id)
     const body = await request.json()
     const { name, description } = body
@@ -288,7 +290,7 @@ export async function PUT(
 // DELETE - Elimina crypto portfolio
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -296,6 +298,7 @@ export async function DELETE(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const portfolioId = parseInt(params.id)
 
     if (isNaN(portfolioId)) {

@@ -261,13 +261,13 @@ export async function POST(
                         select: { balance: true }
                       })
                       
-                      if (!currentBalance || currentBalance.balance < eurValue) {
+                      if (!currentBalance || currentBalance.balance < (eurValue || 0)) {
                         result.errors.push(`Riga ${rowNumber}: Saldo insufficiente per acquisto di €${eurValue} (saldo: €${currentBalance?.balance || 0})`)
                         continue
                       }
                     }
                     
-                    await processSingleTransaction(tx, portfolioId, row, dateValue, quantity, eurValue, transactionType, portfolio.account.id)
+                    await processSingleTransaction(tx, portfolioId, row, dateValue, quantity, eurValue || 0, transactionType, portfolio.account.id)
                   }
                   
                   result.imported++
@@ -633,7 +633,7 @@ function parseDate(dateStr: string): Date | null {
     const monthStr = monthMatch[2].toLowerCase()
     const year = parseInt(monthMatch[3])
     
-    const month = monthNames[monthStr]
+    const month = monthNames[monthStr as keyof typeof monthNames]
     if (month !== undefined) {
       const date = new Date(year, month, day)
       if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {

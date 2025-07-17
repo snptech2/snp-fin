@@ -1,5 +1,5 @@
 // src/hooks/useOnboarding.ts - Hook per gestire stato onboarding
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { UserModuleSettings } from '@/utils/modules'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -23,7 +23,7 @@ export const useOnboarding = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchOnboardingState = async () => {
+  const fetchOnboardingState = useCallback(async () => {
     // Non fare nulla se l'utente non è autenticato
     if (!user) {
       setLoading(false)
@@ -51,27 +51,33 @@ export const useOnboarding = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user])
 
-  const needsOnboarding = () => {
+  const needsOnboarding = useMemo(() => {
     // Se non c'è utente o stiamo ancora caricando, non mostrare onboarding
     if (!user || loading) return false
     
-    console.log('🎯 Checking onboarding needs:', {
-      onboardingCompleted: onboardingState.onboardingCompleted,
-      onboardingStep: onboardingState.onboardingStep,
-      needsOnboarding: !onboardingState.onboardingCompleted || onboardingState.onboardingStep < 5
-    })
-    return !onboardingState.onboardingCompleted || onboardingState.onboardingStep < 5
-  }
+    const needs = !onboardingState.onboardingCompleted || onboardingState.onboardingStep < 5
+    
+    // Riduci il logging per evitare spam
+    if (Math.random() < 0.1) { // Log solo il 10% delle volte
+      console.log('🎯 Checking onboarding needs:', {
+        onboardingCompleted: onboardingState.onboardingCompleted,
+        onboardingStep: onboardingState.onboardingStep,
+        needsOnboarding: needs
+      })
+    }
+    
+    return needs
+  }, [user, loading, onboardingState.onboardingCompleted, onboardingState.onboardingStep])
 
-  const completeOnboarding = () => {
+  const completeOnboarding = useCallback(() => {
     setOnboardingState(prev => ({
       ...prev,
       onboardingCompleted: true,
       onboardingStep: 5
     }))
-  }
+  }, [])
 
   useEffect(() => {
     // Solo se l'utente è presente, controlla l'onboarding
@@ -88,13 +94,13 @@ export const useOnboarding = () => {
       })
       setLoading(false)
     }
-  }, [user]) // Ricarica quando l'utente cambia
+  }, [user, fetchOnboardingState]) // Aggiungi fetchOnboardingState alle dipendenze
 
   return {
     onboardingState,
     loading,
     error,
-    needsOnboarding: needsOnboarding(),
+    needsOnboarding,
     completeOnboarding,
     refreshOnboardingState: fetchOnboardingState
   }

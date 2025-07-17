@@ -418,7 +418,7 @@ export async function GET(request: NextRequest) {
     // 📊 Calculate portfolio values and Enhanced Cash Flow
     console.log('🔍 DCA Portfolios found:', dcaPortfolios.length)
     console.log('🔍 Crypto Portfolios found:', cryptoPortfolios.length)
-    console.log('💰 Bitcoin price available:', btcPrice?.btcPrice || 'NOT AVAILABLE')
+    console.log('💰 Bitcoin price available:', (btcPrice as any)?.btcPrice || 'NOT AVAILABLE')
     
     // Calculate Enhanced Cash Flow totals from all portfolios (use updated crypto portfolios with current prices)
     const allPortfolios = [...dcaPortfolios, ...cryptoPortfoliosWithCurrentPrices]
@@ -449,7 +449,7 @@ export async function GET(request: NextRequest) {
         if (p.type === 'crypto_wallet') {
           value = (p.stats as any)?.totalValueEur || 0
           console.log(`💎 ${p.name} (crypto_wallet) has totalValueEur: €${value}`)
-        } else if (p.type === 'dca_bitcoin' && btcPrice?.btcPrice) {
+        } else if (p.type === 'dca_bitcoin' && (btcPrice as any)?.btcPrice) {
           // For now, we'll skip BTC price calculation since btcPrice is null
           // This will be handled by the frontend with real-time BTC price
           value = 0

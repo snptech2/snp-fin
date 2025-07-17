@@ -8,7 +8,7 @@ const prisma = new PrismaClient()
 // PUT - Aggiorna fee di rete
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -16,6 +16,7 @@ export async function PUT(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const id = parseInt(params.id)
     const body = await request.json()
     const { sats, date, description } = body
@@ -80,7 +81,7 @@ export async function PUT(
     // Aggiungi conversione in BTC
     const feeWithBTC = {
       ...updatedFee,
-      btcAmount: updatedFee.sats / 100000000
+      btcAmount: (updatedFee.sats || 0) / 100000000
     }
 
     return NextResponse.json(feeWithBTC)
@@ -96,7 +97,7 @@ export async function PUT(
 // DELETE - Cancella fee di rete
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -104,6 +105,7 @@ export async function DELETE(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const id = parseInt(params.id)
 
     if (isNaN(id)) {
@@ -141,7 +143,7 @@ export async function DELETE(
 
     return NextResponse.json({ 
       message: 'Fee di rete cancellata con successo',
-      portfolio: existingFee.portfolio.name
+      portfolio: existingFee.portfolio?.name || 'Unknown'
     })
   } catch (error) {
     console.error('Errore nella cancellazione fee di rete:', error)

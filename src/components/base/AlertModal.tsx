@@ -23,8 +23,6 @@ export default function AlertModal({
   variant = 'info',
   onClose
 }: AlertModalProps) {
-  if (!isOpen) return <div style={{ display: 'none' }} />
-
   // Configurazione basata su variant
   const config = {
     danger: {
@@ -88,6 +86,8 @@ export default function AlertModal({
       document.body.style.overflow = 'unset'
     }
   }, [isOpen, onClose])
+
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">

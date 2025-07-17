@@ -6,12 +6,13 @@ import { updateRiservaTasseBudget } from '@/lib/partitaIVAUtils'
 const prisma = new PrismaClient()
 
 // PUT - Modifica pagamento tasse
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const authResult = requireAuth(request)
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
+    const params = await context.params
     const paymentId = parseInt(params.id)
     const body = await request.json()
     const { data, descrizione, importo, tipo, accountId } = body
@@ -180,12 +181,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE - Elimina pagamento tasse
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const authResult = requireAuth(request)
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
+    const params = await context.params
     const paymentId = parseInt(params.id)
     
     // Verifica che il pagamento esista e appartenga all'utente

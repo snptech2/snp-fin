@@ -7,7 +7,7 @@ const prisma = new PrismaClient()
 // PUT - Aggiorna trasferimento  
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -15,6 +15,7 @@ export async function PUT(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const transferId = parseInt(params.id)
     const { amount, description, fromAccountId, toAccountId, date } = await request.json()
     
@@ -111,7 +112,7 @@ export async function PUT(
 // DELETE method 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -119,6 +120,7 @@ export async function DELETE(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const transferId = parseInt(params.id)
     
     // Get transfer details first

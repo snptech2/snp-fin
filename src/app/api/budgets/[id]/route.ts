@@ -8,7 +8,7 @@ const prisma = new PrismaClient()
 // PUT /api/budgets/[id] - Aggiorna budget
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -16,6 +16,7 @@ export async function PUT(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
+    const params = await context.params
     const budgetId = parseInt(params.id)
     if (isNaN(budgetId)) {
       return NextResponse.json(
@@ -154,7 +155,7 @@ export async function PUT(
 // DELETE /api/budgets/[id] - Cancella budget
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -162,6 +163,7 @@ export async function DELETE(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
+    const params = await context.params
     const budgetId = parseInt(params.id)
     if (isNaN(budgetId)) {
       return NextResponse.json(

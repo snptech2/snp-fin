@@ -56,7 +56,7 @@ function calculateEnhancedStats(transactions: any[]) {
 // GET - Recupera portafoglio DCA specifico
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -64,6 +64,7 @@ export async function GET(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const id = parseInt(params.id)
 
     if (isNaN(id)) {
@@ -143,7 +144,7 @@ export async function GET(
 // PUT - Aggiorna portafoglio
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -151,6 +152,7 @@ export async function PUT(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const id = parseInt(params.id)
     const body = await request.json()
     const { name, isActive } = body
@@ -218,7 +220,7 @@ export async function PUT(
 // DELETE - Elimina portafoglio e transazioni correlate
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -226,6 +228,7 @@ export async function DELETE(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const id = parseInt(params.id)
 
     if (isNaN(id)) {

@@ -5,12 +5,13 @@ import { requireAuth } from '@/lib/auth-middleware'
 const prisma = new PrismaClient()
 
 // PUT - Modifica credito
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const authResult = requireAuth(request)
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
+    const params = await context.params
     const creditId = parseInt(params.id)
     const body = await request.json()
     const { name, description, amount } = body
@@ -63,12 +64,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE - Elimina credito
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const authResult = requireAuth(request)
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
+    const params = await context.params
     const creditId = parseInt(params.id)
     
     // Verifica che il credito esista e appartenga all'utente

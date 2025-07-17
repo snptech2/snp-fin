@@ -56,8 +56,8 @@ export async function POST(request: NextRequest) {
         // 🎯 SISTEMA MODULARE - Valori default per onboarding
         onboardingStep: 1,
         onboardingCompleted: false,
-        moduleSettings: null,
-        appProfile: null
+        moduleSettings: undefined,
+        appProfile: undefined
       }
     })
 

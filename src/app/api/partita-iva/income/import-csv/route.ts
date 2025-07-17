@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     // Debug prime righe ricevute
     if (csvData && csvData.length > 0) {
       console.log('🔍 Prime 3 righe ricevute:')
-      csvData.slice(0, 3).forEach((row, index) => {
+      csvData.slice(0, 3).forEach((row: any, index: number) => {
         console.log(`  Riga ${index + 1}:`, {
           dataIncasso: row.dataIncasso,
           dataEmissione: row.dataEmissione,
@@ -409,7 +409,7 @@ function parseDate(dateStr: string): Date | null {
     const monthStr = englishMatch[2].toLowerCase()
     const year = parseInt(englishMatch[3])
     
-    const month = englishMonths[monthStr]
+    const month = englishMonths[monthStr as keyof typeof englishMonths]
     if (month !== undefined) {
       const date = new Date(year, month, day)
       if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
@@ -474,9 +474,9 @@ async function updateTaxReserveBudget(userId: number) {
           data: {
             userId,
             name: 'Riserva Tasse',
-            totalAmount: remainingTaxes,
-            period: 'monthly',
-            isActive: true
+            targetAmount: remainingTaxes,
+            type: 'fixed',
+            order: 1
           }
         })
       } else {

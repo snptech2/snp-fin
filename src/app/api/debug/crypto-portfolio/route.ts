@@ -8,13 +8,14 @@ const prisma = new PrismaClient()
 // 🔍 DEBUG API: Analizza in dettaglio le transazioni di un crypto portfolio
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const authResult = requireAuth(request)
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const portfolioId = parseInt(params.id)
 
     if (isNaN(portfolioId)) {
@@ -84,20 +85,20 @@ export async function GET(
         eurValue: tx.eurValue,
         pricePerUnit: tx.pricePerUnit,
         notes: tx.notes || '-'
-      }
+      } as any
 
-      analysis.transactions.push(transactionData)
+      (analysis.transactions as any[]).push(transactionData)
 
       if (tx.type === 'buy') {
-        runningInvested += tx.eurValue
-        analysis.calculations.buyTransactions.push({
+        runningInvested += (tx as any).eurValue
+        (analysis.calculations.buyTransactions as any[]).push({
           ...transactionData,
           runningInvested
         })
         console.log(`${index + 1}. 💰 BUY ${tx.quantity} ${tx.asset.symbol} = €${tx.eurValue} | Total Invested: €${runningInvested}`)
       } else if (tx.type === 'sell') {
-        runningRecovered += tx.eurValue
-        analysis.calculations.sellTransactions.push({
+        runningRecovered += (tx as any).eurValue
+        (analysis.calculations.sellTransactions as any[]).push({
           ...transactionData,
           runningRecovered
         })
@@ -121,7 +122,7 @@ export async function GET(
       effectiveInvestment,
       realizedProfit,
       isFullyRecovered
-    }
+    } as any
 
     console.log(`\n📊 ENHANCED CASH FLOW RESULTS:`)
     console.log(`💰 Total Invested: €${totalInvested}`)
@@ -145,7 +146,7 @@ export async function GET(
       warnings.push("🚨 ATTENZIONE: Nessun acquisto ma totalInvested > 0!")
     }
 
-    analysis.warnings = warnings
+    (analysis as any).warnings = warnings
 
     // 🔍 SUMMARY PER DEBUG
     const summary = {

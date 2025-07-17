@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const forceRefresh = searchParams.get('force') === 'true'
+    const isSnapshot = searchParams.get('snapshot') === 'true'
     
     // Ottieni valuta utente
     const authResult = requireAuth(request)
@@ -48,6 +49,17 @@ export async function GET(request: NextRequest) {
       
       if (cacheAge < CACHE_DURATION) {
         console.log('🎯 Returning cached price')
+        
+        // Per snapshot, restituisci entrambi i prezzi
+        if (isSnapshot) {
+          return NextResponse.json({
+            btcPriceEur: priceCache.btcEur,
+            btcPriceUsd: priceCache.btcUsd,
+            usdEur: priceCache.usdEur,
+            cached: true,
+            timestamp: new Date(priceCache.timestamp).toISOString()
+          })
+        }
         
         // Restituisci solo il prezzo nella valuta dell'utente
         const btcPrice = userCurrency === 'USD' ? priceCache.btcUsd : priceCache.btcEur
@@ -179,6 +191,17 @@ export async function GET(request: NextRequest) {
     })
     console.log('🕐 New cache timestamp:', new Date(priceCache.timestamp).toISOString())
 
+    // Per snapshot, restituisci entrambi i prezzi
+    if (isSnapshot) {
+      return NextResponse.json({
+        btcPriceEur: priceCache.btcEur,
+        btcPriceUsd: priceCache.btcUsd,
+        usdEur: priceCache.usdEur,
+        cached: false,
+        timestamp: new Date(priceCache.timestamp).toISOString()
+      })
+    }
+
     // Restituisci solo il prezzo nella valuta dell'utente
     const btcPrice = userCurrency === 'USD' ? priceCache.btcUsd : priceCache.btcEur
 
@@ -209,6 +232,20 @@ export async function GET(request: NextRequest) {
         }
       } catch {
         // Ignora errori in fallback
+      }
+      
+      // Per snapshot, restituisci entrambi i prezzi
+      const { searchParams } = new URL(request.url)
+      const isSnapshot = searchParams.get('snapshot') === 'true'
+      if (isSnapshot) {
+        return NextResponse.json({
+          btcPriceEur: priceCache.btcEur,
+          btcPriceUsd: priceCache.btcUsd,
+          usdEur: priceCache.usdEur,
+          cached: true,
+          timestamp: new Date(priceCache.timestamp).toISOString(),
+          warning: 'Prezzo da cache (API non disponibile)'
+        })
       }
       
       const btcPrice = userCurrency === 'USD' ? priceCache.btcUsd : priceCache.btcEur

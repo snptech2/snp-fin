@@ -8,7 +8,7 @@ const prisma = new PrismaClient()
 // PUT - Aggiorna transazione DCA (AGGIORNATO per supportare vendite)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 AGGIUNTO: Autenticazione
@@ -16,6 +16,7 @@ export async function PUT(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const id = parseInt(params.id)
     // 🟠 AGGIUNTO: campo type opzionale
     const { date, type, broker, info, btcQuantity, eurPaid, notes } = await request.json()
@@ -186,7 +187,7 @@ export async function PUT(
 // DELETE - Cancella transazione DCA (AGGIORNATO per gestire vendite)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 AGGIUNTO: Autenticazione
@@ -194,6 +195,7 @@ export async function DELETE(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
+    const params = await context.params
     const id = parseInt(params.id)
 
     if (isNaN(id)) {

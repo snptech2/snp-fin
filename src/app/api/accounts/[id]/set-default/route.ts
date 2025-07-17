@@ -8,7 +8,7 @@ const prisma = new PrismaClient()
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -16,6 +16,7 @@ export async function PUT(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
+    const params = await context.params
     const accountId = parseInt(params.id)
     
     if (isNaN(accountId)) {

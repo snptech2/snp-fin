@@ -1,14 +1,12 @@
 // src/app/api/transactions/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth-middleware'
-
-const prisma = new PrismaClient()
 
 // GET - Dettagli singola transazione
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -16,7 +14,7 @@ export async function GET(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
-    const resolvedParams = await params
+    const resolvedParams = await context.params
     const transactionId = parseInt(resolvedParams.id)
 
     const transaction = await prisma.transaction.findFirst({
@@ -54,7 +52,7 @@ export async function GET(
 // PUT - Aggiorna transazione
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -62,7 +60,7 @@ export async function PUT(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
-    const resolvedParams = await params
+    const resolvedParams = await context.params
     const transactionId = parseInt(resolvedParams.id)
     const body = await request.json()
     const { description, amount, date, accountId, categoryId, type } = body
@@ -186,7 +184,7 @@ export async function PUT(
 // DELETE - Cancella transazione
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -194,7 +192,7 @@ export async function DELETE(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
-    const resolvedParams = await params
+    const resolvedParams = await context.params
     const transactionId = parseInt(resolvedParams.id)
 
     // Recupera transazione esistente

@@ -44,6 +44,10 @@ model User {
   // Beni Non Correnti e Crediti
   nonCurrentAssets NonCurrentAsset[]
   credits Credit[]
+  
+  // Holdings Tracking
+  holdingsSnapshots HoldingsSnapshot[]
+  snapshotSettings  SnapshotSettings?
 
 }
 
@@ -386,4 +390,51 @@ model Credit {
   user        User     @relation(fields: [userId], references: [id])
   
   @@map("credits")
+}
+
+// 📊 HOLDINGS SNAPSHOT - Tracking storico valore portfolio
+model HoldingsSnapshot {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id])
+  
+  // Timestamp come nel tuo Excel (combiniamo Date + Time)
+  date            DateTime @default(now())
+  
+  // I tuoi campi esatti dal file Excel
+  btcUsd          Float    // BTCUSD - prezzo Bitcoin in USD
+  dirtyDollars    Float    // Valore totale holdings in USD
+  dirtyEuro       Float    // Valore totale holdings in EUR  
+  btc             Float    // BTC totali equivalenti
+  
+  // Campi aggiuntivi per tracking dettagliato
+  cryptoValue     Float?   // Valore solo crypto portfolios
+  dcaValue        Float?   // Valore solo DCA portfolios
+  
+  // Metadata
+  isAutomatic     Boolean  @default(false) // Se creato automaticamente
+  note            String?  // Note opzionali per snapshot manuali
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([userId, date])
+  @@map("holdings_snapshots")
+}
+
+// 📊 SNAPSHOT SETTINGS - Configurazioni automazione snapshot
+model SnapshotSettings {
+  id                  Int      @id @default(autoincrement())
+  userId              Int      @unique
+  user                User     @relation(fields: [userId], references: [id])
+  
+  autoSnapshotEnabled Boolean  @default(false)     // Abilitare snapshot automatici
+  frequency           String   @default("daily")    // daily, 6hours, weekly, monthly
+  preferredHour       Int?     // Ora preferita (0-23) per snapshot giornalieri
+  lastSnapshot        DateTime?                     // Timestamp ultimo snapshot automatico
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@map("snapshot_settings")
 }

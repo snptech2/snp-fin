@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
 import { useNotifications } from '@/contexts/NotificationContext'
+import PerformanceChart from '@/components/charts/PerformanceChart'
 
 interface Account {
   id: number
@@ -56,9 +58,16 @@ interface BitcoinPrice {
   timestamp: string
 }
 
+interface ChartDataPoint {
+  date: string
+  fiatValue: number
+  btcValue: number
+}
+
 export default function InvestmentsPage() {
   const { user } = useAuth()
   const { alert } = useNotifications()
+  const router = useRouter()
   const [dcaPortfolios, setDcaPortfolios] = useState<Portfolio[]>([])
   const [cryptoPortfolios, setCryptoPortfolios] = useState<Portfolio[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -67,6 +76,8 @@ export default function InvestmentsPage() {
   const [showCreateDCAModal, setShowCreateDCAModal] = useState(false)
   const [showCreateCryptoModal, setShowCreateCryptoModal] = useState(false)
   const [submitLoading, setSubmitLoading] = useState(false)
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([])
+  const [chartsLoading, setChartsLoading] = useState(true)
 
   // Form states
   const [formData, setFormData] = useState({
@@ -85,6 +96,7 @@ export default function InvestmentsPage() {
   useEffect(() => {
     fetchData()
     fetchBitcoinPrice()
+    fetchChartData()
     
     // Check URL params for quick create actions
     const urlParams = new URLSearchParams(window.location.search)
@@ -139,6 +151,21 @@ export default function InvestmentsPage() {
       }
     } catch (error) {
       console.error('Error fetching Bitcoin price:', error)
+    }
+  }
+
+  const fetchChartData = async () => {
+    try {
+      setChartsLoading(true)
+      const response = await fetch('/api/holdings-snapshots/charts')
+      if (response.ok) {
+        const data = await response.json()
+        setChartData(data.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching chart data:', error)
+    } finally {
+      setChartsLoading(false)
     }
   }
 
@@ -311,6 +338,12 @@ export default function InvestmentsPage() {
           {/* Desktop */}
           <div className="hidden sm:flex justify-end gap-3">
             <button
+              onClick={() => router.push('/investments/tracking')}
+              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-medium text-sm"
+            >
+              📊 Tracking Avanzato
+            </button>
+            <button
               onClick={() => setShowCreateDCAModal(true)}
               className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 font-medium text-sm"
             >
@@ -325,6 +358,12 @@ export default function InvestmentsPage() {
           </div>
           {/* Mobile */}
           <div className="sm:hidden space-y-3">
+            <button
+              onClick={() => router.push('/investments/tracking')}
+              className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm flex items-center justify-center gap-2"
+            >
+              📊 Tracking Avanzato
+            </button>
             <button
               onClick={() => setShowCreateDCAModal(true)}
               className="w-full px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium text-sm flex items-center justify-center gap-2"
@@ -383,6 +422,24 @@ export default function InvestmentsPage() {
               ROI: {formatPercentage(overallStats.overallROI)}
             </p>
           </div>
+        </div>
+
+        {/* Performance Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <PerformanceChart
+            data={chartData}
+            currency={user?.currency || 'EUR'}
+            type="fiat"
+            title={`📈 Andamento Portfolio (${user?.currency || 'EUR'})`}
+            height={300}
+          />
+          <PerformanceChart
+            data={chartData}
+            currency={user?.currency || 'EUR'}
+            type="btc"
+            title="₿ Andamento Portfolio (BTC)"
+            height={300}
+          />
         </div>
 
         {/* DCA Bitcoin Portfolios */}

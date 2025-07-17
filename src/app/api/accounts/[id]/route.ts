@@ -8,7 +8,7 @@ const prisma = new PrismaClient()
 // PUT - Aggiorna conto
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -18,6 +18,7 @@ export async function PUT(
     
     const body = await request.json()
     const { name, balance } = body
+    const params = await context.params
     const accountId = parseInt(params.id)
     
     if (isNaN(accountId)) {
@@ -53,7 +54,7 @@ export async function PUT(
 // POST - Ricalcola saldo conto basandosi sulle transazioni
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -61,6 +62,7 @@ export async function POST(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
+    const params = await context.params
     const accountId = parseInt(params.id)
     
     if (isNaN(accountId)) {
@@ -113,7 +115,7 @@ export async function POST(
     })
     
     outgoingTransfers.forEach(transfer => {
-      calculatedBalance -= (transfer.amount + (transfer.fee || 0))
+      calculatedBalance -= transfer.amount
     })
     
     // Aggiorna il saldo
@@ -137,7 +139,7 @@ export async function POST(
 // DELETE - Cancella conto (FIXED per gestire trasferimenti)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // 🔐 Autenticazione
@@ -145,6 +147,7 @@ export async function DELETE(
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
     
+    const params = await context.params
     const accountId = parseInt(params.id)
     
     if (isNaN(accountId)) {

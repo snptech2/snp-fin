@@ -1,6 +1,26 @@
 // src/lib/capitalGainsUtils.ts
 import { PrismaClient } from '@prisma/client'
 
+// Tipi per Portfolio e BitcoinPrice (copiati dalle pagine)
+interface Portfolio {
+  id: number
+  name: string
+  type: 'dca_bitcoin' | 'crypto_wallet'
+  stats: {
+    totalBTC?: number
+    netBTC?: number
+    totalROI?: number
+    [key: string]: any
+  }
+}
+
+interface BitcoinPrice {
+  btcPrice: number
+  currency: string
+  cached: boolean
+  timestamp: string
+}
+
 export interface CapitalGainsResult {
   capitalGains: number // Positiva = plusvalenza, negativa = minusvalenza
   averageCost: number // Costo medio per BTC
@@ -153,4 +173,29 @@ export function formatEuro(amount: number): string {
  */
 export function formatBTC(amount: number): string {
   return `${amount.toFixed(8)} BTC`
+}
+
+/**
+ * Calcola il valore corrente di un DCA portfolio
+ */
+export function getDCACurrentValue(portfolio: Portfolio, btcPrice: number): number {
+  if (portfolio.type !== 'dca_bitcoin' && !portfolio.stats?.totalBTC && !portfolio.stats?.netBTC) {
+    return 0;
+  }
+  
+  if (!btcPrice) {
+    return 0;
+  }
+  
+  // Priority: netBTC (includes network fees)
+  if (portfolio.stats?.netBTC !== undefined && portfolio.stats?.netBTC !== null) {
+    return portfolio.stats.netBTC * btcPrice;
+  }
+  
+  // Fallback: totalBTC (may not include network fees)
+  if (portfolio.stats?.totalBTC !== undefined && portfolio.stats?.totalBTC !== null) {
+    return portfolio.stats.totalBTC * btcPrice;
+  }
+  
+  return 0;
 }
