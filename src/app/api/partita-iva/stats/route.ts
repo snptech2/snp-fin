@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     const saldoTasse = totaleTasseDovute - totaleTassePagate
     
     // Statistiche per mese
-    const monthlyStats = {}
+    const monthlyStats: Record<number, any> = {}
     for (let month = 1; month <= 12; month++) {
       const monthIncomes = incomes.filter(income => 
         new Date(income.dataIncasso).getMonth() + 1 === month

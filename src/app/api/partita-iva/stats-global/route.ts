@@ -73,10 +73,12 @@ export async function GET(request: NextRequest) {
     ])
     
     // Converti risultati in formato più utilizzabile
-    const yearlyStats = {}
+    const yearlyStats: Record<number, any> = {} as Record<number, any>
     
     // Processa entrate per anno
-    incomesByYear.forEach((row: any) => {
+    const incomesByYearArray = incomesByYear as any[]
+    if (incomesByYearArray && Array.isArray(incomesByYearArray)) {
+      incomesByYearArray.forEach((row: any) => {
       const year = parseInt(row.year)
       yearlyStats[year] = {
         entrate: parseFloat(row.entrate) || 0,
@@ -86,9 +88,12 @@ export async function GET(request: NextRequest) {
         numeroPagamenti: 0
       }
     })
+    }
     
     // Processa pagamenti per anno
-    paymentsByYear.forEach((row: any) => {
+    const paymentsByYearArray = paymentsByYear as any[]
+    if (paymentsByYearArray && Array.isArray(paymentsByYearArray)) {
+      paymentsByYearArray.forEach((row: any) => {
       const year = parseInt(row.year)
       if (!yearlyStats[year]) {
         yearlyStats[year] = {
@@ -101,10 +106,11 @@ export async function GET(request: NextRequest) {
       yearlyStats[year].tassePagate = parseFloat(row.tasse_pagate) || 0
       yearlyStats[year].numeroPagamenti = parseInt(row.numero_pagamenti) || 0
     })
+    }
     
     const allYears = new Set([
-      ...incomesByYear.map((row: any) => parseInt(row.year)),
-      ...paymentsByYear.map((row: any) => parseInt(row.year))
+      ...(incomesByYearArray || []).map((row: any) => parseInt(row.year)),
+      ...(paymentsByYearArray || []).map((row: any) => parseInt(row.year))
     ])
     
     // Calcolo percentuale riservata per tasse

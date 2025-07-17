@@ -110,6 +110,8 @@ export async function POST(request: NextRequest) {
     console.log('📊 - Crypto Portfolios:', cryptoPortfolios.length)
     console.log('📊 - BTC Price EUR:', btcPriceData.btcPriceEur)
     console.log('📊 - BTC Price USD:', btcPriceData.btcPriceUsd)
+    console.log('📊 - Data cached:', btcPriceData.cached)
+    console.log('📊 - Data timestamp:', btcPriceData.timestamp)
 
     // 3. Get user currency preference for BTC calculation
     const user = await prisma.user.findUnique({
@@ -147,9 +149,9 @@ export async function POST(request: NextRequest) {
     const btcPriceEur = btcPriceData.btcPriceEur
     const btcPriceUsd = btcPriceData.btcPriceUsd
     
-    // Calcola il tasso EUR/USD dinamico dai prezzi BTC
-    const eurUsdRate = btcPriceUsd / btcPriceEur
-    const usdValue = eurValue * eurUsdRate
+    // Usa direttamente il tasso EUR/USD dall'API bitcoin-price invece di ricalcolarlo
+    const eurUsdRate = 1 / btcPriceData.usdEur  // 1 EUR = eurUsdRate USD (inverso di usdEur)
+    const usdValue = eurValue * eurUsdRate        // Conversione EUR → USD
     
     // 🎯 USER-SPECIFIED BTC CALCULATION FORMULA
     // BTC = holdingsValue / bitcoin_price (ALWAYS USE USD FOR CONSISTENCY)
@@ -169,7 +171,9 @@ export async function POST(request: NextRequest) {
     console.log('📊 - BTC Calculated:', calculatedBTC)
     console.log('📊 - BTC Price EUR:', btcPriceEur)
     console.log('📊 - BTC Price USD:', btcPriceUsd)
-    console.log('📊 - EUR/USD Rate:', eurUsdRate)
+    console.log('📊 - EUR/USD Rate used:', eurUsdRate, '(1 / usdEur)')
+    console.log('📊 - USD/EUR Rate from bitcoin-price:', btcPriceData.usdEur || 'not provided')
+    console.log('📊 - Time:', new Date().toISOString())
 
     // 6. Crea il snapshot
     const snapshot = await prisma.holdingsSnapshot.create({

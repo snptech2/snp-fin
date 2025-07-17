@@ -344,7 +344,7 @@ function parseDate(dateStr: string): Date | null {
     const monthStr = monthMatch[2].toLowerCase()
     const year = parseInt(monthMatch[3])
     
-    const month = monthNames[monthStr]
+    const month = (monthNames as any)[monthStr]
     if (month !== undefined) {
       const date = new Date(year, month, day)
       if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {

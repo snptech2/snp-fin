@@ -73,24 +73,24 @@ export const TransactionFormModal = ({
 
   // Memoize change handlers to prevent re-renders
   const handleDescriptionChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    onFormChange({ description: e.target.value })
-  }, [onFormChange])
+    onFormChange({ ...transactionForm, description: e.target.value })
+  }, [onFormChange, transactionForm])
 
   const handleAmountChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    onFormChange({ amount: e.target.value })
-  }, [onFormChange])
+    onFormChange({ ...transactionForm, amount: e.target.value })
+  }, [onFormChange, transactionForm])
 
   const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    onFormChange({ date: e.target.value })
-  }, [onFormChange])
+    onFormChange({ ...transactionForm, date: e.target.value })
+  }, [onFormChange, transactionForm])
 
   const handleAccountChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    onFormChange({ accountId: e.target.value })
-  }, [onFormChange])
+    onFormChange({ ...transactionForm, accountId: e.target.value })
+  }, [onFormChange, transactionForm])
 
   const handleCategoryChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    onFormChange({ categoryId: e.target.value })
-  }, [onFormChange])
+    onFormChange({ ...transactionForm, categoryId: e.target.value })
+  }, [onFormChange, transactionForm])
 
   return (
     <FormModal

@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     // Debug prime righe ricevute
     if (csvData && csvData.length > 0) {
       console.log('🔍 Prime 3 righe ricevute:')
-      csvData.slice(0, 3).forEach((row, index) => {
+      csvData.slice(0, 3).forEach((row: any, index: number) => {
         console.log(`  Riga ${index + 1}:`, {
           data: row.data,
           descrizione: row.descrizione, 
@@ -271,7 +271,7 @@ function parseDate(dateStr: string): Date | null {
     const monthStr = monthMatch[2].toLowerCase()
     const year = parseInt(monthMatch[3])
     
-    const month = monthNames[monthStr]
+    const month = (monthNames as any)[monthStr]
     if (month !== undefined) {
       const date = new Date(year, month, day)
       if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {

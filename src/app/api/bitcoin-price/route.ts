@@ -16,7 +16,7 @@ let priceCache: {
 // PERFORMANCE: Cache estesa a 10 minuti per ridurre chiamate API esterne
 const CACHE_DURATION = 10 * 60 * 1000 // 10 minuti
 
-import { fetchYahooFinanceRate } from '@/lib/yahooFinance'
+import { fetchYahooFinanceRateCached } from '@/lib/yahooFinance'
 
 // GET - Ottieni prezzo Bitcoin nella valuta dell'utente
 export async function GET(request: NextRequest) {
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
       // Se l'utente usa EUR, fetch sia USD che EUR rate
       console.log('💶 Fetching BTC-USD and converting to EUR')
       
-      const [btcResponse, exchangeData] = await Promise.all([
+      const [btcResponse, usdEurRate] = await Promise.all([
         fetch('https://cryptoprices.cc/BTC', {
           method: 'GET',
           headers: {
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
           },
           cache: 'no-store'
         }),
-        fetchYahooFinanceRate()
+        fetchYahooFinanceRateCached()
       ])
       
       if (!btcResponse.ok) {
@@ -156,8 +156,8 @@ export async function GET(request: NextRequest) {
         throw new Error('Prezzo BTC non valido ricevuto')
       }
       
-      // Parse tasso USD→EUR dalla nuova funzione Yahoo Finance
-      usdEur = exchangeData.rates?.EUR
+      // Use cached USD→EUR rate from Yahoo Finance
+      usdEur = usdEurRate
       
       if (!usdEur || isNaN(usdEur) || usdEur <= 0) {
         throw new Error('Tasso di cambio USD→EUR non valido')
@@ -186,6 +186,7 @@ export async function GET(request: NextRequest) {
       usdEur: priceCache.usdEur
     })
     console.log('🕐 New cache timestamp:', new Date(priceCache.timestamp).toISOString())
+    console.log('🔗 API calls made atomically at:', new Date(now).toISOString())
 
     // Per snapshot, restituisci entrambi i prezzi
     if (isSnapshot) {

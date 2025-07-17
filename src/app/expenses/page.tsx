@@ -163,8 +163,8 @@ export default function ExpensesPage() {
 
   // Trova conto predefinito
   const getDefaultAccount = () => {
-    return accounts.find(account => account.isDefault && account.type === 'bank') || 
-           accounts.find(account => account.type === 'bank')
+    return accounts.find(account => account.isDefault && (account as any).type === 'bank') || 
+           accounts.find(account => (account as any).type === 'bank')
   }
 
   // Caricamento iniziale
@@ -458,8 +458,8 @@ export default function ExpensesPage() {
       const headers = parseCSVLine(lines[0]).map(h => h.trim())
       console.log('📋 Headers trovati:', headers)
       
-      const defaultAccount = accounts.find(acc => acc.isDefault && acc.type === 'bank') || 
-                           accounts.find(acc => acc.type === 'bank')
+      const defaultAccount = accounts.find(acc => acc.isDefault && (acc as any).type === 'bank') || 
+                           accounts.find(acc => (acc as any).type === 'bank')
 
       const allParsedRows = lines.slice(1).map((line, index) => {
         const values = parseCSVLine(line)

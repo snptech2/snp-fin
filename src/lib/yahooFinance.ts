@@ -111,7 +111,7 @@ let rateCache: {
   timestamp: number
 } | null = null
 
-const RATE_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const RATE_CACHE_DURATION = 10 * 60 * 1000 // 10 minutes - aligned with bitcoin-price cache
 
 export async function fetchYahooFinanceRateCached(): Promise<number> {
   const now = Date.now()
@@ -119,6 +119,7 @@ export async function fetchYahooFinanceRateCached(): Promise<number> {
   // Check cache first
   if (rateCache && (now - rateCache.timestamp) < RATE_CACHE_DURATION) {
     console.log('📦 Using cached Yahoo Finance rate:', rateCache.rate)
+    console.log('📦 Cache age:', Math.round((now - rateCache.timestamp) / 1000), 'seconds')
     return rateCache.rate
   }
   
@@ -132,5 +133,6 @@ export async function fetchYahooFinanceRateCached(): Promise<number> {
     timestamp: now
   }
   
+  console.log('💾 Yahoo Finance rate cached at:', new Date(now).toISOString())
   return rate
 }

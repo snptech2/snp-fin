@@ -15,8 +15,8 @@ export async function updateRiservaTasseBudget(userId: number, tx?: any) {
       where: { userId }
     })
     
-    const totaleTasseDovute = incomes.reduce((sum, income) => sum + income.totaleTasse, 0)
-    const totaleTassePagate = payments.reduce((sum, payment) => sum + payment.importo, 0)
+    const totaleTasseDovute = incomes.reduce((sum: number, income: any) => sum + income.totaleTasse, 0)
+    const totaleTassePagate = payments.reduce((sum: number, payment: any) => sum + payment.importo, 0)
     const saldoTasse = Math.max(0, totaleTasseDovute - totaleTassePagate)
     
     // Cerca il budget "RISERVA TASSE" o "Riserva Tasse" (case insensitive)
@@ -115,8 +115,8 @@ export async function calculatePartitaIVAStats(userId: number, anno?: number) {
     })
     
     const totaleEntrate = incomes.reduce((sum, income) => sum + income.entrata, 0)
-    const totaleTasseDovute = incomes.reduce((sum, income) => sum + income.totaleTasse, 0)
-    const totaleTassePagate = payments.reduce((sum, payment) => sum + payment.importo, 0)
+    const totaleTasseDovute = incomes.reduce((sum: number, income: any) => sum + income.totaleTasse, 0)
+    const totaleTassePagate = payments.reduce((sum: number, payment: any) => sum + payment.importo, 0)
     const saldoTasse = Math.max(0, totaleTasseDovute - totaleTassePagate)
     
     return {

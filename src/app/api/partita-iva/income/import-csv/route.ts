@@ -482,7 +482,7 @@ async function updateTaxReserveBudget(userId: number) {
       } else {
         await prisma.budget.update({
           where: { id: budget.id },
-          data: { totalAmount: remainingTaxes }
+          data: { targetAmount: remainingTaxes }
         })
       }
       
