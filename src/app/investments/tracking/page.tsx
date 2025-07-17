@@ -353,23 +353,24 @@ export default function TrackingPage() {
     }
   }, [csvData, forceReimport, alert, fetchData])
 
-  const formatDate = useCallback((dateStr: string) => {
+  // Funzioni helper - non sono hooks, quindi possono essere definite ovunque
+  const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
     return date.toLocaleDateString('it-IT', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
     })
-  }, [])
+  }
 
-  const formatTime = useCallback((dateStr: string) => {
+  const formatTime = (dateStr: string) => {
     const date = new Date(dateStr)
     return date.toLocaleTimeString('it-IT', {
       hour: '2-digit',
       minute: '2-digit'
     })
-  }, [])
-
+  }
+  
   if (loading) {
     return (
       <ProtectedRoute>
