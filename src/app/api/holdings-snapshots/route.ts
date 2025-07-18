@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     const { userId } = authResult
 
     const body = await request.json()
-    const { note } = body
+    const { note, isAutomatic = false } = body
 
     // 1. Recupera BTC price e portfolios
     const [btcPriceResponse, dcaPortfoliosResponse, cryptoPortfoliosResponse] = await Promise.all([
@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
         dirtyDollars: PrecisionUtils.currency(usdValue),
         dirtyEuro: PrecisionUtils.currency(eurValue),
         btc: PrecisionUtils.bitcoin(calculatedBTC),
-        isAutomatic: false,
+        isAutomatic: isAutomatic,
         note: note || null
       }
     })
