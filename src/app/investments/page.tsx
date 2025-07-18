@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { XMarkIcon } from '@heroicons/react/24/outline'
@@ -201,8 +201,8 @@ export default function InvestmentsPage() {
     return 0
   }, [btcPrice])
 
-  // Enhanced Overall Stats - CONVERTITO A FUNZIONE NORMALE PER DEBUG
-  const getOverallStats = () => {
+  // Enhanced Overall Stats - Reintrodotto useMemo con dipendenze sicure
+  const overallStats = useMemo(() => {
     const allPortfolios = [...dcaPortfolios, ...cryptoPortfolios]
     
     // Enhanced Cash Flow: Somma tutte le stats dai portfolio backend
@@ -211,7 +211,7 @@ export default function InvestmentsPage() {
     const totalEffectiveInvestment = allPortfolios.reduce((sum, p) => sum + (p.stats.effectiveInvestment || 0), 0)
     const totalRealizedProfit = allPortfolios.reduce((sum, p) => sum + (p.stats.realizedProfit || 0), 0)
     
-    // Calcola current value usando helper functions Enhanced
+    // Calcola current value direttamente senza useCallback per evitare dipendenze circolari
     let totalCurrentValue = 0
     const currentBtcPrice = btcPrice?.btcPrice || 0
     
@@ -253,9 +253,7 @@ export default function InvestmentsPage() {
       dcaCount: dcaPortfolios.length,
       cryptoCount: cryptoPortfolios.length
     }
-  }
-  
-  const overallStats = getOverallStats()
+  }, [dcaPortfolios, cryptoPortfolios, btcPrice])
 
   // Create DCA Portfolio
   const createDCAPortfolio = async () => {
