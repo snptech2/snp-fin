@@ -3,12 +3,25 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
 import { useNotifications } from '@/contexts/NotificationContext'
-// import PerformanceChart from '@/components/charts/PerformanceChart' // TEMPORANEAMENTE DISABILITATO
+
+// Import dinamico per evitare hydration mismatch
+const PerformanceChart = dynamic(() => import('@/components/charts/PerformanceChart'), {
+  ssr: false,
+  loading: () => (
+    <div className="card-adaptive rounded-lg p-6 text-center">
+      <div className="animate-pulse">
+        <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto mb-4"></div>
+        <div className="h-64 bg-gray-100 rounded"></div>
+      </div>
+    </div>
+  )
+})
 
 interface Account {
   id: number
@@ -431,16 +444,22 @@ export default function InvestmentsPage() {
           </div>
         </div>
 
-        {/* Performance Charts - TEMPORANEAMENTE DISABILITATI PER DEBUG */}
+        {/* Performance Charts - Reintrodotti con dynamic import */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="card-adaptive rounded-lg p-6 text-center">
-            <h3 className="text-lg font-semibold mb-4">📈 Andamento Portfolio (EUR)</h3>
-            <p className="text-gray-500">Grafici temporaneamente disabilitati per debug</p>
-          </div>
-          <div className="card-adaptive rounded-lg p-6 text-center">
-            <h3 className="text-lg font-semibold mb-4">₿ Andamento Portfolio (BTC)</h3>
-            <p className="text-gray-500">Grafici temporaneamente disabilitati per debug</p>
-          </div>
+          <PerformanceChart
+            data={chartData}
+            currency={user?.currency || 'EUR'}
+            type="fiat"
+            title={`📈 Andamento Portfolio (${user?.currency || 'EUR'})`}
+            height={300}
+          />
+          <PerformanceChart
+            data={chartData}
+            currency={user?.currency || 'EUR'}
+            type="btc"
+            title="₿ Andamento Portfolio (BTC)"
+            height={300}
+          />
         </div>
 
         {/* DCA Bitcoin Portfolios */}
