@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { XMarkIcon } from '@heroicons/react/24/outline'
@@ -8,7 +8,7 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
 import { useNotifications } from '@/contexts/NotificationContext'
-import PerformanceChart from '@/components/charts/PerformanceChart'
+// import PerformanceChart from '@/components/charts/PerformanceChart' // TEMPORANEAMENTE DISABILITATO
 
 interface Account {
   id: number
@@ -201,8 +201,8 @@ export default function InvestmentsPage() {
     return 0
   }, [btcPrice])
 
-  // Enhanced Overall Stats - Ottimizzato per evitare dipendenze instabili
-  const overallStats = useMemo(() => {
+  // Enhanced Overall Stats - CONVERTITO A FUNZIONE NORMALE PER DEBUG
+  const getOverallStats = () => {
     const allPortfolios = [...dcaPortfolios, ...cryptoPortfolios]
     
     // Enhanced Cash Flow: Somma tutte le stats dai portfolio backend
@@ -253,7 +253,9 @@ export default function InvestmentsPage() {
       dcaCount: dcaPortfolios.length,
       cryptoCount: cryptoPortfolios.length
     }
-  }, [dcaPortfolios, cryptoPortfolios, btcPrice])
+  }
+  
+  const overallStats = getOverallStats()
 
   // Create DCA Portfolio
   const createDCAPortfolio = async () => {
@@ -335,7 +337,7 @@ export default function InvestmentsPage() {
 
   return (
     <ProtectedRoute>
-      <div className="space-y-6">
+      <div className="space-y-6" suppressHydrationWarning={true}>
         {/* Header - Mobile Optimized */}
         <div className="mb-6 sm:mb-8">
           <div className="mb-4">
@@ -431,22 +433,16 @@ export default function InvestmentsPage() {
           </div>
         </div>
 
-        {/* Performance Charts */}
+        {/* Performance Charts - TEMPORANEAMENTE DISABILITATI PER DEBUG */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <PerformanceChart
-            data={chartData}
-            currency={user?.currency || 'EUR'}
-            type="fiat"
-            title={`📈 Andamento Portfolio (${user?.currency || 'EUR'})`}
-            height={300}
-          />
-          <PerformanceChart
-            data={chartData}
-            currency={user?.currency || 'EUR'}
-            type="btc"
-            title="₿ Andamento Portfolio (BTC)"
-            height={300}
-          />
+          <div className="card-adaptive rounded-lg p-6 text-center">
+            <h3 className="text-lg font-semibold mb-4">📈 Andamento Portfolio (EUR)</h3>
+            <p className="text-gray-500">Grafici temporaneamente disabilitati per debug</p>
+          </div>
+          <div className="card-adaptive rounded-lg p-6 text-center">
+            <h3 className="text-lg font-semibold mb-4">₿ Andamento Portfolio (BTC)</h3>
+            <p className="text-gray-500">Grafici temporaneamente disabilitati per debug</p>
+          </div>
         </div>
 
         {/* DCA Bitcoin Portfolios */}
