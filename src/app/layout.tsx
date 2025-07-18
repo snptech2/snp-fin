@@ -32,7 +32,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{ background: 'var(--background)', color: 'var(--foreground)' }}
-        suppressHydrationWarning={true}
       >
         <ThemeProvider>
           <AuthProvider>

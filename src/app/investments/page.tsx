@@ -348,7 +348,7 @@ export default function InvestmentsPage() {
 
   return (
     <ProtectedRoute>
-      <div className="space-y-6" suppressHydrationWarning={true}>
+      <div className="space-y-6">
         {/* Header - Mobile Optimized */}
         <div className="mb-6 sm:mb-8">
           <div className="mb-4">
