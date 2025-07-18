@@ -20,7 +20,7 @@ export const useOnboarding = () => {
     moduleSettings: null,
     onboardingCompletedAt: null
   })
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true) // 🔧 FIX: Inizia con true per evitare flash
   const [error, setError] = useState<string | null>(null)
 
   const fetchOnboardingState = useCallback(async () => {
@@ -39,16 +39,14 @@ export const useOnboarding = () => {
         console.log('📊 Onboarding state fetched:', data)
         setOnboardingState(data)
         
-        // Se l'onboarding è completato, nascondi subito il loading
-        if (data.onboardingCompleted) {
-          setLoading(false)
-        }
+        // 🔧 FIX: Riduci il tempo di loading per UX migliore
+        // Nascondi subito il loading se abbiamo dati validi
+        setLoading(false)
       } else {
         throw new Error('Errore nel caricamento stato onboarding')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore sconosciuto')
-    } finally {
       setLoading(false)
     }
   }, [user])
@@ -57,6 +55,14 @@ export const useOnboarding = () => {
     // Se non c'è utente o stiamo ancora caricando, non mostrare onboarding
     if (!user || loading) return false
     
+    // 🔧 FIX: Prevenire flash dell'onboarding
+    // Se l'onboarding state è ancora nel valore di default, probabilmente stiamo ancora caricando
+    if (onboardingState.onboardingStep === 0 && 
+        onboardingState.onboardingCompleted === false && 
+        onboardingState.appProfile === null) {
+      return false // Non mostrare onboarding finché non abbiamo dati reali
+    }
+    
     const needs = !onboardingState.onboardingCompleted || onboardingState.onboardingStep < 5
     
     // Riduci il logging per evitare spam
@@ -64,12 +70,13 @@ export const useOnboarding = () => {
       console.log('🎯 Checking onboarding needs:', {
         onboardingCompleted: onboardingState.onboardingCompleted,
         onboardingStep: onboardingState.onboardingStep,
-        needsOnboarding: needs
+        needsOnboarding: needs,
+        hasDefaultState: onboardingState.onboardingStep === 0 && onboardingState.onboardingCompleted === false
       })
     }
     
     return needs
-  }, [user, loading, onboardingState.onboardingCompleted, onboardingState.onboardingStep])
+  }, [user, loading, onboardingState.onboardingCompleted, onboardingState.onboardingStep, onboardingState.appProfile])
 
   const completeOnboarding = useCallback(() => {
     setOnboardingState(prev => ({

@@ -492,7 +492,7 @@ export default function TrackingPage() {
           </div>
         </div>
 
-        {/* Snapshots Table */}
+        {/* Snapshots List */}
         <div className="card-adaptive">
           <div className="px-4 sm:px-6 py-4 border-b border-adaptive">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -551,89 +551,134 @@ export default function TrackingPage() {
               <p className="text-sm mt-1">Crea il primo snapshot per iniziare il tracking!</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-adaptive-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
-                      <input
-                        type="checkbox"
-                        checked={selectedSnapshots.size === snapshots.length && snapshots.length > 0}
-                        onChange={toggleSelectAll}
-                        className="rounded"
-                      />
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
-                      Data/Ora
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
-                      BTC/USD
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
-                      EUR
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
-                      USD
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
-                      BTC
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
-                      Tipo
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-adaptive-500 uppercase tracking-wider">
-                      Azioni
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-adaptive-200">
-                  {snapshots.map((snapshot) => (
-                    <tr key={snapshot.id} className="hover:bg-adaptive-50">
-                      <td className="px-4 py-4">
+            <>
+              {/* Desktop Table - Hidden on mobile */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-adaptive-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
+                        <input
+                          type="checkbox"
+                          checked={selectedSnapshots.size === snapshots.length && snapshots.length > 0}
+                          onChange={toggleSelectAll}
+                          className="rounded"
+                        />
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
+                        Data/Ora
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
+                        BTC/USD
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
+                        EUR
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
+                        USD
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
+                        BTC
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-adaptive-500 uppercase tracking-wider">
+                        Tipo
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-adaptive-500 uppercase tracking-wider">
+                        Azioni
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-adaptive-200">
+                    {snapshots.map((snapshot) => (
+                      <tr key={snapshot.id} className="hover:bg-adaptive-50">
+                        <td className="px-4 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedSnapshots.has(snapshot.id)}
+                            onChange={() => toggleSelectSnapshot(snapshot.id)}
+                            className="rounded"
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="text-sm">
+                            <div className="font-medium text-adaptive-900">
+                              {formatDate(snapshot.date)}
+                            </div>
+                            <div className="text-adaptive-500">
+                              {formatTime(snapshot.date)}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-adaptive-900">
+                          ${snapshot.btcUsd.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-4 text-sm font-medium text-adaptive-900">
+                          {formatCurrency(snapshot.dirtyEuro, 'EUR')}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-adaptive-900">
+                          ${snapshot.dirtyDollars.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-adaptive-900">
+                          {snapshot.btc.toFixed(8)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                            snapshot.isAutomatic 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {snapshot.isAutomatic ? 'Auto' : 'Manuale'}
+                          </span>
+                          {snapshot.note && (
+                            <div className="text-xs text-adaptive-500 mt-1 truncate">
+                              {snapshot.note}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <button
+                            onClick={() => setShowDeleteModal(snapshot.id)}
+                            className="text-red-600 hover:text-red-900 p-1"
+                            title="Elimina snapshot"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Cards - Visible on mobile and tablet */}
+              <div className="lg:hidden divide-y divide-adaptive-200">
+                {snapshots.map((snapshot) => (
+                  <div key={snapshot.id} className="p-4 hover:bg-adaptive-50">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
                         <input
                           type="checkbox"
                           checked={selectedSnapshots.has(snapshot.id)}
                           onChange={() => toggleSelectSnapshot(snapshot.id)}
-                          className="rounded"
+                          className="rounded mt-1"
                         />
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="text-sm">
+                        <div>
                           <div className="font-medium text-adaptive-900">
                             {formatDate(snapshot.date)}
                           </div>
-                          <div className="text-adaptive-500">
+                          <div className="text-sm text-adaptive-500">
                             {formatTime(snapshot.date)}
                           </div>
                         </div>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-adaptive-900">
-                        ${snapshot.btcUsd.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-4 text-sm font-medium text-adaptive-900">
-                        {formatCurrency(snapshot.dirtyEuro, 'EUR')}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-adaptive-900">
-                        ${snapshot.dirtyDollars.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-adaptive-900">
-                        {snapshot.btc.toFixed(8)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                           snapshot.isAutomatic 
                             ? 'bg-blue-100 text-blue-800' 
                             : 'bg-gray-100 text-gray-800'
                         }`}>
                           {snapshot.isAutomatic ? 'Auto' : 'Manuale'}
                         </span>
-                        {snapshot.note && (
-                          <div className="text-xs text-adaptive-500 mt-1 truncate">
-                            {snapshot.note}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-right">
                         <button
                           onClick={() => setShowDeleteModal(snapshot.id)}
                           className="text-red-600 hover:text-red-900 p-1"
@@ -641,12 +686,40 @@ export default function TrackingPage() {
                         >
                           <TrashIcon className="h-4 w-4" />
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="bg-adaptive-50 p-3 rounded-lg">
+                        <div className="text-xs text-adaptive-500 mb-1">Valore Totale</div>
+                        <div className="font-semibold text-green-600">
+                          {formatCurrency(snapshot.dirtyEuro, 'EUR')}
+                        </div>
+                        <div className="text-xs text-adaptive-500 mt-1">
+                          ${snapshot.dirtyDollars.toLocaleString()}
+                        </div>
+                      </div>
+                      
+                      <div className="bg-adaptive-50 p-3 rounded-lg">
+                        <div className="text-xs text-adaptive-500 mb-1">Bitcoin</div>
+                        <div className="font-semibold text-orange-600">
+                          {snapshot.btc.toFixed(6)} BTC
+                        </div>
+                        <div className="text-xs text-adaptive-500 mt-1">
+                          ${snapshot.btcUsd.toLocaleString()} USD
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {snapshot.note && (
+                      <div className="mt-3 text-xs text-adaptive-600 bg-adaptive-50 p-2 rounded">
+                        💬 {snapshot.note}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
 

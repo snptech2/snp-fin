@@ -342,7 +342,7 @@ async function createAutomaticSnapshot(userId: number, userCurrency: string) {
         dirtyEuro: PrecisionUtils.currency(totalCurrentValueEur),
         btc: PrecisionUtils.bitcoin(calculatedBTC),
         isAutomatic: true, // ⭐ SNAPSHOT AUTOMATICO
-        note: `Auto-snapshot (${new Date().toISOString()})`
+        note: "Auto-snapshot"
       }
     })
 

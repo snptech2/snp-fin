@@ -399,8 +399,8 @@ export default function InvestmentsPage() {
           </div>
         </div>
 
-        {/* Enhanced Overall Statistics - Mobile Optimized */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        {/* Enhanced Overall Statistics - Mobile Optimized with SATS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
           <div className="card-adaptive rounded-lg p-4 sm:p-6 shadow-sm border-adaptive text-center sm:text-left">
             <h3 className="text-sm font-medium text-adaptive-500">💰 Totale Investito</h3>
             <p className="text-2xl font-bold text-adaptive-900">
@@ -440,6 +440,22 @@ export default function InvestmentsPage() {
             </p>
             <p className={`text-sm ${overallStats.overallROI >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               ROI: {formatPercentage(overallStats.overallROI)}
+            </p>
+          </div>
+          
+          <div className="card-adaptive rounded-lg p-4 sm:p-6 shadow-sm border-adaptive text-center sm:text-left">
+            <h3 className="text-sm font-medium text-adaptive-500">⚡ SATS TOTALI</h3>
+            <p className="text-2xl font-bold text-orange-500">
+              {btcPrice?.btcPrice && overallStats.totalCurrentValue > 0 ? 
+                new Intl.NumberFormat('it-IT').format(Math.round((overallStats.totalCurrentValue / btcPrice.btcPrice) * 100_000_000)) : 
+                '0'
+              }
+            </p>
+            <p className="text-sm text-adaptive-600">
+              {btcPrice?.btcPrice && overallStats.totalCurrentValue > 0 ? 
+                `${((overallStats.totalCurrentValue / btcPrice.btcPrice)).toFixed(8)} BTC` : 
+                'N/A'
+              }
             </p>
           </div>
         </div>
