@@ -13,22 +13,30 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('dark')
+  const [isClient, setIsClient] = useState(false)
 
-  // Load theme from localStorage on mount
+  // Load theme from localStorage on mount - evita hydration mismatch
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') as Theme
-    if (savedTheme && (savedTheme === 'light' || savedTheme === 'dark')) {
-      setTheme(savedTheme)
-      document.documentElement.setAttribute('data-theme', savedTheme)
+    setIsClient(true)
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme') as Theme
+      if (savedTheme && (savedTheme === 'light' || savedTheme === 'dark')) {
+        setTheme(savedTheme)
+        document.documentElement.setAttribute('data-theme', savedTheme)
+      } else {
+        // Set default theme on first visit
+        document.documentElement.setAttribute('data-theme', 'dark')
+      }
     }
   }, [])
 
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark'
     setTheme(newTheme)
-    document.documentElement.setAttribute('data-theme', newTheme)
-    // Save to localStorage
-    localStorage.setItem('theme', newTheme)
+    if (typeof window !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', newTheme)
+      localStorage.setItem('theme', newTheme)
+    }
   }
 
   return (

@@ -98,18 +98,20 @@ export default function InvestmentsPage() {
     fetchBitcoinPrice()
     fetchChartData()
     
-    // Check URL params for quick create actions
-    const urlParams = new URLSearchParams(window.location.search)
-    const createDCA = urlParams.get('createDCA')
-    const createCrypto = urlParams.get('createCrypto')
-    const accountId = urlParams.get('accountId')
-    
-    if (createDCA === 'true' && accountId) {
-      setFormData({ name: '', accountId: parseInt(accountId) })
-      setShowCreateDCAModal(true)
-    } else if (createCrypto === 'true' && accountId) {
-      setCryptoFormData({ name: '', description: '', accountId: parseInt(accountId) })
-      setShowCreateCryptoModal(true)
+    // Check URL params for quick create actions - solo client-side per evitare hydration mismatch
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      const createDCA = urlParams.get('createDCA')
+      const createCrypto = urlParams.get('createCrypto')
+      const accountId = urlParams.get('accountId')
+      
+      if (createDCA === 'true' && accountId) {
+        setFormData({ name: '', accountId: parseInt(accountId) })
+        setShowCreateDCAModal(true)
+      } else if (createCrypto === 'true' && accountId) {
+        setCryptoFormData({ name: '', description: '', accountId: parseInt(accountId) })
+        setShowCreateCryptoModal(true)
+      }
     }
   }, [])
 
