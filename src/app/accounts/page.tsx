@@ -80,7 +80,9 @@ export default function AccountsPage() {
     toAccountId: '',
     amount: '',
     description: '',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    includesGains: false,
+    investmentGainAmount: ''
   })
   const [transferLoading, setTransferLoading] = useState(false)
 
@@ -92,6 +94,13 @@ export default function AccountsPage() {
 
   const formatPercentage = (value: number) => 
     new Intl.NumberFormat('it-IT', { style: 'percent', minimumFractionDigits: 1 }).format(value / 100)
+
+  // Check if selected from account is investment type
+  const isFromAccountInvestment = useMemo(() => {
+    if (!transferForm.fromAccountId) return false
+    const account = accounts.find(a => a.id === parseInt(transferForm.fromAccountId))
+    return account?.type === 'investment'
+  }, [transferForm.fromAccountId, accounts])
 
   // Load Bitcoin price
   const fetchBitcoinPrice = async () => {
@@ -303,7 +312,9 @@ const handleSetDefaultAccount = async (accountId: number) => {
       toAccountId: '', 
       amount: '', 
       description: '', 
-      date: new Date().toISOString().split('T')[0] 
+      date: new Date().toISOString().split('T')[0],
+      includesGains: false,
+      investmentGainAmount: ''
     })
   }
 
@@ -333,6 +344,19 @@ const handleSetDefaultAccount = async (accountId: number) => {
       return
     }
 
+    // Validate investment gain amount
+    if (transferForm.includesGains && transferForm.investmentGainAmount) {
+      const gainAmount = parseFloat(transferForm.investmentGainAmount)
+      if (isNaN(gainAmount) || gainAmount < 0) {
+        alert('L\'importo dei guadagni deve essere un numero positivo')
+        return
+      }
+      if (gainAmount > amount) {
+        alert('L\'importo dei guadagni non può superare l\'importo totale del trasferimento')
+        return
+      }
+    }
+
     setTransferLoading(true)
     try {
       const response = await fetch('/api/transfers', {
@@ -343,7 +367,10 @@ const handleSetDefaultAccount = async (accountId: number) => {
           toAccountId: parseInt(transferForm.toAccountId),
           amount: amount,
           description: transferForm.description || `Trasferimento di ${formatCurrencyWithUserCurrency(amount)}`,
-          date: transferForm.date
+          date: transferForm.date,
+          ...(transferForm.includesGains && transferForm.investmentGainAmount && {
+            investmentGainAmount: parseFloat(transferForm.investmentGainAmount)
+          })
         })
       })
 
@@ -1116,6 +1143,50 @@ const handleSetDefaultAccount = async (accountId: number) => {
                     required
                   />
                 </div>
+
+                {/* Investment gains section - only show when transferring from investment account */}
+                {isFromAccountInvestment && (
+                  <div className="border-t border-adaptive pt-4">
+                    <div className="flex items-center mb-3">
+                      <input
+                        type="checkbox"
+                        id="includesGains"
+                        checked={transferForm.includesGains}
+                        onChange={(e) => setTransferForm({ 
+                          ...transferForm, 
+                          includesGains: e.target.checked,
+                          investmentGainAmount: e.target.checked ? transferForm.investmentGainAmount : ''
+                        })}
+                        className="mr-2 w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <label htmlFor="includesGains" className="text-sm font-medium text-adaptive-900">
+                        Questo trasferimento include guadagni da investimenti
+                      </label>
+                    </div>
+
+                    {transferForm.includesGains && (
+                      <div>
+                        <label className="block text-sm font-medium text-adaptive-900 mb-1">
+                          Importo guadagni ({user?.currency || 'EUR'})
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max={transferForm.amount}
+                          value={transferForm.investmentGainAmount}
+                          onChange={(e) => setTransferForm({ ...transferForm, investmentGainAmount: e.target.value })}
+                          className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="0.00"
+                          required
+                        />
+                        <p className="text-xs text-adaptive-600 mt-1">
+                          Specifica quanto del trasferimento rappresenta guadagni realizzati
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex gap-3">
                   <button

@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     if (authResult instanceof Response) return authResult
     const { userId } = authResult
 
-    const { amount, description, fromAccountId, toAccountId, date } = await request.json()
+    const { amount, description, fromAccountId, toAccountId, date, investmentGainAmount } = await request.json()
     
     // Validations
     if (!amount || amount <= 0) {
@@ -109,14 +109,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Insufficient balance' }, { status: 400 })
     }
     
+    // Validate investment gain amount if provided
+    if (investmentGainAmount !== undefined) {
+      if (investmentGainAmount < 0) {
+        return NextResponse.json({ error: 'Investment gain amount cannot be negative' }, { status: 400 })
+      }
+      if (investmentGainAmount > amount) {
+        return NextResponse.json({ error: 'Investment gain amount cannot exceed transfer amount' }, { status: 400 })
+      }
+      // Only allow investment gains when transferring FROM an investment account
+      if (fromAccount.type !== 'investment') {
+        return NextResponse.json({ error: 'Investment gains can only be specified when transferring from an investment account' }, { status: 400 })
+      }
+    }
+    
     // Create transfer and update balances in transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create transfer record
+      const transferDate = date ? new Date(date) : new Date()
       const transfer = await tx.transfer.create({
         data: {
           amount,
-          description,
-          date: date ? new Date(date) : new Date(),
+          description: description || (investmentGainAmount ? `Recupero capitale + guadagni (${investmentGainAmount}€ di guadagno)` : null),
+          date: transferDate,
           userId, // 🔄 Sostituito: userId: 1 → userId
           fromAccountId,
           toAccountId,
@@ -137,6 +152,42 @@ export async function POST(request: NextRequest) {
         where: { id: toAccountId },
         data: { balance: { increment: amount } }
       })
+      
+      // If investment gains are specified, create income transaction
+      if (investmentGainAmount && investmentGainAmount > 0) {
+        // Find or create "Guadagni Investimenti" category
+        let incomeCategory = await tx.category.findFirst({
+          where: {
+            userId,
+            name: 'Guadagni Investimenti',
+            type: 'income'
+          }
+        })
+        
+        if (!incomeCategory) {
+          incomeCategory = await tx.category.create({
+            data: {
+              name: 'Guadagni Investimenti',
+              type: 'income',
+              color: '#10B981', // Verde per i guadagni
+              userId
+            }
+          })
+        }
+        
+        // Create income transaction for investment gains
+        await tx.transaction.create({
+          data: {
+            description: `Guadagni da investimenti - ${fromAccount.name}`,
+            amount: investmentGainAmount,
+            date: transferDate,
+            type: 'income',
+            accountId: toAccountId,
+            categoryId: incomeCategory.id,
+            userId
+          }
+        })
+      }
       
       return transfer
     })
