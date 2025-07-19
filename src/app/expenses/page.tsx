@@ -4,6 +4,7 @@ import {
   filterOutFiscalTransactions, 
   filterFiscalTransactions 
 } from '@/utils/formatters'
+import { useNotifications } from '@/contexts/NotificationContext'
 import { useState, useEffect, useMemo } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { 
@@ -53,6 +54,7 @@ interface Transaction {
 }
 
 export default function ExpensesPage() {
+  const { alert, confirm } = useNotifications()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -279,7 +281,15 @@ export default function ExpensesPage() {
 
   // Gestione cancellazione categoria
   const handleDeleteCategory = async (category: Category) => {
-    if (!confirm(`Sei sicuro di voler cancellare la categoria "${category.name}"?`)) return
+    const confirmed = await confirm({
+      title: 'Elimina Categoria',
+      message: `Sei sicuro di voler cancellare la categoria "${category.name}"?`,
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/categories/${category.id}`, {
@@ -352,7 +362,15 @@ export default function ExpensesPage() {
 
   // Gestione cancellazione transazione
   const handleDeleteTransaction = async (transactionId: number) => {
-    if (!confirm('Sei sicuro di voler cancellare questa uscita?')) return
+    const confirmed = await confirm({
+      title: 'Elimina Uscita',
+      message: 'Sei sicuro di voler cancellare questa uscita?',
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/transactions/${transactionId}`, {
@@ -371,13 +389,17 @@ export default function ExpensesPage() {
   }
 
   // CSV Import Functions
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file && file.type === 'text/csv') {
       setCsvFile(file)
       parseCSV(file)
     } else {
-      alert('Please select a valid CSV file')
+      await alert({
+      title: 'File Non Valido',
+      message: 'Seleziona un file CSV valido',
+      variant: 'warning'
+    })
     }
   }
 
@@ -420,7 +442,7 @@ export default function ExpensesPage() {
 
   const parseCSV = (file: File) => {
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const text = e.target?.result as string
       console.log('📄 CSV raw text (primi 500 caratteri):', text.substring(0, 500))
       
@@ -428,7 +450,11 @@ export default function ExpensesPage() {
       console.log('📊 Righe totali nel CSV:', lines.length)
       
       if (lines.length < 2) {
-        alert('Il file CSV deve contenere almeno una riga di intestazione e una di dati')
+        await alert({
+        title: 'File CSV Non Valido',
+        message: 'Il file CSV deve contenere almeno una riga di intestazione e una di dati',
+        variant: 'warning'
+      })
         return
       }
 
@@ -725,7 +751,15 @@ export default function ExpensesPage() {
 
   // Cancellazione multipla
   const handleBulkDelete = async () => {
-    if (!confirm(`Sei sicuro di voler cancellare ${selectedTransactions.length} uscite?`)) return
+    const confirmed = await confirm({
+      title: 'Elimina Uscite Selezionate',
+      message: `Sei sicuro di voler cancellare ${selectedTransactions.length} uscite?`,
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     setIsDeleting(true)
     setDeleteProgress({ current: 0, total: selectedTransactions.length })

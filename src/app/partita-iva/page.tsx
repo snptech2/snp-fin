@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { formatCurrency } from '@/utils/formatters'
+import { useNotifications } from '@/contexts/NotificationContext'
 import { 
   DocumentTextIcon, CurrencyEuroIcon, CalendarIcon, 
   PlusIcon, PencilIcon, TrashIcon, CogIcon, BanknotesIcon,
@@ -101,6 +102,7 @@ interface PartitaIVAGlobalStats {
 }
 
 export default function PartitaIVAPage() {
+  const { alert, confirm } = useNotifications()
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
   const [availableYears, setAvailableYears] = useState<number[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -357,7 +359,15 @@ export default function PartitaIVAPage() {
 
   // Elimina entrata
   const handleDeleteIncome = async (incomeId: number) => {
-    if (!confirm('Sei sicuro di voler eliminare questa entrata?')) return
+    const confirmed = await confirm({
+      title: 'Elimina Entrata',
+      message: 'Sei sicuro di voler eliminare questa entrata?',
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/partita-iva/income/${incomeId}`, {
@@ -368,10 +378,18 @@ export default function PartitaIVAPage() {
         await fetchYearData(currentYear)
       } else {
         const errorData = await response.json()
-        alert(errorData.error || 'Errore nell\'eliminazione')
+        await alert({
+        title: 'Errore',
+        message: errorData.error || 'Errore nell\'eliminazione',
+        variant: 'error'
+      })
       }
     } catch (error) {
-      alert('Errore di rete nell\'eliminazione')
+      await alert({
+        title: 'Errore',
+        message: 'Errore di rete nell\'eliminazione',
+        variant: 'error'
+      })
     }
   }
 
@@ -401,7 +419,15 @@ export default function PartitaIVAPage() {
   const handleBulkDelete = async () => {
     if (selectedIncomes.size === 0) return
     
-    if (!confirm(`Sei sicuro di voler eliminare ${selectedIncomes.size} entrate selezionate?`)) return
+    const confirmed = await confirm({
+      title: 'Elimina Entrate Selezionate',
+      message: `Sei sicuro di voler eliminare ${selectedIncomes.size} entrate selezionate?`,
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     setIsSubmitting(true)
     let successCount = 0
@@ -430,9 +456,17 @@ export default function PartitaIVAPage() {
       }
 
       if (errorCount > 0) {
-        alert(`${successCount} entrate eliminate, ${errorCount} errori`)
+        await alert({
+        title: 'Eliminazione Completata',
+        message: `${successCount} entrate eliminate, ${errorCount} errori`,
+        variant: errorCount > 0 ? 'warning' : 'success'
+      })
       } else {
-        alert(`${successCount} entrate eliminate con successo`)
+        await alert({
+        title: 'Successo',
+        message: `${successCount} entrate eliminate con successo`,
+        variant: 'success'
+      })
       }
     } finally {
       setIsSubmitting(false)
@@ -454,7 +488,15 @@ export default function PartitaIVAPage() {
 
   // Elimina pagamento
   const handleDeletePayment = async (paymentId: number) => {
-    if (!confirm('Sei sicuro di voler eliminare questo pagamento?')) return
+    const confirmed = await confirm({
+      title: 'Elimina Pagamento',
+      message: 'Sei sicuro di voler eliminare questo pagamento?',
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/partita-iva/tax-payments/${paymentId}`, {
@@ -465,10 +507,18 @@ export default function PartitaIVAPage() {
         await fetchYearData(currentYear)
       } else {
         const errorData = await response.json()
-        alert(errorData.error || 'Errore nell\'eliminazione')
+        await alert({
+        title: 'Errore',
+        message: errorData.error || 'Errore nell\'eliminazione',
+        variant: 'error'
+      })
       }
     } catch (error) {
-      alert('Errore di rete nell\'eliminazione')
+      await alert({
+        title: 'Errore',
+        message: 'Errore di rete nell\'eliminazione',
+        variant: 'error'
+      })
     }
   }
 
@@ -567,13 +617,23 @@ export default function PartitaIVAPage() {
 
   // Gestione eliminazione anno
   const handleDeleteYear = async (year: number) => {
-    if (!confirm(`Sei sicuro di voler eliminare l'anno ${year}? Questa azione è irreversibile.`)) {
-      return
-    }
+    const confirmed = await confirm({
+      title: 'Elimina Anno',
+      message: `Sei sicuro di voler eliminare l'anno ${year}? Questa azione è irreversibile.`,
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     // Verifica che l'anno sia vuoto (nessuna entrata o pagamento)
     if (incomes.length > 0 || payments.length > 0) {
-      alert('Non puoi eliminare un anno che contiene entrate o pagamenti')
+      await alert({
+      title: 'Eliminazione Non Consentita',
+      message: 'Non puoi eliminare un anno che contiene entrate o pagamenti',
+      variant: 'warning'
+    })
       return
     }
 
@@ -615,10 +675,18 @@ export default function PartitaIVAPage() {
         }
       } else {
         const errorData = await response.json()
-        alert(errorData.error || 'Errore nell\'eliminazione dell\'anno')
+        await alert({
+        title: 'Errore',
+        message: errorData.error || 'Errore nell\'eliminazione dell\'anno',
+        variant: 'error'
+      })
       }
     } catch (error) {
-      alert('Errore di rete nell\'eliminazione dell\'anno')
+      await alert({
+        title: 'Errore',
+        message: 'Errore di rete nell\'eliminazione dell\'anno',
+        variant: 'error'
+      })
     }
   }
 

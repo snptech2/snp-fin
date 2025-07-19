@@ -15,6 +15,7 @@ import {
   BulkDeleteModal, 
   CSVImportModal 
 } from '@/components/transactions'
+import { useNotifications } from '@/contexts/NotificationContext'
 
 interface Account {
   id: number
@@ -49,6 +50,7 @@ interface Transaction {
 }
 
 export default function IncomePage() {
+  const { alert } = useNotifications()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -634,18 +636,37 @@ export default function IncomePage() {
       if (response.ok) {
         fetchData()
         setDeleteTransactionId(null)
+        alert({ 
+          title: 'Successo', 
+          message: 'Transazione eliminata con successo', 
+          variant: 'success' 
+        })
       } else {
         const errorData = await response.json()
-        setError(errorData.error || 'Errore durante la cancellazione')
+        alert({ 
+          title: 'Impossibile eliminare', 
+          message: errorData.error || 'Errore durante la cancellazione', 
+          variant: 'error' 
+        })
+        setDeleteTransactionId(null) // Chiude il modal
       }
     } catch (error) {
-      setError('Errore di rete durante la cancellazione')
+      alert({ 
+        title: 'Errore', 
+        message: 'Errore di rete durante la cancellazione', 
+        variant: 'error' 
+      })
+      setDeleteTransactionId(null)
     }
   }
   
   const handleDeleteTransaction = (transactionId: number) => {
     setDeleteTransactionId(transactionId)
   }
+  
+  // Trova se la transazione selezionata ha un trasferimento collegato
+  const selectedTransaction = transactions.find(t => t.id === deleteTransactionId)
+  const hasLinkedTransfer = selectedTransaction?.description?.includes('Guadagni da investimenti') || false
 
   // Filtri e ricerca
   const filteredTransactions = useMemo(() => {
@@ -1863,7 +1884,14 @@ export default function IncomePage() {
             <div className="card-adaptive rounded-lg p-6 max-w-md w-full">
               <h3 className="text-lg font-medium mb-4">🗑️ Elimina Entrata</h3>
               <p className="text-sm text-adaptive-600 mb-6">
-                Sei sicuro di voler cancellare questa entrata? Questa azione non può essere annullata.
+                {hasLinkedTransfer ? (
+                  <>
+                    <span className="text-red-600 font-medium">⚠️ Attenzione:</span> Questa entrata è collegata a un trasferimento. 
+                    Cancellando questa entrata verrà eliminato anche il trasferimento associato.
+                  </>
+                ) : (
+                  'Sei sicuro di voler cancellare questa entrata? Questa azione non può essere annullata.'
+                )}
               </p>
               <div className="flex gap-3">
                 <button

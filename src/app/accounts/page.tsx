@@ -8,6 +8,7 @@ import {
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
+import { useNotifications } from '@/contexts/NotificationContext'
 
 interface Account {
   id: number
@@ -61,6 +62,7 @@ interface BitcoinPrice {
 
 export default function AccountsPage() {
   const { user } = useAuth()
+  const { alert, confirm } = useNotifications()
   
   // Stati esistenti
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -88,6 +90,7 @@ export default function AccountsPage() {
 
   // Stato per prezzo Bitcoin
   const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null)
+
 
   const formatCurrencyWithUserCurrency = (amount: number) => 
     formatCurrency(amount, user?.currency || 'EUR')
@@ -125,11 +128,19 @@ const handleSetDefaultAccount = async (accountId: number) => {
     if (response.ok) {
       await fetchData() // Ricarica i dati per aggiornare l'interfaccia
     } else {
-      alert('Errore nell\'impostazione del conto predefinito')
+      await alert({
+        title: 'Errore',
+        message: 'Errore nell\'impostazione del conto predefinito',
+        variant: 'error'
+      })
     }
   } catch (error) {
     console.error('Error setting default account:', error)
-    alert('Errore nell\'impostazione del conto predefinito')
+    await alert({
+      title: 'Errore',
+      message: 'Errore nell\'impostazione del conto predefinito',
+      variant: 'error'
+    })
   }
 }
 
@@ -263,7 +274,15 @@ const handleSetDefaultAccount = async (accountId: number) => {
 }
 
   const handleDeleteAccount = async (accountId: number) => {
-    if (confirm('Sei sicuro di voler eliminare questo account?')) {
+    const confirmed = await confirm({
+      title: 'Elimina Account',
+      message: 'Sei sicuro di voler eliminare questo account?',
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (confirmed) {
       try {
         const response = await fetch(`/api/accounts/${accountId}`, {
           method: 'DELETE'
@@ -284,7 +303,15 @@ const handleSetDefaultAccount = async (accountId: number) => {
   }
 
   const handleRecalculateBalance = async (accountId: number, accountName: string) => {
-    if (confirm(`Ricalcolare il saldo per il conto "${accountName}"? Questa operazione aggiornerà il saldo basandosi su tutte le transazioni e trasferimenti.`)) {
+    const confirmed = await confirm({
+      title: 'Ricalcola Saldo',
+      message: `Ricalcolare il saldo per il conto "${accountName}"? Questa operazione aggiornerà il saldo basandosi su tutte le transazioni e trasferimenti.`,
+      confirmText: 'Ricalcola',
+      cancelText: 'Annulla',
+      variant: 'warning'
+    })
+
+    if (confirmed) {
       try {
         const response = await fetch(`/api/accounts/${accountId}`, {
           method: 'POST'
@@ -292,15 +319,27 @@ const handleSetDefaultAccount = async (accountId: number) => {
 
         if (response.ok) {
           const result = await response.json()
-          alert(`Saldo ricalcolato per "${accountName}":\nVecchio saldo: ${formatCurrencyWithUserCurrency(result.oldBalance)}\nNuovo saldo: ${formatCurrencyWithUserCurrency(result.newBalance)}`)
+          await alert({
+            title: 'Saldo Ricalcolato',
+            message: `Saldo ricalcolato per "${accountName}":\nVecchio saldo: ${formatCurrencyWithUserCurrency(result.oldBalance)}\nNuovo saldo: ${formatCurrencyWithUserCurrency(result.newBalance)}`,
+            variant: 'success'
+          })
           await fetchData() // Refresh data
         } else {
           const error = await response.json()
-          alert(`Errore nel ricalcolo: ${error.error}`)
+          await alert({
+            title: 'Errore',
+            message: `Errore nel ricalcolo: ${error.error}`,
+            variant: 'error'
+          })
         }
       } catch (error) {
         console.error('Error recalculating balance:', error)
-        alert('Errore durante il ricalcolo del saldo')
+        await alert({
+          title: 'Errore',
+          message: 'Errore durante il ricalcolo del saldo',
+          variant: 'error'
+        })
       }
     }
   }
@@ -323,24 +362,40 @@ const handleSetDefaultAccount = async (accountId: number) => {
     if (transferLoading) return
 
     if (!transferForm.fromAccountId || !transferForm.toAccountId || !transferForm.amount) {
-      alert('Compila tutti i campi obbligatori')
+      await alert({
+        title: 'Campi Obbligatori',
+        message: 'Compila tutti i campi obbligatori',
+        variant: 'warning'
+      })
       return
     }
 
     if (transferForm.fromAccountId === transferForm.toAccountId) {
-      alert('Non puoi trasferire denaro sullo stesso conto')
+      await alert({
+        title: 'Errore Validazione',
+        message: 'Non puoi trasferire denaro sullo stesso conto',
+        variant: 'warning'
+      })
       return
     }
 
     const amount = parseFloat(transferForm.amount)
     if (isNaN(amount) || amount <= 0) {
-      alert('Inserisci un importo valido')
+      await alert({
+        title: 'Importo Non Valido',
+        message: 'Inserisci un importo valido',
+        variant: 'warning'
+      })
       return
     }
 
     const fromAccount = accounts.find(a => a.id === parseInt(transferForm.fromAccountId))
     if (fromAccount && fromAccount.balance < amount) {
-      alert('Saldo insufficiente nel conto di origine')
+      await alert({
+        title: 'Saldo Insufficiente',
+        message: 'Saldo insufficiente nel conto di origine',
+        variant: 'warning'
+      })
       return
     }
 
@@ -348,11 +403,19 @@ const handleSetDefaultAccount = async (accountId: number) => {
     if (transferForm.includesGains && transferForm.investmentGainAmount) {
       const gainAmount = parseFloat(transferForm.investmentGainAmount)
       if (isNaN(gainAmount) || gainAmount < 0) {
-        alert('L\'importo dei guadagni deve essere un numero positivo')
+        await alert({
+          title: 'Importo Guadagni Non Valido',
+          message: 'L\'importo dei guadagni deve essere un numero positivo',
+          variant: 'warning'
+        })
         return
       }
       if (gainAmount > amount) {
-        alert('L\'importo dei guadagni non può superare l\'importo totale del trasferimento')
+        await alert({
+          title: 'Importo Guadagni Eccessivo',
+          message: 'L\'importo dei guadagni non può superare l\'importo totale del trasferimento',
+          variant: 'warning'
+        })
         return
       }
     }
@@ -379,37 +442,76 @@ const handleSetDefaultAccount = async (accountId: number) => {
         setShowTransferModal(false)
         setEditingTransfer(null)
         resetTransferForm()
-        alert('Trasferimento completato con successo!')
+        await alert({
+          title: 'Successo',
+          message: '✅ Trasferimento completato con successo!',
+          variant: 'success'
+        })
       } else {
         const error = await response.json()
-        alert(`Errore: ${error.error || 'Trasferimento fallito'}`)
+        await alert({
+          title: 'Errore Trasferimento',
+          message: error.error || 'Trasferimento fallito',
+          variant: 'error'
+        })
       }
     } catch (error) {
       console.error('Error creating transfer:', error)
-      alert('Errore durante il trasferimento')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante il trasferimento. Controlla la connessione e riprova.',
+        variant: 'error'
+      })
     } finally {
       setTransferLoading(false)
     }
   }
 
   const handleDeleteTransfer = async (transferId: number) => {
-    if (confirm('Sei sicuro di voler eliminare questo trasferimento?')) {
-      try {
-        const response = await fetch(`/api/transfers/${transferId}`, {
-          method: 'DELETE'
-        })
+    const confirmed = await confirm({
+      title: 'Conferma Eliminazione',
+      message: 'Sei sicuro di voler eliminare questo trasferimento? Questa azione non può essere annullata.',
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
 
-        if (response.ok) {
-          await fetchData()
-          alert('Trasferimento eliminato con successo!')
-        } else {
-          const error = await response.json()
-          alert(`Errore: ${error.error || 'Eliminazione fallita'}`)
+    if (!confirmed) return
+    
+    try {
+      const response = await fetch(`/api/transfers/${transferId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        await fetchData()
+      } else {
+        const error = await response.json()
+        let errorMsg = error.error || 'Eliminazione fallita'
+        
+        // Check if this is a linked transfer error
+        if (error.error && (
+          error.error.includes('linked') || 
+          error.error.includes('collegato') ||
+          error.error.includes('gain') ||
+          error.error.includes('guadagno')
+        )) {
+          errorMsg = `❌ Impossibile eliminare il trasferimento\n\n${error.error}\n\n💡 Suggerimento: Per eliminare questo trasferimento, devi prima cancellare la transazione di guadagno collegata dalla pagina "Entrate".`
         }
-      } catch (error) {
-        console.error('Error deleting transfer:', error)
-        alert('Errore durante l\'eliminazione del trasferimento')
+        
+        await alert({
+          title: 'Errore',
+          message: errorMsg,
+          variant: 'error'
+        })
       }
+    } catch (error) {
+      console.error('Error deleting transfer:', error)
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante l\'eliminazione del trasferimento. Riprova più tardi.',
+        variant: 'error'
+      })
     }
   }
 
@@ -602,7 +704,9 @@ const handleSetDefaultAccount = async (accountId: number) => {
                   toAccountId: '',
                   amount: '',
                   description: '',
-                  date: new Date().toISOString().split('T')[0]
+                  date: new Date().toISOString().split('T')[0],
+                  includesGains: false,
+                  investmentGainAmount: ''
                 })
                 setShowTransferModal(true)
               }}
@@ -1212,6 +1316,7 @@ const handleSetDefaultAccount = async (accountId: number) => {
             </div>
           </div>
         )}
+
       </div>
     </ProtectedRoute>
   )

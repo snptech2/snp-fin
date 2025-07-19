@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency, formatCryptoSmart, formatCurrencySmart, smartRoundPrice } from '@/utils/formatters'
+import { useNotifications } from '@/contexts/NotificationContext'
 
 interface Asset {
   id: number
@@ -81,6 +82,7 @@ export default function CryptoPortfolioDetailPage() {
   const params = useParams()
   const router = useRouter()
   const { user } = useAuth()
+  const { alert, confirm } = useNotifications()
   const portfolioId = params.id as string
 
   // 🔧 STATI PRINCIPALI
@@ -245,12 +247,20 @@ export default function CryptoPortfolioDetailPage() {
     e.preventDefault()
 
     if (!swapForm.fromAsset || !swapForm.toAsset || !swapForm.fromQuantity || !swapForm.toQuantity) {
-      alert('Compila tutti i campi obbligatori')
+      await alert({
+        title: 'Campi Obbligatori',
+        message: 'Compila tutti i campi obbligatori',
+        variant: 'warning'
+      })
       return
     }
 
     if (swapForm.fromAsset === swapForm.toAsset) {
-      alert('Non puoi fare swap dello stesso asset')
+      await alert({
+        title: 'Errore Validazione',
+        message: 'Non puoi fare swap dello stesso asset',
+        variant: 'warning'
+      })
       return
     }
 
@@ -273,29 +283,51 @@ export default function CryptoPortfolioDetailPage() {
         await fetchPortfolio()
         setShowSwap(false)
         resetSwapForm()
-        alert('Swap completato con successo!')
+        await alert({
+          title: 'Successo',
+          message: 'Swap completato con successo!',
+          variant: 'success'
+        })
       } else {
         const error = await response.json()
-        alert(`Errore: ${error.error || 'Swap fallito'}`)
+        await alert({
+          title: 'Errore',
+          message: `Errore: ${error.error || 'Swap fallito'}`,
+          variant: 'error'
+        })
       }
     } catch (error) {
       console.error('Error creating swap:', error)
-      alert('Errore durante il swap')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante il swap',
+        variant: 'error'
+      })
     } finally {
       setSubmitLoading(false)
     }
   }
 
   // 🔄 FUNZIONI GESTIONE SWAP UNIFICATO
-  function handleEditSwap(swapGroup: any) {
+  async function handleEditSwap(swapGroup: any) {
     // TODO: Implementare modal modifica swap dedicato
-    alert('Modifica swap - Da implementare nel prossimo step')
+    await alert({
+      title: 'Funzione in Sviluppo',
+      message: 'Modifica swap - Da implementare nel prossimo step',
+      variant: 'info'
+    })
   }
 
   async function handleDeleteSwap(swapGroup: any) {
-    if (!confirm(`Sei sicuro di voler eliminare questo swap ${swapGroup.swapOut.asset.symbol} → ${swapGroup.swapIn.asset.symbol}?`)) {
-      return
-    }
+    const confirmed = await confirm({
+      title: 'Elimina Swap',
+      message: `Sei sicuro di voler eliminare questo swap ${swapGroup.swapOut.asset.symbol} → ${swapGroup.swapIn.asset.symbol}?`,
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     setSubmitLoading(true)
     try {
@@ -311,14 +343,26 @@ export default function CryptoPortfolioDetailPage() {
         const newExpanded = new Set(expandedSwaps)
         newExpanded.delete(swapGroup.id)
         setExpandedSwaps(newExpanded)
-        alert(`Swap eliminato con successo! Holdings ricalcolati automaticamente.`)
+        await alert({
+          title: 'Successo',
+          message: 'Swap eliminato con successo! Holdings ricalcolati automaticamente.',
+          variant: 'success'
+        })
       } else {
         const error = await response.json()
-        alert(`Errore: ${error.error || 'Eliminazione swap fallita'}`)
+        await alert({
+          title: 'Errore',
+          message: `Errore: ${error.error || 'Eliminazione swap fallita'}`,
+          variant: 'error'
+        })
       }
     } catch (error) {
       console.error('Error deleting swap:', error)
-      alert('Errore durante l\'eliminazione dello swap')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante l\'eliminazione dello swap',
+        variant: 'error'
+      })
     } finally {
       setSubmitLoading(false)
     }
@@ -366,21 +410,41 @@ export default function CryptoPortfolioDetailPage() {
         await fetchNetworkFees()
         setShowAddFee(false)
         resetFeeForm()
-        alert('Network fee aggiunta con successo!')
+        await alert({
+          title: 'Successo',
+          message: 'Network fee aggiunta con successo!',
+          variant: 'success'
+        })
       } else {
         const error = await response.json()
-        alert(`Errore: ${error.error || 'Creazione fee fallita'}`)
+        await alert({
+          title: 'Errore',
+          message: `Errore: ${error.error || 'Creazione fee fallita'}`,
+          variant: 'error'
+        })
       }
     } catch (error) {
       console.error('Error adding network fee:', error)
-      alert('Errore durante l\'aggiunta della network fee')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante l\'aggiunta della network fee',
+        variant: 'error'
+      })
     } finally {
       setSubmitLoading(false)
     }
   }
 
   const handleDeleteFee = async (feeId: number) => {
-    if (!confirm('Sei sicuro di voler eliminare questa network fee?')) return
+    const confirmed = await confirm({
+      title: 'Elimina Network Fee',
+      message: 'Sei sicuro di voler eliminare questa network fee?',
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     setSubmitLoading(true)
     try {
@@ -391,14 +455,26 @@ export default function CryptoPortfolioDetailPage() {
       if (response.ok) {
         await fetchPortfolio()
         await fetchNetworkFees()
-        alert('Network fee eliminata con successo!')
+        await alert({
+          title: 'Successo',
+          message: 'Network fee eliminata con successo!',
+          variant: 'success'
+        })
       } else {
         const error = await response.json()
-        alert(`Errore: ${error.error || 'Eliminazione fee fallita'}`)
+        await alert({
+          title: 'Errore',
+          message: `Errore: ${error.error || 'Eliminazione fee fallita'}`,
+          variant: 'error'
+        })
       }
     } catch (error) {
       console.error('Error deleting network fee:', error)
-      alert('Errore durante l\'eliminazione della network fee')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante l\'eliminazione della network fee',
+        variant: 'error'
+      })
     } finally {
       setSubmitLoading(false)
     }
@@ -486,14 +562,26 @@ export default function CryptoPortfolioDetailPage() {
         setLivePrices(data.prices || {})
         
         // Mostra messaggio di successo
-        alert('Prezzi aggiornati con successo!')
+        await alert({
+          title: 'Successo',
+          message: 'Prezzi aggiornati con successo!',
+          variant: 'success'
+        })
       } else {
         console.error('❌ Errore aggiornamento prezzi:', response.status)
-        alert('Errore durante l\'aggiornamento dei prezzi')
+        await alert({
+        title: 'Errore',
+        message: 'Errore durante l\'aggiornamento dei prezzi',
+        variant: 'error'
+      })
       }
     } catch (error) {
       console.error('💥 Errore aggiornamento prezzi:', error)
-      alert('Errore durante l\'aggiornamento dei prezzi')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante l\'aggiornamento dei prezzi',
+        variant: 'error'
+      })
     } finally {
       setPriceLoading(false)
     }
@@ -558,9 +646,15 @@ export default function CryptoPortfolioDetailPage() {
 
   // Handle delete portfolio
   const handleDeletePortfolio = async () => {
-    if (!confirm('Sei sicuro di voler eliminare questo portfolio? Questa azione non può essere annullata.')) {
-      return
-    }
+    const confirmed = await confirm({
+      title: 'Elimina Portfolio',
+      message: 'Sei sicuro di voler eliminare questo portfolio? Questa azione non può essere annullata.',
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/crypto-portfolios/${portfolioId}`, {
@@ -575,7 +669,11 @@ export default function CryptoPortfolioDetailPage() {
       }
     } catch (error) {
       console.error('Error deleting portfolio:', error)
-      alert('Errore durante l\'eliminazione del portfolio')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante l\'eliminazione del portfolio',
+        variant: 'error'
+      })
     }
   }
 
@@ -864,7 +962,11 @@ export default function CryptoPortfolioDetailPage() {
       setShowBulkDeleteModal(false)
     } catch (error) {
       console.error('Errore durante eliminazione bulk:', error)
-      alert('Errore durante l\'eliminazione delle transazioni')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante l\'eliminazione delle transazioni',
+        variant: 'error'
+      })
     } finally {
       setIsDeleting(false)
       setDeleteProgress({ current: 0, total: 0 })
@@ -3258,7 +3360,11 @@ export default function CryptoPortfolioDetailPage() {
     e.preventDefault()
 
     if (!transactionForm.ticker || !transactionForm.quantity || !transactionForm.eurValue) {
-      alert('Compila tutti i campi obbligatori')
+      await alert({
+        title: 'Campi Obbligatori',
+        message: 'Compila tutti i campi obbligatori',
+        variant: 'warning'
+      })
       return
     }
 
@@ -3281,14 +3387,22 @@ export default function CryptoPortfolioDetailPage() {
         await fetchPortfolio()
         setShowAddTransaction(false)
         resetTransactionForm()
-        alert('Transazione aggiunta con successo!')
+        await alert({
+          title: 'Successo',
+          message: 'Transazione aggiunta con successo!',
+          variant: 'success'
+        })
       } else {
         const error = await response.json()
         alert(`Errore: ${error.error || 'Aggiunta transazione fallita'}`)
       }
     } catch (error) {
       console.error('Error adding transaction:', error)
-      alert('Errore durante l\'aggiunta della transazione')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante l\'aggiunta della transazione',
+        variant: 'error'
+      })
     } finally {
       setSubmitLoading(false)
     }
@@ -3298,7 +3412,11 @@ export default function CryptoPortfolioDetailPage() {
     e.preventDefault()
 
     if (!editingTransaction || !transactionForm.ticker || !transactionForm.quantity || !transactionForm.eurValue) {
-      alert('Compila tutti i campi obbligatori')
+      await alert({
+        title: 'Campi Obbligatori',
+        message: 'Compila tutti i campi obbligatori',
+        variant: 'warning'
+      })
       return
     }
 
@@ -3322,14 +3440,22 @@ export default function CryptoPortfolioDetailPage() {
         setShowEditTransaction(false)
         setEditingTransaction(null)
         resetTransactionForm()
-        alert('Transazione modificata con successo!')
+        await alert({
+          title: 'Successo',
+          message: 'Transazione modificata con successo!',
+          variant: 'success'
+        })
       } else {
         const error = await response.json()
         alert(`Errore: ${error.error || 'Modifica transazione fallita'}`)
       }
     } catch (error) {
       console.error('Error editing transaction:', error)
-      alert('Errore durante la modifica della transazione')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante la modifica della transazione',
+        variant: 'error'
+      })
     } finally {
       setSubmitLoading(false)
     }
@@ -3339,7 +3465,11 @@ export default function CryptoPortfolioDetailPage() {
     e.preventDefault()
 
     if (!portfolioForm.name.trim()) {
-      alert('Nome portfolio è obbligatorio')
+      await alert({
+        title: 'Campo Obbligatorio',
+        message: 'Nome portfolio è obbligatorio',
+        variant: 'warning'
+      })
       return
     }
 
@@ -3357,23 +3487,37 @@ export default function CryptoPortfolioDetailPage() {
       if (response.ok) {
         await fetchPortfolio()
         setShowEditPortfolio(false)
-        alert('Portfolio modificato con successo!')
+        await alert({
+          title: 'Successo',
+          message: 'Portfolio modificato con successo!',
+          variant: 'success'
+        })
       } else {
         const error = await response.json()
         alert(`Errore: ${error.error || 'Modifica portfolio fallita'}`)
       }
     } catch (error) {
       console.error('Error editing portfolio:', error)
-      alert('Errore durante la modifica del portfolio')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante la modifica del portfolio',
+        variant: 'error'
+      })
     } finally {
       setSubmitLoading(false)
     }
   }
 
   async function handleDeleteTransaction(transactionId: number) {
-    if (!confirm('Sei sicuro di voler eliminare questa transazione?')) {
-      return
-    }
+    const confirmed = await confirm({
+      title: 'Elimina Transazione',
+      message: 'Sei sicuro di voler eliminare questa transazione?',
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/crypto-portfolios/${portfolioId}/transactions/${transactionId}`, {
@@ -3382,14 +3526,22 @@ export default function CryptoPortfolioDetailPage() {
 
       if (response.ok) {
         await fetchPortfolio()
-        alert('Transazione eliminata con successo!')
+        await alert({
+          title: 'Successo',
+          message: 'Transazione eliminata con successo!',
+          variant: 'success'
+        })
       } else {
         const error = await response.json()
         alert(`Errore: ${error.error || 'Eliminazione transazione fallita'}`)
       }
     } catch (error) {
       console.error('Error deleting transaction:', error)
-      alert('Errore durante l\'eliminazione della transazione')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante l\'eliminazione della transazione',
+        variant: 'error'
+      })
     }
   }
 

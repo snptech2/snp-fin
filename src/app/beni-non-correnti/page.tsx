@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { formatCurrency } from '@/utils/formatters'
+import { useNotifications } from '@/contexts/NotificationContext'
 import { 
   HomeIcon, PlusIcon, PencilIcon, TrashIcon
 } from '@heroicons/react/24/outline'
@@ -17,6 +18,7 @@ interface NonCurrentAsset {
 }
 
 export default function BeniNonCorrentiPage() {
+  const { alert, confirm } = useNotifications()
   const [assets, setAssets] = useState<NonCurrentAsset[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -104,7 +106,15 @@ export default function BeniNonCorrentiPage() {
   }
 
   const handleDelete = async (assetId: number) => {
-    if (!confirm('Sei sicuro di voler eliminare questo bene?')) return
+    const confirmed = await confirm({
+      title: 'Elimina Bene',
+      message: 'Sei sicuro di voler eliminare questo bene?',
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/non-current-assets/${assetId}`, {
@@ -115,10 +125,18 @@ export default function BeniNonCorrentiPage() {
         await fetchAssets()
       } else {
         const errorData = await response.json()
-        alert(errorData.error || 'Errore nell\'eliminazione')
+        await alert({
+        title: 'Errore',
+        message: errorData.error || 'Errore nell\'eliminazione',
+        variant: 'error'
+      })
       }
     } catch (error) {
-      alert('Errore di rete nell\'eliminazione')
+      await alert({
+        title: 'Errore',
+        message: 'Errore di rete nell\'eliminazione',
+        variant: 'error'
+      })
     }
   }
 

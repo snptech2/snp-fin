@@ -125,35 +125,10 @@ export async function POST(request: NextRequest) {
     
     // Create transfer and update balances in transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Create transfer record
       const transferDate = date ? new Date(date) : new Date()
-      const transfer = await tx.transfer.create({
-        data: {
-          amount,
-          description: description || (investmentGainAmount ? `Recupero capitale + guadagni (${investmentGainAmount}€ di guadagno)` : null),
-          date: transferDate,
-          userId, // 🔄 Sostituito: userId: 1 → userId
-          fromAccountId,
-          toAccountId,
-        },
-        include: {
-          fromAccount: true,
-          toAccount: true,
-        }
-      })
+      let gainTransactionId: number | null = null
       
-      // Update account balances
-      await tx.account.update({
-        where: { id: fromAccountId },
-        data: { balance: { decrement: amount } }
-      })
-      
-      await tx.account.update({
-        where: { id: toAccountId },
-        data: { balance: { increment: amount } }
-      })
-      
-      // If investment gains are specified, create income transaction
+      // If investment gains are specified, create income transaction FIRST
       if (investmentGainAmount && investmentGainAmount > 0) {
         // Find or create "Guadagni Investimenti" category
         let incomeCategory = await tx.category.findFirst({
@@ -176,7 +151,7 @@ export async function POST(request: NextRequest) {
         }
         
         // Create income transaction for investment gains
-        await tx.transaction.create({
+        const gainTransaction = await tx.transaction.create({
           data: {
             description: `Guadagni da investimenti - ${fromAccount.name}`,
             amount: investmentGainAmount,
@@ -187,7 +162,49 @@ export async function POST(request: NextRequest) {
             userId
           }
         })
+        
+        // Update the account balance for the income transaction
+        await tx.account.update({
+          where: { id: toAccountId },
+          data: { balance: { increment: investmentGainAmount } }
+        })
+        
+        gainTransactionId = gainTransaction.id
       }
+      
+      // Calculate the actual transfer amount (capital recovered)
+      const actualTransferAmount = investmentGainAmount ? amount - investmentGainAmount : amount
+      
+      // Create transfer record with gainTransactionId if present
+      const transfer = await tx.transfer.create({
+        data: {
+          amount: actualTransferAmount,
+          description: description || (investmentGainAmount ? `Recupero capitale: ${actualTransferAmount}€ (+ ${investmentGainAmount}€ di guadagni)` : null),
+          date: transferDate,
+          userId,
+          fromAccountId,
+          toAccountId,
+          gainTransactionId // Questo sarà null se non ci sono guadagni, o l'ID se ci sono
+        },
+        include: {
+          fromAccount: true,
+          toAccount: true,
+          gainTransaction: true
+        }
+      })
+      
+      // Update account balances
+      // FROM account loses the full original amount
+      await tx.account.update({
+        where: { id: fromAccountId },
+        data: { balance: { decrement: amount } }
+      })
+      
+      // TO account receives only the capital recovered (gains are added by the income transaction)
+      await tx.account.update({
+        where: { id: toAccountId },
+        data: { balance: { increment: actualTransferAmount } }
+      })
       
       return transfer
     })

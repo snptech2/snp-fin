@@ -195,11 +195,14 @@ export async function DELETE(
     const resolvedParams = await context.params
     const transactionId = parseInt(resolvedParams.id)
 
-    // Recupera transazione esistente
+    // Recupera transazione esistente con relazione transferGain
     const existingTransaction = await prisma.transaction.findFirst({
       where: {
         id: transactionId,
         userId
+      },
+      include: {
+        transferGain: true
       }
     })
 
@@ -209,10 +212,39 @@ export async function DELETE(
         { status: 404 }
       )
     }
+    
+    // Se la transazione è collegata a un trasferimento, cancelleremo anche quello
+    const hasLinkedTransfer = existingTransaction.transferGain !== null
 
     // Cancella transazione e aggiorna saldo in una transazione DB
     await prisma.$transaction(async (tx) => {
-      // Revert balance change
+      // Se c'è un trasferimento collegato, cancellalo prima
+      if (hasLinkedTransfer && existingTransaction.transferGain) {
+        const transfer = existingTransaction.transferGain
+        
+        // Calcola l'investimento originale completo: trasferimento + guadagni
+        const originalInvestment = transfer.amount + existingTransaction.amount
+        
+        // Ripristina i saldi del trasferimento
+        // FROM account: ripristina l'investimento originale completo
+        await tx.account.update({
+          where: { id: transfer.fromAccountId },
+          data: { balance: { increment: originalInvestment } }
+        })
+        
+        // TO account: rimuovi solo il capitale trasferito (i guadagni li rimuoviamo sotto)
+        await tx.account.update({
+          where: { id: transfer.toAccountId },
+          data: { balance: { decrement: transfer.amount } }
+        })
+        
+        // Cancella il trasferimento
+        await tx.transfer.delete({
+          where: { id: transfer.id }
+        })
+      }
+      
+      // Revert balance change della transazione
       const balanceChange = existingTransaction.type === 'income' 
         ? -existingTransaction.amount 
         : existingTransaction.amount
@@ -228,7 +260,10 @@ export async function DELETE(
       })
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ 
+      success: true,
+      linkedTransferDeleted: hasLinkedTransfer 
+    })
   } catch (error) {
     console.error('Errore nella cancellazione transazione:', error)
     return NextResponse.json(

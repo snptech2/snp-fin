@@ -17,6 +17,7 @@ import {
 import ProtectedRoute from '@/components/ProtectedRoute'  // ← AGGIUNTO
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
+import { useNotifications } from '@/contexts/NotificationContext'
 
 interface DCAPortfolio {
   id: number
@@ -85,6 +86,7 @@ export default function DCAPortfolioPage() {
   const params = useParams()
   const router = useRouter()
   const { user } = useAuth()
+  const { alert, confirm } = useNotifications()
   const portfolioId = params.id as string
 
   const [portfolio, setPortfolio] = useState<DCAPortfolio | null>(null)
@@ -248,11 +250,19 @@ export default function DCAPortfolioPage() {
       // ✅ AGGIUNTO: Gestione errori mancante
       const errorData = await response.json()
       console.error('Errore API:', errorData)
-      alert(errorData.error || 'Errore durante la creazione della transazione')
+      await alert({
+        title: 'Errore',
+        message: errorData.error || 'Errore durante la creazione della transazione',
+        variant: 'error'
+      })
     }
   } catch (error) {
     console.error('Errore di rete:', error)
-    alert('Errore di rete durante la creazione della transazione')
+    await alert({
+        title: 'Errore',
+        message: 'Errore di rete durante la creazione della transazione',
+        variant: 'error'
+      })
   } finally {
     setSubmitLoading(false)
   }
@@ -291,7 +301,15 @@ export default function DCAPortfolioPage() {
   }
 
   const handleDeleteTransaction = async (transactionId: number) => {
-    if (!confirm('Sei sicuro di voler eliminare questa transazione?')) return
+    const confirmed = await confirm({
+      title: 'Elimina Transazione',
+      message: 'Sei sicuro di voler eliminare questa transazione?',
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/dca-transactions/${transactionId}`, {
@@ -409,7 +427,15 @@ export default function DCAPortfolioPage() {
   }
 
   const handleDeleteFee = async (feeId: number) => {
-    if (!confirm('Sei sicuro di voler eliminare questa commissione di rete?')) return
+    const confirmed = await confirm({
+      title: 'Elimina Commissione',
+      message: 'Sei sicuro di voler eliminare questa commissione di rete?',
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     try {
       const response = await fetch(`/api/network-fees/${feeId}`, {
@@ -620,7 +646,15 @@ export default function DCAPortfolioPage() {
   const handleBulkDelete = async () => {
     if (selectedTransactions.length === 0) return
 
-    if (!confirm(`Sei sicuro di voler eliminare ${selectedTransactions.length} transazioni selezionate?`)) return
+    const confirmed = await confirm({
+      title: 'Elimina Transazioni Selezionate',
+      message: `Sei sicuro di voler eliminare ${selectedTransactions.length} transazioni selezionate?`,
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'danger'
+    })
+
+    if (!confirmed) return
 
     setIsDeleting(true)
     setDeleteProgress({ current: 0, total: selectedTransactions.length })
@@ -646,7 +680,11 @@ export default function DCAPortfolioPage() {
       setSelectAll(false)
     } catch (error) {
       console.error('Errore durante eliminazione bulk:', error)
-      alert('Errore durante l\'eliminazione delle transazioni')
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante l\'eliminazione delle transazioni',
+        variant: 'error'
+      })
     } finally {
       setIsDeleting(false)
       setDeleteProgress({ current: 0, total: 0 })

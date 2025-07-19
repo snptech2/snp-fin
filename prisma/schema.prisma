@@ -109,6 +109,9 @@ model Transaction {
   
   categoryId  Int
   category    Category @relation(fields: [categoryId], references: [id])
+  
+  // Relazione con Transfer per transazioni di guadagno
+  transferGain Transfer? @relation("TransferGain")
 }
 
 model Transfer {
@@ -127,6 +130,10 @@ model Transfer {
   
   toAccountId   Int
   toAccount     Account @relation("ToAccount", fields: [toAccountId], references: [id])
+  
+  // Relazione con Transaction per tracciare i guadagni
+  gainTransactionId Int? @unique
+  gainTransaction   Transaction? @relation("TransferGain", fields: [gainTransactionId], references: [id], onDelete: Restrict)
 }
 
 model Budget {

@@ -123,11 +123,13 @@ export async function DELETE(
     const params = await context.params
     const transferId = parseInt(params.id)
     
+    console.log('DELETE Transfer - ID:', transferId, 'User:', userId)
+    
     // Get transfer details first
     const transfer = await prisma.transfer.findFirst({
       where: {
         id: transferId,
-        userId // 🔄 Sostituito: userId: 1 → userId
+        userId
       }
     })
     
@@ -135,14 +137,26 @@ export async function DELETE(
       return NextResponse.json({ error: 'Transfer not found' }, { status: 404 })
     }
     
+    console.log('Transfer found:', transfer)
+    console.log('Has gain transaction ID:', transfer.gainTransactionId)
+    
+    // Check if transfer has a linked gain transaction
+    if (transfer.gainTransactionId) {
+      return NextResponse.json({ 
+        error: 'Questo trasferimento ha una transazione di guadagno collegata e non può essere eliminato direttamente. Elimina prima la transazione di guadagno dalla pagina "Entrate", che cancellerà automaticamente anche questo trasferimento.'
+      }, { status: 400 })
+    }
+    
     // Delete transfer and revert balances in transaction
     await prisma.$transaction(async (tx) => {
-      // Revert account balances
+      // Revert transfer account balances
+      // FROM account: restore the transfer amount
       await tx.account.update({
         where: { id: transfer.fromAccountId },
         data: { balance: { increment: transfer.amount } }
       })
       
+      // TO account: subtract the transfer amount
       await tx.account.update({
         where: { id: transfer.toAccountId },
         data: { balance: { decrement: transfer.amount } }
@@ -152,11 +166,16 @@ export async function DELETE(
       await tx.transfer.delete({
         where: { id: transferId }
       })
+      
+      console.log('Transfer deleted successfully')
     })
     
     return NextResponse.json({ message: 'Transfer deleted successfully' })
   } catch (error) {
-    console.error('Error deleting transfer:', error)
-    return NextResponse.json({ error: 'Failed to delete transfer' }, { status: 500 })
+    console.error('Error deleting transfer - Full error:', error)
+    return NextResponse.json({ 
+      error: 'Failed to delete transfer',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
   }
 }
