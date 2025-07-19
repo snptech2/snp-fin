@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeftIcon, PhotoIcon, TrashIcon, DocumentArrowDownIcon, DocumentArrowUpIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'
+import { ArrowLeftIcon, PhotoIcon, TrashIcon, DocumentArrowDownIcon, DocumentArrowUpIcon } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { useNotifications } from '@/contexts/NotificationContext'
@@ -21,13 +21,6 @@ interface HoldingsSnapshot {
   note?: string
 }
 
-interface SnapshotSettings {
-  id: number
-  autoSnapshotEnabled: boolean
-  frequency: string
-  preferredHour?: number
-  lastSnapshot?: string
-}
 
 export default function TrackingPage() {
   const router = useRouter()
@@ -35,7 +28,6 @@ export default function TrackingPage() {
   const { alert } = useNotifications()
   
   const [snapshots, setSnapshots] = useState<HoldingsSnapshot[]>([])
-  const [settings, setSettings] = useState<SnapshotSettings | null>(null)
   const [totalSnapshots, setTotalSnapshots] = useState(0)
   const [loading, setLoading] = useState(true)
   const [createLoading, setCreateLoading] = useState(false)
@@ -46,7 +38,6 @@ export default function TrackingPage() {
   
   // Modal states
   const [showImportModal, setShowImportModal] = useState(false)
-  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState<number | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   
@@ -56,24 +47,13 @@ export default function TrackingPage() {
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [importLoading, setImportLoading] = useState(false)
   const [forceReimport, setForceReimport] = useState(false)
-  
-  // Settings form states
-  const [settingsForm, setSettingsForm] = useState({
-    autoSnapshotEnabled: false,
-    frequency: 'daily',
-    preferredHour: 12
-  })
-  const [settingsLoading, setSettingsLoading] = useState(false)
 
   const fetchData = useCallback(async () => {
     try {
       // Per "tutti" usa 999999 come limite invece di totalSnapshots per evitare dipendenze circolari
       const limit = itemsPerPage === -1 ? 999999 : itemsPerPage
       
-      const [snapshotsRes, settingsRes] = await Promise.all([
-        fetch(`/api/holdings-snapshots?limit=${limit}`),
-        fetch('/api/holdings-snapshots/settings')
-      ])
+      const snapshotsRes = await fetch(`/api/holdings-snapshots?limit=${limit}`)
 
       if (snapshotsRes.ok) {
         const snapshotsData = await snapshotsRes.json()
@@ -88,11 +68,6 @@ export default function TrackingPage() {
         // Determina se stiamo mostrando tutti
         setShowingAll(snapshotsData.snapshots.length === newTotal)
       }
-
-      if (settingsRes.ok) {
-        const settingsData = await settingsRes.json()
-        setSettings(settingsData)
-      }
     } catch (error) {
       console.error('Error fetching data:', error)
       alert({ title: 'Errore', message: 'Errore nel caricamento dei dati', variant: 'error' })
@@ -105,16 +80,6 @@ export default function TrackingPage() {
     fetchData()
   }, [itemsPerPage, fetchData])
 
-  // Popola il form quando caricano le impostazioni
-  useEffect(() => {
-    if (settings) {
-      setSettingsForm({
-        autoSnapshotEnabled: settings.autoSnapshotEnabled,
-        frequency: settings.frequency,
-        preferredHour: settings.preferredHour || 12
-      })
-    }
-  }, [settings])
 
   const createSnapshot = useCallback(async () => {
     try {
@@ -290,34 +255,6 @@ export default function TrackingPage() {
     }
   }, [selectedSnapshots])
 
-  const updateSettings = useCallback(async () => {
-    try {
-      setSettingsLoading(true)
-      
-      const response = await fetch('/api/holdings-snapshots/settings', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(settingsForm)
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setSettings(data.settings)
-        alert({ title: 'Successo', message: 'Impostazioni aggiornate con successo!', variant: 'success' })
-        setShowSettingsModal(false)
-      } else {
-        const errorData = await response.json()
-        alert({ title: 'Errore', message: errorData.error || 'Errore nell\'aggiornamento delle impostazioni', variant: 'error' })
-      }
-    } catch (error) {
-      console.error('Error updating settings:', error)
-      alert({ title: 'Errore', message: 'Errore nell\'aggiornamento delle impostazioni', variant: 'error' })
-    } finally {
-      setSettingsLoading(false)
-    }
-  }, [settingsForm])
 
   const importCSV = useCallback(async () => {
     try {
@@ -466,30 +403,6 @@ export default function TrackingPage() {
             </div>
           </div>
 
-          {/* Settings */}
-          <div className="card-adaptive p-4 sm:p-6">
-            <h3 className="font-medium mb-3">⚙️ Automazione</h3>
-            <div className="space-y-2">
-              <p className="text-sm text-adaptive-600">
-                Auto-snapshot: {settings?.autoSnapshotEnabled ? 
-                  <span className="text-green-600 font-medium">Attivo</span> : 
-                  <span className="text-gray-500">Disattivo</span>
-                }
-              </p>
-              {settings?.autoSnapshotEnabled && (
-                <p className="text-xs text-adaptive-500">
-                  Frequenza: {settings.frequency}
-                </p>
-              )}
-              <button
-                onClick={() => setShowSettingsModal(true)}
-                className="w-full bg-gray-600 text-white py-2 px-3 rounded-md hover:bg-gray-700 text-sm flex items-center justify-center gap-2"
-              >
-                <Cog6ToothIcon className="h-4 w-4" />
-                Configura
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Snapshots List */}
@@ -842,98 +755,6 @@ export default function TrackingPage() {
           </div>
         )}
 
-        {/* Settings Modal */}
-        {showSettingsModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="card-adaptive rounded-lg p-6 max-w-md w-full">
-              <h3 className="text-lg font-medium mb-4">⚙️ Configurazione Automazione</h3>
-              
-              <div className="space-y-4">
-                {/* Toggle Automazione */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Abilita Snapshot Automatici</span>
-                  <button
-                    onClick={() => setSettingsForm(prev => ({ ...prev, autoSnapshotEnabled: !prev.autoSnapshotEnabled }))}
-                    className={`w-12 h-6 rounded-full relative transition-colors ${
-                      settingsForm.autoSnapshotEnabled ? 'bg-green-500' : 'bg-adaptive-50 border border-adaptive'
-                    }`}
-                  >
-                    <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform ${
-                      settingsForm.autoSnapshotEnabled ? 'translate-x-6' : 'translate-x-0.5'
-                    }`} />
-                  </button>
-                </div>
-
-                {/* Frequenza */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">Frequenza</label>
-                  <select
-                    value={settingsForm.frequency}
-                    onChange={(e) => setSettingsForm(prev => ({ ...prev, frequency: e.target.value }))}
-                    disabled={!settingsForm.autoSnapshotEnabled}
-                    className="w-full px-3 py-2 border border-adaptive rounded-md disabled:bg-adaptive-50 disabled:text-adaptive-500 bg-adaptive-50 text-adaptive-900"
-                  >
-                    <option value="6hours">Ogni 6 ore</option>
-                    <option value="daily">Giornaliero</option>
-                    <option value="weekly">Settimanale</option>
-                    <option value="monthly">Mensile</option>
-                  </select>
-                </div>
-
-                {/* Ora Preferita (solo se giornaliero) */}
-                {settingsForm.frequency === 'daily' && settingsForm.autoSnapshotEnabled && (
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Ora Preferita (0-23)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="23"
-                      value={settingsForm.preferredHour}
-                      onChange={(e) => setSettingsForm(prev => ({ ...prev, preferredHour: parseInt(e.target.value) || 0 }))}
-                      className="w-full px-3 py-2 border border-adaptive rounded-md bg-adaptive-50 text-adaptive-900"
-                    />
-                    <p className="text-xs text-adaptive-500 mt-1">
-                      Ora: {settingsForm.preferredHour}:00
-                    </p>
-                  </div>
-                )}
-
-                {/* Info ultimo snapshot */}
-                {settings?.lastSnapshot && (
-                  <div className="text-xs text-adaptive-500 bg-adaptive-50 p-2 rounded">
-                    Ultimo snapshot automatico: {new Date(settings.lastSnapshot).toLocaleString('it-IT')}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={updateSettings}
-                  disabled={settingsLoading}
-                  className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 disabled:opacity-50"
-                >
-                  {settingsLoading ? 'Salvando...' : 'Salva'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowSettingsModal(false)
-                    // Reset form ai valori originali
-                    if (settings) {
-                      setSettingsForm({
-                        autoSnapshotEnabled: settings.autoSnapshotEnabled,
-                        frequency: settings.frequency,
-                        preferredHour: settings.preferredHour || 12
-                      })
-                    }
-                  }}
-                  className="flex-1 bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600"
-                >
-                  Annulla
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Bulk Delete Confirmation Modal */}
         {showBulkDeleteModal && (

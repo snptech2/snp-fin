@@ -2,8 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { prisma } from '@/lib/prisma'
-import { getDCACurrentValue } from '@/lib/capitalGainsUtils'
 import { PrecisionUtils, validateBTCCalculation } from '@/utils/precision'
+import { fetchYahooFinanceRateCached } from '@/lib/yahooFinance'
+import { fetchCryptoPrices } from '@/lib/cryptoPrices'
+import { calculateTotalCurrentValue } from '@/lib/portfolioCalculations'
 
 // GET - Lista tutti gli snapshots dell'utente
 export async function GET(request: NextRequest) {
@@ -65,54 +67,126 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { note, isAutomatic = false } = body
 
-    // 1. Recupera BTC price e portfolios
-    const [btcPriceResponse, dcaPortfoliosResponse, cryptoPortfoliosResponse] = await Promise.all([
-      // Prezzo BTC con parametro speciale per ottenere entrambi i prezzi
-      fetch(`${request.nextUrl.origin}/api/bitcoin-price?snapshot=true`, {
-        headers: {
-          'Authorization': request.headers.get('Authorization') || '',
-          'Cookie': request.headers.get('Cookie') || ''
+    // 1. Fetch prezzi Bitcoin direttamente
+    console.log('🌐 Fetching Bitcoin prices for snapshot...')
+    
+    // Fetch BTC USD price
+    const btcResponse = await fetch('https://cryptoprices.cc/BTC', {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'SNP-Finance-App/1.0'
+      },
+      cache: 'no-store'
+    })
+    
+    if (!btcResponse.ok) {
+      throw new Error(`Failed to fetch BTC price: ${btcResponse.status}`)
+    }
+    
+    const btcUsdText = await btcResponse.text()
+    const btcPriceUsd = parseFloat(btcUsdText.trim())
+    
+    if (isNaN(btcPriceUsd) || btcPriceUsd <= 0) {
+      throw new Error('Invalid BTC price received')
+    }
+    
+    // Fetch USD→EUR rate
+    const usdEur = await fetchYahooFinanceRateCached()
+    
+    if (!usdEur || isNaN(usdEur) || usdEur <= 0) {
+      throw new Error('Invalid USD→EUR rate')
+    }
+    
+    const btcPriceEur = btcPriceUsd * usdEur
+    
+    console.log('💰 Bitcoin prices:', { btcPriceUsd, btcPriceEur, usdEur })
+    
+    // 2. Recupera i portfolio direttamente dal database
+    const [dcaPortfolios, cryptoPortfolios] = await Promise.all([
+      prisma.dCAPortfolio.findMany({
+        where: { userId },
+        include: {
+          transactions: {
+            orderBy: { date: 'asc' }
+          }
         }
       }),
-      // Portfolio DCA
-      fetch(`${request.nextUrl.origin}/api/dca-portfolios`, {
-        headers: {
-          'Authorization': request.headers.get('Authorization') || '',
-          'Cookie': request.headers.get('Cookie') || ''
-        }
-      }),
-      // Portfolio Crypto
-      fetch(`${request.nextUrl.origin}/api/crypto-portfolios`, {
-        headers: {
-          'Authorization': request.headers.get('Authorization') || '',
-          'Cookie': request.headers.get('Cookie') || ''
+      prisma.cryptoPortfolio.findMany({
+        where: { userId },
+        include: {
+          transactions: true,
+          holdings: {
+            include: {
+              asset: true
+            }
+          },
+          networkFees: true
         }
       })
     ])
-
-    if (!btcPriceResponse.ok) {
-      throw new Error('Errore nel recupero prezzo Bitcoin')
+    
+    // Calcola totalBTC per DCA portfolios
+    const dcaPortfoliosWithStats = dcaPortfolios.map(portfolio => {
+      const buyTransactions = portfolio.transactions?.filter((tx: any) => tx.type === 'buy') || []
+      const sellTransactions = portfolio.transactions?.filter((tx: any) => tx.type === 'sell') || []
+      
+      const totalBTC = buyTransactions.reduce((sum: number, tx: any) => sum + (tx.btcQuantity || 0), 0) -
+                       sellTransactions.reduce((sum: number, tx: any) => sum + (tx.btcQuantity || 0), 0)
+      
+      return {
+        ...portfolio,
+        type: 'dca_bitcoin',
+        stats: {
+          totalBTC: totalBTC,
+          netBTC: totalBTC // Per ora usiamo lo stesso valore
+        }
+      }
+    })
+    
+    // Calcola stats per crypto portfolios
+    const allSymbols = new Set<string>()
+    cryptoPortfolios.forEach(portfolio => {
+      portfolio.holdings.forEach(holding => {
+        if (holding.quantity > 0) {
+          allSymbols.add(holding.asset.symbol.toUpperCase())
+        }
+      })
+    })
+    
+    let currentPrices: Record<string, number> = {}
+    if (allSymbols.size > 0) {
+      try {
+        const cryptoPricesResult = await fetchCryptoPrices(Array.from(allSymbols), userId, false)
+        currentPrices = cryptoPricesResult.prices || {}
+      } catch (error) {
+        console.error('Error fetching crypto prices:', error)
+      }
     }
-
-    const btcPriceData = await btcPriceResponse.json()
-    let dcaPortfolios = []
-    let cryptoPortfolios = []
-
-    // 2. Recupera i portfolio
-    if (dcaPortfoliosResponse.ok) {
-      dcaPortfolios = await dcaPortfoliosResponse.json()
-    }
-    if (cryptoPortfoliosResponse.ok) {
-      cryptoPortfolios = await cryptoPortfoliosResponse.json()
-    }
+    
+    // Aggiungi stats ai crypto portfolios
+    const cryptoPortfoliosWithStats = cryptoPortfolios.map(portfolio => {
+      let totalValueEur = 0
+      
+      portfolio.holdings.forEach(holding => {
+        const currentPrice = currentPrices[holding.asset.symbol.toUpperCase()] || holding.avgPrice || 0
+        const valueEur = holding.quantity * currentPrice
+        totalValueEur += valueEur
+      })
+      
+      return {
+        ...portfolio,
+        type: 'crypto_wallet',
+        stats: {
+          totalValueEur
+        }
+      }
+    })
 
     console.log('📊 Portfolio data:')
-    console.log('📊 - DCA Portfolios:', dcaPortfolios.length)
-    console.log('📊 - Crypto Portfolios:', cryptoPortfolios.length)
-    console.log('📊 - BTC Price EUR:', btcPriceData.btcPriceEur)
-    console.log('📊 - BTC Price USD:', btcPriceData.btcPriceUsd)
-    console.log('📊 - Data cached:', btcPriceData.cached)
-    console.log('📊 - Data timestamp:', btcPriceData.timestamp)
+    console.log('📊 - DCA Portfolios:', dcaPortfoliosWithStats.length)
+    console.log('📊 - Crypto Portfolios:', cryptoPortfoliosWithStats.length)
+    console.log('📊 - BTC Price EUR:', btcPriceEur)
+    console.log('📊 - BTC Price USD:', btcPriceUsd)
 
     // 3. Get user currency preference for BTC calculation
     const user = await prisma.user.findUnique({
@@ -121,32 +195,18 @@ export async function POST(request: NextRequest) {
     })
     const userCurrency = user?.currency || 'EUR'
 
-    // 4. Calcola totalCurrentValue direttamente in USD per evitare doppia conversione
-    const allPortfolios = [...dcaPortfolios, ...cryptoPortfolios]
-    let totalCurrentValueUSD = 0
+    // 4. Usa calculateTotalCurrentValue per calcolare il valore totale in EUR
+    const totalCurrentValueEur = calculateTotalCurrentValue(
+      dcaPortfoliosWithStats, 
+      cryptoPortfoliosWithStats, 
+      btcPriceEur
+    )
     
-    // Calcola il rate EUR→USD una sola volta
-    const eurUsdRate = 1 / btcPriceData.usdEur  // 1 EUR = eurUsdRate USD (inverso di usdEur)
-    const btcPriceUsd = btcPriceData.btcPriceUsd
-    const btcPriceEur = btcPriceData.btcPriceEur
-
-    allPortfolios.forEach(portfolio => {
-      const isDcaPortfolio = dcaPortfolios.includes(portfolio)
-      
-      if (isDcaPortfolio) {
-        // DCA portfolios: calcola in EUR poi converti in USD
-        const portfolioValueEur = getDCACurrentValue(portfolio, btcPriceEur)
-        const portfolioValueUsd = portfolioValueEur * eurUsdRate
-        totalCurrentValueUSD += portfolioValueUsd
-        console.log(`📊 DCA Portfolio ${portfolio.name}: €${portfolioValueEur} → $${portfolioValueUsd}`)
-      } else {
-        // Crypto portfolios: converti da EUR a USD
-        const portfolioValueEur = portfolio.stats?.totalValueEur || 0
-        const portfolioValueUsd = portfolioValueEur * eurUsdRate
-        totalCurrentValueUSD += portfolioValueUsd
-        console.log(`📊 Crypto Portfolio ${portfolio.name}: €${portfolioValueEur} → $${portfolioValueUsd}`)
-      }
-    })
+    console.log('📊 Total portfolio value EUR:', totalCurrentValueEur)
+    
+    // Converti in USD
+    const eurUsdRate = 1 / usdEur  // 1 EUR = eurUsdRate USD (inverso di usdEur)
+    const totalCurrentValueUSD = totalCurrentValueEur * eurUsdRate
 
     console.log('📊 Calculated values (USD consistent):')
     console.log('📊 - Total Current Value USD:', totalCurrentValueUSD)
@@ -191,8 +251,7 @@ export async function POST(request: NextRequest) {
     console.log('📊 - BTC Price EUR:', btcPriceEur)
     console.log('📊 - BTC Price USD:', btcPriceUsd)
     console.log('📊 - EUR/USD Rate used:', eurUsdRate, '(1 / usdEur)')
-    console.log('📊 - USD/EUR Rate from bitcoin-price:', btcPriceData.usdEur || 'not provided')
-    console.log('📊 - Data freshness: cached =', btcPriceData.cached, ', timestamp =', btcPriceData.timestamp)
+    console.log('📊 - USD/EUR Rate:', usdEur)
     console.log('📊 - Snapshot created at:', new Date().toISOString())
 
     // 6. Crea il snapshot con arrotondamenti standardizzati
