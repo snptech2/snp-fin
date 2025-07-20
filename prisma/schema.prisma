@@ -233,6 +233,7 @@ model CryptoPortfolio {
   transactions CryptoPortfolioTransaction[]
   holdings     CryptoPortfolioHolding[]
   networkFees  NetworkFee[]
+  trades       CryptoTrade[]
 }
 
 // Asset disponibili (aggiungibili manualmente)
@@ -248,13 +249,15 @@ model CryptoPortfolioAsset {
   transactions CryptoPortfolioTransaction[]
   holdings     CryptoPortfolioHolding[]
   networkFees  NetworkFee[]
+  tradesFrom   CryptoTrade[] @relation("TradeFromAsset")
+  tradesTo     CryptoTrade[] @relation("TradeToAsset")
 }
 
 // Transazioni: Buy, Sell, Swap
 model CryptoPortfolioTransaction {
   id           Int      @id @default(autoincrement())
   date         DateTime @default(now())
-  type         String   // "buy" | "sell" | "swap_in" | "swap_out" | "stake_reward"
+  type         String   // "buy" | "sell" | "swap_in" | "swap_out" | "stake_reward" | "trade_open" | "trade_close"
   quantity     Float    // Quantità asset
   eurValue     Float    // Valore EUR
   pricePerUnit Float    // Prezzo unitario
@@ -274,6 +277,10 @@ model CryptoPortfolioTransaction {
   
   assetId      Int
   asset        CryptoPortfolioAsset @relation(fields: [assetId], references: [id])
+  
+  // Relazioni per trades
+  tradeOpen    CryptoTrade[] @relation("TradeOpenSwap")
+  tradeClose   CryptoTrade[] @relation("TradeCloseSwap")
 }
 
 // Holdings correnti
@@ -294,6 +301,49 @@ model CryptoPortfolioHolding {
   asset        CryptoPortfolioAsset @relation(fields: [assetId], references: [id])
   
   @@unique([portfolioId, assetId])
+}
+
+// 🎯 CRYPTO TRADES - Sistema di trading con posizioni aperte/chiuse
+model CryptoTrade {
+  id           Int      @id @default(autoincrement())
+  
+  // Relazioni
+  portfolioId  Int
+  portfolio    CryptoPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  
+  // Asset della coppia di trading
+  fromAssetId  Int
+  fromAsset    CryptoPortfolioAsset @relation("TradeFromAsset", fields: [fromAssetId], references: [id])
+  toAssetId    Int  
+  toAsset      CryptoPortfolioAsset @relation("TradeToAsset", fields: [toAssetId], references: [id])
+  
+  // Quantità effettive del trade
+  fromQuantity Float?   // Quantità asset venduto
+  toQuantity   Float?   // Quantità asset acquistato
+  
+  // Stato del trade
+  status       String   // "open" | "closed"
+  
+  // Transazioni collegate
+  openSwapId   Int?     // ID dello swap di apertura
+  openSwap     CryptoPortfolioTransaction? @relation("TradeOpenSwap", fields: [openSwapId], references: [id])
+  closeSwapId  Int?     // ID dello swap di chiusura
+  closeSwap    CryptoPortfolioTransaction? @relation("TradeCloseSwap", fields: [closeSwapId], references: [id])
+  
+  // Dati finanziari
+  openDate     DateTime
+  closeDate    DateTime?
+  initialValue Float    // Valore EUR all'apertura
+  finalValue   Float?   // Valore EUR alla chiusura
+  realizedPnL  Float?   // Profitto/Perdita realizzato (solo quando chiuso)
+  pnLPercentage Float?  // Percentuale P&L
+  
+  // Metadata
+  notes        String?  // Note del trade
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@map("crypto_trades")
 }
 
 

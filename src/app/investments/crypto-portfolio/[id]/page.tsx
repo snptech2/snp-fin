@@ -21,7 +21,7 @@ interface Asset {
 
 interface Transaction {
   id: number
-  type: 'buy' | 'sell' | 'stake_reward' | 'swap_in' | 'swap_out'
+  type: 'buy' | 'sell' | 'stake_reward' | 'swap_in' | 'swap_out' | 'trade_open' | 'trade_close'
   assetId: number
   quantity: number
   eurValue: number
@@ -29,6 +29,7 @@ interface Transaction {
   date: string
   notes?: string
   swapPairId?: number
+  tradeId?: number
   asset: Asset
 }
 
@@ -102,6 +103,10 @@ export default function CryptoPortfolioDetailPage() {
   const [editingFee, setEditingFee] = useState<any | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [expandedSwaps, setExpandedSwaps] = useState<Set<string>>(new Set())
+  const [trades, setTrades] = useState<any[]>([])
+  const [showTrades, setShowTrades] = useState(false)
+  const [tradesLoading, setTradesLoading] = useState(false)
+  const [showOpenTrade, setShowOpenTrade] = useState(false)
 
   // 🔧 FORM TRANSAZIONE
   const [transactionForm, setTransactionForm] = useState({
@@ -365,6 +370,166 @@ export default function CryptoPortfolioDetailPage() {
       })
     } finally {
       setSubmitLoading(false)
+    }
+  }
+
+  // 🎯 TRADE FUNCTIONS
+  const handleOpenTrade = async (fromAssetId: number, toAssetSymbol: string, fromQuantity: number, toQuantity: number, notes?: string) => {
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/trades/open`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          fromAssetId, 
+          toAssetSymbol, 
+          fromQuantity, 
+          toQuantity,
+          notes 
+        })
+      })
+
+      if (response.ok) {
+        await fetchPortfolio() // Ricarica il portfolio per aggiornare holdings
+        await fetchTrades() // Ricarica trades per mostrarli subito
+        setShowOpenTrade(false)
+        await alert({
+          title: 'Successo',
+          message: 'Trade aperto con successo!',
+          variant: 'success'
+        })
+      } else {
+        const error = await response.json()
+        await alert({
+          title: 'Errore',
+          message: `Errore: ${error.error || 'Apertura trade fallita'}`,
+          variant: 'error'
+        })
+      }
+    } catch (error) {
+      console.error('Errore apertura trade:', error)
+      await alert({
+        title: 'Errore',
+        message: 'Errore durante l\'apertura del trade',
+        variant: 'error'
+      })
+    }
+  }
+
+  const fetchTrades = async () => {
+    setTradesLoading(true)
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/trades?t=${Date.now()}`)
+      if (response.ok) {
+        const data = await response.json()
+        setTrades(data.trades || [])
+      }
+    } catch (error) {
+      console.error('Errore caricamento trades:', error)
+    } finally {
+      setTradesLoading(false)
+    }
+  }
+
+  const handleCloseTrade = async (trade: any) => {
+    // Modal React nativo per input quantità
+    const receivedQuantity = await new Promise<string | null>((resolve) => {
+      const modal = document.createElement('div')
+      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'
+      modal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+          <h3 class="text-lg font-semibold mb-4">Chiudi Trade</h3>
+          <p class="text-gray-600 mb-4">Inserisci la quantità di ${trade.fromAsset.symbol} ricevuta:</p>
+          <input type="number" id="quantityInput" class="w-full px-3 py-2 border border-gray-300 rounded-md mb-4" 
+                 step="any" placeholder="0.00000000" value="${trade.fromQuantity || '0'}">
+          <div class="flex gap-3 justify-end">
+            <button id="cancelBtn" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md">Annulla</button>
+            <button id="confirmBtn" class="px-4 py-2 bg-green-600 text-white rounded-md">Conferma</button>
+          </div>
+        </div>
+      `
+      document.body.appendChild(modal)
+      
+      const input = modal.querySelector('#quantityInput') as HTMLInputElement
+      const cancelBtn = modal.querySelector('#cancelBtn')
+      const confirmBtn = modal.querySelector('#confirmBtn')
+      
+      input.focus()
+      input.select()
+      
+      const cleanup = () => {
+        document.body.removeChild(modal)
+      }
+      
+      cancelBtn?.addEventListener('click', () => {
+        cleanup()
+        resolve(null)
+      })
+      
+      confirmBtn?.addEventListener('click', () => {
+        const value = input.value.trim()
+        cleanup()
+        resolve(value)
+      })
+      
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          cleanup()
+          resolve(input.value.trim())
+        } else if (e.key === 'Escape') {
+          cleanup()
+          resolve(null)
+        }
+      })
+    })
+
+    if (!receivedQuantity || parseFloat(receivedQuantity) <= 0) {
+      await alert({
+        title: 'Errore',
+        message: 'Quantità ricevuta non valida',
+        variant: 'error'
+      })
+      return
+    }
+
+    const confirmed = await confirm({
+      title: 'Chiudi Trade',
+      message: `Confermi di aver ricevuto ${receivedQuantity} ${trade.fromAsset.symbol} chiudendo il trade?`,
+      confirmText: 'Chiudi Trade',
+      cancelText: 'Annulla',
+      variant: 'warning'
+    })
+
+    if (!confirmed) return
+
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/trades/${trade.id}/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          receivedQuantity: parseFloat(receivedQuantity)
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        await fetchTrades()
+        await fetchPortfolio()
+        await alert({
+          title: 'Trade chiuso con successo!', 
+          message: `P&L: ${result.performance.realizedPnL >= 0 ? '+' : ''}${result.performance.realizedPnL.toFixed(2)}€ (${result.performance.pnLPercentage >= 0 ? '+' : ''}${result.performance.pnLPercentage.toFixed(2)}%)`,
+          variant: 'success'
+        })
+      } else {
+        const error = await response.json()
+        throw new Error(error.error || 'Errore sconosciuto')
+      }
+    } catch (error) {
+      console.error('Error closing trade:', error)
+      await alert({
+        title: 'Errore', 
+        message: error instanceof Error ? error.message : 'Errore durante la chiusura del trade',
+        variant: 'error'
+      })
     }
   }
 
@@ -665,7 +830,11 @@ export default function CryptoPortfolioDetailPage() {
         router.push('/investments')
       } else {
         const error = await response.json()
-        alert(`Errore: ${error.error || 'Eliminazione portfolio fallita'}`)
+        await alert({
+          title: 'Errore',
+          message: `Errore: ${error.error || 'Eliminazione portfolio fallita'}`,
+          variant: 'error'
+        })
       }
     } catch (error) {
       console.error('Error deleting portfolio:', error)
@@ -1763,6 +1932,65 @@ export default function CryptoPortfolioDetailPage() {
         </div>
       </div>
 
+      {/* 🎯 TRADES SECTION */}
+      {showTrades && (
+        <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-6 sm:mb-8">
+          <div className="p-4 sm:p-6 border-b border-adaptive">
+            <h3 className="text-lg font-semibold text-adaptive-900">🎯 Trades Aperti</h3>
+          </div>
+          
+          <div className="p-4 sm:p-6">
+            {tradesLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              </div>
+            ) : trades.filter(t => t.status === 'open').length === 0 ? (
+              <div className="text-center py-8 text-adaptive-600">
+                <p>Nessun trade aperto</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {trades.filter(t => t.status === 'open').map((trade) => (
+                  <TradeCard 
+                    key={trade.id} 
+                    trade={trade} 
+                    onClose={() => {}} // Non usato più, ora il pulsante chiudi è interno
+                    onCloseTrade={handleCloseTrade}
+                    portfolioId={portfolioId}
+                  />
+                ))}
+              </div>
+            )}
+            
+            {/* Trades Chiusi */}
+            {trades.filter(t => t.status === 'closed').length > 0 && (
+              <div className="mt-8 pt-8 border-t border-gray-300 dark:border-gray-700">
+                <h4 className="text-md font-semibold text-adaptive-900 mb-4">✅ Trades Chiusi</h4>
+                <div className="space-y-4">
+                  {trades.filter(t => t.status === 'closed').map((trade) => (
+                    <div key={trade.id} className="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <div className="font-medium text-adaptive-900">
+                            {trade.fromAsset.symbol} → {trade.toAsset.symbol}
+                          </div>
+                          <div className="text-sm text-adaptive-600">
+                            {new Date(trade.openDate).toLocaleDateString('it-IT')} - {new Date(trade.closeDate).toLocaleDateString('it-IT')}
+                          </div>
+                        </div>
+                        <div className={`font-semibold ${trade.realizedPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {trade.realizedPnL >= 0 ? '+' : ''}{formatCurrencySmart(trade.realizedPnL)} ({trade.pnLPercentage >= 0 ? '+' : ''}{trade.pnLPercentage.toFixed(2)}%)
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Network Fees Section - Mobile Optimized */}
       <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-6 sm:mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 border-b border-adaptive gap-3 sm:gap-0">
@@ -1908,6 +2136,21 @@ export default function CryptoPortfolioDetailPage() {
               className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 font-medium"
             >
               🔄 Swap
+            </button>
+            <button
+              onClick={() => setShowOpenTrade(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+            >
+              🚀 Apri Trade
+            </button>
+            <button
+              onClick={() => {
+                setShowTrades(!showTrades)
+                if (!showTrades) fetchTrades()
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-medium"
+            >
+              📈 Trades {trades.filter(t => t.status === 'open').length > 0 && `(${trades.filter(t => t.status === 'open').length})`}
             </button>
             <button
               onClick={() => setShowAddTransaction(true)}
@@ -2121,12 +2364,16 @@ export default function CryptoPortfolioDetailPage() {
                       return (
                         <tr key={transaction.id} className="border-b border-adaptive hover:bg-adaptive-50">
                       <td className="py-4 px-4 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedTransactions.includes(transaction.id)}
-                          onChange={() => handleSelectTransaction(transaction.id)}
-                          className="rounded"
-                        />
+                        {(transaction.type === 'trade_open' || transaction.type === 'trade_close') ? (
+                          <span className="text-gray-400">-</span>
+                        ) : (
+                          <input
+                            type="checkbox"
+                            checked={selectedTransactions.includes(transaction.id)}
+                            onChange={() => handleSelectTransaction(transaction.id)}
+                            className="rounded"
+                          />
+                        )}
                       </td>
                       <td className="py-4 px-4 text-sm">
                         {new Date(transaction.date).toLocaleDateString('it-IT')}
@@ -2143,6 +2390,10 @@ export default function CryptoPortfolioDetailPage() {
                             ? 'bg-red-100 text-red-600'
                             : transaction.type === 'stake_reward'
                             ? 'bg-blue-100 text-blue-600'
+                            : transaction.type === 'trade_open'
+                            ? 'bg-purple-100 text-purple-600'
+                            : transaction.type === 'trade_close'
+                            ? 'bg-purple-100 text-purple-600'
                             : (transaction.type === 'swap_in' || transaction.type === 'swap_out')
                             ? 'bg-orange-100 text-orange-600'
                             : 'bg-gray-100 text-gray-600'
@@ -2150,6 +2401,8 @@ export default function CryptoPortfolioDetailPage() {
                           {transaction.type === 'buy' ? 'Buy' 
                            : transaction.type === 'sell' ? 'Sell'
                            : transaction.type === 'stake_reward' ? 'Stake'
+                           : transaction.type === 'trade_open' ? '🎯 Trade'
+                           : transaction.type === 'trade_close' ? '✅ Trade'
                            : transaction.type === 'swap_in' ? 'Swap In'
                            : transaction.type === 'swap_out' ? 'Swap Out'
                            : transaction.type}
@@ -2166,20 +2419,26 @@ export default function CryptoPortfolioDetailPage() {
                       </td>
                       <td className="py-4 px-4 text-center">
                         <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => openEditTransaction(transaction)}
-                            className="p-1 text-blue-600 hover:bg-blue-100 rounded"
-                            title="Modifica"
-                          >
-                            <PencilIcon className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTransaction(transaction.id)}
-                            className="p-1 text-red-600 hover:bg-red-100 rounded"
-                            title="Elimina"
-                          >
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
+                          {(transaction.type === 'trade_open' || transaction.type === 'trade_close') ? (
+                            <span className="text-xs text-gray-500 italic">Solo da Trades</span>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => openEditTransaction(transaction)}
+                                className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+                                title="Modifica"
+                              >
+                                <PencilIcon className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTransaction(transaction.id)}
+                                className="p-1 text-red-600 hover:bg-red-100 rounded"
+                                title="Elimina"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2324,12 +2583,16 @@ export default function CryptoPortfolioDetailPage() {
                       <div key={transaction.id} className="card-adaptive rounded-lg p-4 border border-adaptive">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-3 flex-1">
-                            <input
-                              type="checkbox"
-                              checked={selectedTransactions.includes(transaction.id)}
-                              onChange={() => handleSelectTransaction(transaction.id)}
-                              className="h-4 w-4 text-blue-600 border-adaptive rounded focus:ring-blue-500 mt-1"
-                            />
+                            {(transaction.type === 'trade_open' || transaction.type === 'trade_close') ? (
+                              <span className="w-4 h-4 mt-1"></span>
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={selectedTransactions.includes(transaction.id)}
+                                onChange={() => handleSelectTransaction(transaction.id)}
+                                className="h-4 w-4 text-blue-600 border-adaptive rounded focus:ring-blue-500 mt-1"
+                              />
+                            )}
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -2339,11 +2602,17 @@ export default function CryptoPortfolioDetailPage() {
                                     ? 'bg-red-100 text-red-600'
                                     : transaction.type === 'stake_reward'
                                     ? 'bg-blue-100 text-blue-600'
+                                    : transaction.type === 'trade_open'
+                                    ? 'bg-purple-100 text-purple-600'
+                                    : transaction.type === 'trade_close'
+                                    ? 'bg-purple-100 text-purple-600'
                                     : 'bg-gray-100 text-gray-600'
                                 }`}>
                                   {transaction.type === 'buy' ? '💰 Buy' 
                                    : transaction.type === 'sell' ? '💸 Sell'
                                    : transaction.type === 'stake_reward' ? '🏆 Stake'
+                                   : transaction.type === 'trade_open' ? '🎯 Trade Aperto'
+                                   : transaction.type === 'trade_close' ? '✅ Trade Chiuso'
                                    : transaction.type}
                                 </span>
                                 <span className="text-sm text-adaptive-600">
@@ -2383,20 +2652,26 @@ export default function CryptoPortfolioDetailPage() {
                         </div>
 
                         <div className="flex justify-end gap-2 pt-3 border-t border-adaptive">
-                          <button
-                            onClick={() => openEditTransaction(transaction)}
-                            className="flex items-center gap-2 px-3 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-sm"
-                          >
-                            <PencilIcon className="w-4 h-4" />
-                            Modifica
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTransaction(transaction.id)}
-                            className="flex items-center gap-2 px-3 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-sm"
-                          >
-                            <TrashIcon className="w-4 h-4" />
-                            Elimina
-                          </button>
+                          {(transaction.type === 'trade_open' || transaction.type === 'trade_close') ? (
+                            <span className="text-xs text-gray-500 italic py-2">Gestibile solo da sezione Trades</span>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => openEditTransaction(transaction)}
+                                className="flex items-center gap-2 px-3 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                              >
+                                <PencilIcon className="w-4 h-4" />
+                                Modifica
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTransaction(transaction.id)}
+                                className="flex items-center gap-2 px-3 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-sm"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                                Elimina
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     )
@@ -3352,6 +3627,15 @@ export default function CryptoPortfolioDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Apri Trade */}
+      {showOpenTrade && (
+        <OpenTradeModal
+          portfolio={portfolio}
+          onClose={() => setShowOpenTrade(false)}
+          onSubmit={handleOpenTrade}
+        />
+      )}
     </div>
   )
 
@@ -3394,7 +3678,11 @@ export default function CryptoPortfolioDetailPage() {
         })
       } else {
         const error = await response.json()
-        alert(`Errore: ${error.error || 'Aggiunta transazione fallita'}`)
+        await alert({
+          title: 'Errore',
+          message: `Errore: ${error.error || 'Aggiunta transazione fallita'}`,
+          variant: 'error'
+        })
       }
     } catch (error) {
       console.error('Error adding transaction:', error)
@@ -3447,7 +3735,11 @@ export default function CryptoPortfolioDetailPage() {
         })
       } else {
         const error = await response.json()
-        alert(`Errore: ${error.error || 'Modifica transazione fallita'}`)
+        await alert({
+          title: 'Errore',
+          message: `Errore: ${error.error || 'Modifica transazione fallita'}`,
+          variant: 'error'
+        })
       }
     } catch (error) {
       console.error('Error editing transaction:', error)
@@ -3494,7 +3786,11 @@ export default function CryptoPortfolioDetailPage() {
         })
       } else {
         const error = await response.json()
-        alert(`Errore: ${error.error || 'Modifica portfolio fallita'}`)
+        await alert({
+          title: 'Errore',
+          message: `Errore: ${error.error || 'Modifica portfolio fallita'}`,
+          variant: 'error'
+        })
       }
     } catch (error) {
       console.error('Error editing portfolio:', error)
@@ -3526,6 +3822,8 @@ export default function CryptoPortfolioDetailPage() {
 
       if (response.ok) {
         await fetchPortfolio()
+        // Pulisci lo state trades per evitare trades fantasma
+        setTrades([])
         await alert({
           title: 'Successo',
           message: 'Transazione eliminata con successo!',
@@ -3533,7 +3831,11 @@ export default function CryptoPortfolioDetailPage() {
         })
       } else {
         const error = await response.json()
-        alert(`Errore: ${error.error || 'Eliminazione transazione fallita'}`)
+        await alert({
+          title: 'Errore',
+          message: `Errore: ${error.error || 'Eliminazione transazione fallita'}`,
+          variant: 'error'
+        })
       }
     } catch (error) {
       console.error('Error deleting transaction:', error)
@@ -3544,6 +3846,317 @@ export default function CryptoPortfolioDetailPage() {
       })
     }
   }
+}
+
+// Modal Apri Trade Component
+function OpenTradeModal({ 
+  portfolio, 
+  onClose, 
+  onSubmit 
+}: { 
+  portfolio: CryptoPortfolio | null
+  onClose: () => void
+  onSubmit: (fromAssetId: number, toAssetSymbol: string, fromQuantity: number, toQuantity: number, notes?: string) => void
+}) {
+  const [fromAssetId, setFromAssetId] = useState<number | null>(null)
+  const [toAssetSymbol, setToAssetSymbol] = useState('')
+  const [fromQuantity, setFromQuantity] = useState('')
+  const [toQuantity, setToQuantity] = useState('')
+  const [notes, setNotes] = useState('')
 
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!fromAssetId || !toAssetSymbol.trim() || !fromQuantity || !toQuantity) {
+      await alert({
+        title: 'Campi Obbligatori',
+        message: 'Compila tutti i campi obbligatori',
+        variant: 'warning'
+      })
+      return
+    }
+
+    const fromQty = parseFloat(fromQuantity)
+    const toQty = parseFloat(toQuantity)
+
+    if (fromQty <= 0 || toQty <= 0) {
+      await alert({
+        title: 'Quantità Non Valide',
+        message: 'Le quantità devono essere positive',
+        variant: 'warning'
+      })
+      return
+    }
+
+    // Verifica che il simbolo di destinazione non sia uguale all'asset di origine
+    const fromAsset = portfolio?.holdings.find(h => h.asset.id === fromAssetId)
+    if (fromAsset && fromAsset.asset.symbol.toUpperCase() === toAssetSymbol.toUpperCase()) {
+      await alert({
+        title: 'Asset Duplicati',
+        message: 'Asset di origine e destinazione devono essere diversi',
+        variant: 'warning'
+      })
+      return
+    }
+
+    onSubmit(fromAssetId, toAssetSymbol.trim(), fromQty, toQty, notes.trim() || undefined)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium">🚀 Apri Trade</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <XMarkIcon className="w-6 h-6" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Asset FROM */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Da quale asset *
+            </label>
+            <select
+              value={fromAssetId || ''}
+              onChange={(e) => setFromAssetId(parseInt(e.target.value) || null)}
+              className="w-full p-2 border border-gray-300 rounded-md"
+              required
+            >
+              <option value="">Seleziona asset...</option>
+              {portfolio?.holdings.map(holding => (
+                <option key={holding.asset.id} value={holding.asset.id}>
+                  {holding.asset.symbol} ({formatCryptoSmart(holding.quantity)} disponibili)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Quantità FROM */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Quantità da vendere *
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={fromQuantity}
+              onChange={(e) => setFromQuantity(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md"
+              placeholder="0.001"
+              required
+            />
+          </div>
+
+          {/* Asset TO */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              A quale asset * (simbolo)
+            </label>
+            <input
+              type="text"
+              value={toAssetSymbol}
+              onChange={(e) => setToAssetSymbol(e.target.value.toUpperCase())}
+              className="w-full p-2 border border-gray-300 rounded-md"
+              placeholder="ETH"
+              required
+            />
+          </div>
+
+          {/* Quantità TO */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Quantità che riceverai *
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={toQuantity}
+              onChange={(e) => setToQuantity(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md"
+              placeholder="0.5"
+              required
+            />
+          </div>
+
+          {/* Note */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Note (opzionali)
+            </label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md"
+              placeholder="Trade BTC → ETH"
+            />
+          </div>
+
+          {/* Buttons */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+            >
+              Annulla
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+            >
+              🚀 Apri Trade
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// Componente TradeCard per visualizzare i trade
+function TradeCard({ 
+  trade, 
+  onClose,
+  onCloseTrade,
+  portfolioId
+}: { 
+  trade: any
+  onClose: () => void
+  onCloseTrade: (trade: any) => void
+  portfolioId: string
+}) {
+  const { alert, confirm } = useNotifications()
+  const isProfit = trade.quantityGain ? trade.quantityGain >= 0 : false
+  const pnlColor = isProfit ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+  const bgColor = isProfit ? 'bg-green-100 dark:bg-green-900/20' : 'bg-red-100 dark:bg-red-900/20'
+  const borderColor = isProfit ? 'border-green-300 dark:border-green-700' : 'border-red-300 dark:border-red-700'
+  
+  const daysSinceOpen = Math.floor((new Date().getTime() - new Date(trade.openDate).getTime()) / (1000 * 60 * 60 * 24))
+
+  const handleDeleteTrade = async () => {
+    const confirmed = await confirm({
+      title: 'Eliminare questo trade?',
+      message: `Questo eliminerà il trade ${trade.fromAsset.symbol} → ${trade.toAsset.symbol} e ripristinerà i holdings originali. L'operazione non può essere annullata.`,
+      confirmText: 'Elimina',
+      cancelText: 'Annulla',
+      variant: 'warning'
+    })
+
+    if (!confirmed) return
+
+    try {
+      const response = await fetch(`/api/crypto-portfolios/${portfolioId}/trades/${trade.id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        throw new Error('Errore eliminazione trade')
+      }
+
+      await alert({
+        title: 'Trade eliminato con successo',
+        message: 'Holdings ripristinati',
+        variant: 'success'
+      })
+      window.location.reload() // Refresh per aggiornare dati
+    } catch (error) {
+      console.error('Error deleting trade:', error)
+      await alert({
+        title: 'Errore',
+        message: 'Impossibile eliminare il trade',
+        variant: 'error'
+      })
+    }
+  }
+
+  return (
+    <div className={`p-4 rounded-lg border ${bgColor} ${borderColor}`}>
+      <div className="flex justify-between items-start mb-2">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg font-semibold text-adaptive-900">
+              🎯 {trade.fromAsset.symbol} → {trade.toAsset.symbol}
+            </span>
+            <span className="text-sm bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 px-2 py-1 rounded">
+              Trade #{trade.id}
+            </span>
+          </div>
+          
+          <div className="text-sm text-adaptive-600">
+            Aperto: {new Date(trade.openDate).toLocaleDateString('it-IT', { 
+              day: '2-digit', 
+              month: 'short', 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            })} ({daysSinceOpen} giorni fa)
+          </div>
+        </div>
+        
+        <div className="flex gap-2">
+          {trade.status === 'open' && (
+            <button
+              onClick={() => onCloseTrade(trade)}
+              className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium shadow-md hover:shadow-lg transition-shadow"
+            >
+              ✅ Chiudi
+            </button>
+          )}
+          <button
+            onClick={handleDeleteTrade}
+            className="px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm font-medium shadow-md hover:shadow-lg transition-shadow"
+          >
+            🗑️ Elimina
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mt-3">
+        <div>
+          <div className="text-xs text-adaptive-600">Valore Iniziale</div>
+          <div className="font-mono text-adaptive-900">{formatCurrencySmart(trade.initialValue)}</div>
+        </div>
+        
+        <div>
+          <div className="text-xs text-adaptive-600">Valore Attuale</div>
+          <div className="font-mono text-adaptive-900">
+            {trade.currentValue ? formatCurrencySmart(trade.currentValue) : '...'}
+          </div>
+        </div>
+      </div>
+
+      {trade.quantityGain !== undefined && (
+        <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-700">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-adaptive-900">Performance:</span>
+            <div className={`text-right ${pnlColor}`}>
+              <div className="font-semibold">
+                {trade.quantityGain >= 0 ? '+' : ''}{formatCryptoSmart(trade.quantityGain, trade.fromAsset.decimals)} {trade.fromAsset.symbol}
+              </div>
+              <div className="text-sm">
+                {trade.livePnLPercentage >= 0 ? '+' : ''}{trade.livePnLPercentage.toFixed(2)}%
+              </div>
+            </div>
+          </div>
+          
+          {/* Info aggiuntiva: quantità che si potrebbe ricomprare */}
+          <div className="mt-2 text-xs text-adaptive-600">
+            Ricomprabile: {formatCryptoSmart(trade.potentialFromQuantity || 0, trade.fromAsset.decimals)} {trade.fromAsset.symbol}
+          </div>
+        </div>
+      )}
+
+      {trade.notes && (
+        <div className="mt-3 text-sm text-adaptive-600 italic">
+          "{trade.notes}"
+        </div>
+      )}
+    </div>
+  )
 }
