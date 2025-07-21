@@ -789,13 +789,23 @@ export default function ExpensesPage() {
   
   const totalExpenses = operationalTransactions.reduce((sum, transaction) => sum + transaction.amount, 0)
   const currentMonthExpenses = operationalTransactions
-    .filter(t => new Date(t.date).getMonth() === new Date().getMonth())
+    .filter(t => {
+      const transactionDate = new Date(t.date)
+      const currentDate = new Date()
+      return transactionDate.getMonth() === currentDate.getMonth() && 
+             transactionDate.getFullYear() === currentDate.getFullYear()
+    })
     .reduce((sum, transaction) => sum + transaction.amount, 0)
   
   // Calcoli separati per tasse fiscali
   const totalFiscalExpenses = fiscalTransactions.reduce((sum, transaction) => sum + transaction.amount, 0)
   const currentMonthFiscalExpenses = fiscalTransactions
-    .filter(t => new Date(t.date).getMonth() === new Date().getMonth())
+    .filter(t => {
+      const transactionDate = new Date(t.date)
+      const currentDate = new Date()
+      return transactionDate.getMonth() === currentDate.getMonth() && 
+             transactionDate.getFullYear() === currentDate.getFullYear()
+    })
     .reduce((sum, transaction) => sum + transaction.amount, 0)
 
   // Statistiche per categoria - SOLO OPERATIVE (senza tasse fiscali)
@@ -822,15 +832,25 @@ export default function ExpensesPage() {
   const currentMonthChartData = categoryStats
     .filter(stat => !excludedCategories.includes(stat.id)) // Escludi categorie selezionate
     .filter(stat => {
-      const categoryTransactions = operationalTransactions.filter(t => 
-        t.category.id === stat.id && new Date(t.date).getMonth() === new Date().getMonth()
-      )
+      const categoryTransactions = operationalTransactions.filter(t => {
+        const transactionDate = new Date(t.date)
+        const currentDate = new Date()
+        return t.category.id === stat.id && 
+               transactionDate.getMonth() === currentDate.getMonth() && 
+               transactionDate.getFullYear() === currentDate.getFullYear()
+      })
       return categoryTransactions.reduce((sum, t) => sum + t.amount, 0) > 0
     })
     .map(stat => ({
       name: stat.name,
       value: operationalTransactions
-        .filter(t => t.category.id === stat.id && new Date(t.date).getMonth() === new Date().getMonth())
+        .filter(t => {
+          const transactionDate = new Date(t.date)
+          const currentDate = new Date()
+          return t.category.id === stat.id && 
+                 transactionDate.getMonth() === currentDate.getMonth() && 
+                 transactionDate.getFullYear() === currentDate.getFullYear()
+        })
         .reduce((sum, t) => sum + t.amount, 0),
       color: stat.color
     }))

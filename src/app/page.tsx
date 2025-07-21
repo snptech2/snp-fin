@@ -439,6 +439,7 @@ const Dashboard = () => {
 
   console.log('💰 Budget Summary Final:', budgetSummary);
 
+
   // ✅ NUOVO: Allocation data dettagliata con budget individuali
   const allocationData: AllocationDataItem[] = useMemo(() => {
     const data: AllocationDataItem[] = [];

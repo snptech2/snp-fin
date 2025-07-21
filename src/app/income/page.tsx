@@ -723,7 +723,12 @@ export default function IncomePage() {
   // Calcoli per statistiche
   const totalIncome = transactions.reduce((sum, transaction) => sum + transaction.amount, 0)
   const currentMonthIncome = transactions
-    .filter(t => new Date(t.date).getMonth() === new Date().getMonth())
+    .filter(t => {
+      const transactionDate = new Date(t.date)
+      const currentDate = new Date()
+      return transactionDate.getMonth() === currentDate.getMonth() && 
+             transactionDate.getFullYear() === currentDate.getFullYear()
+    })
     .reduce((sum, transaction) => sum + transaction.amount, 0)
 
   // Statistiche per categoria

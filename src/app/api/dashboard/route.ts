@@ -478,7 +478,7 @@ export async function GET(request: NextRequest) {
     const totalBudgetTarget = budgetsResponse.reduce((sum, budget) => sum + budget.targetAmount, 0)
     
     // Calculate budget allocation using same logic as budgets API
-    const totalLiquidityForBudgets = bankLiquidity + investmentLiquidity  // Include investment accounts
+    const totalLiquidityForBudgets = bankLiquidity  // Only bank accounts for budgets
     let remainingAmount = totalLiquidityForBudgets
     let actualTotalAllocated = 0
     

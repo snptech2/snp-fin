@@ -388,7 +388,7 @@ export default function BudgetPage() {
             <p className="text-2xl sm:text-2xl font-bold text-blue-600">
               {formatCurrency(budgetData?.totalLiquidity || 0)}
             </p>
-            <p className="text-sm text-adaptive-600">Da tutti i conti</p>
+            <p className="text-sm text-adaptive-600">Dai conti bancari</p>
           </div>
           
           <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left">
