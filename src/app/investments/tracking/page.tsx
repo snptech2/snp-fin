@@ -315,7 +315,7 @@ export default function TrackingPage() {
         <div className="p-6">
           <div className="flex items-center gap-4 mb-6">
             <button 
-              onClick={() => router.back()}
+              onClick={() => router.push('/investments')}
               className="p-2 hover:bg-adaptive-50 rounded-lg"
             >
               <ArrowLeftIcon className="h-5 w-5" />
@@ -334,7 +334,7 @@ export default function TrackingPage() {
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <button 
-            onClick={() => router.back()}
+            onClick={() => router.push('/investments')}
             className="p-2 hover:bg-adaptive-50 rounded-lg"
           >
             <ArrowLeftIcon className="h-5 w-5" />
