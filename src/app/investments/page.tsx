@@ -192,39 +192,48 @@ export default function InvestmentsPage() {
     new Intl.NumberFormat('it-IT', { style: 'percent', minimumFractionDigits: 1 }).format(value / 100)
 
 
-  // Enhanced Overall Stats - Reintrodotto useMemo con dipendenze sicure
+  // Enhanced Overall Stats - Stabilizzato per evitare React Error #310
   const overallStats = useMemo(() => {
+    // Controllo di stabilità: se i dati principali non sono ancora caricati, ritorna valori di default
+    if (!dcaPortfolios || !cryptoPortfolios) {
+      return {
+        totalInvested: 0,
+        totalCapitalRecovered: 0,
+        totalEffectiveInvestment: 0,
+        totalRealizedProfit: 0,
+        isFullyRecovered: false,
+        totalCurrentValue: 0,
+        totalUnrealizedGains: 0,
+        overallROI: 0,
+        totalPortfolios: 0,
+        dcaCount: 0,
+        cryptoCount: 0
+      }
+    }
+    
     const allPortfolios = [...dcaPortfolios, ...cryptoPortfolios]
     
     // Enhanced Cash Flow: Somma tutte le stats dai portfolio backend
-    const totalInvested = allPortfolios.reduce((sum, p) => sum + (p.stats.totalInvested || 0), 0)
-    const totalCapitalRecovered = allPortfolios.reduce((sum, p) => sum + (p.stats.capitalRecovered || 0), 0)
-    const totalEffectiveInvestment = allPortfolios.reduce((sum, p) => sum + (p.stats.effectiveInvestment || 0), 0)
-    const totalRealizedProfit = allPortfolios.reduce((sum, p) => sum + (p.stats.realizedProfit || 0), 0)
+    const totalInvested = allPortfolios.reduce((sum, p) => sum + (p.stats?.totalInvested || 0), 0)
+    const totalCapitalRecovered = allPortfolios.reduce((sum, p) => sum + (p.stats?.capitalRecovered || 0), 0)
+    const totalEffectiveInvestment = allPortfolios.reduce((sum, p) => sum + (p.stats?.effectiveInvestment || 0), 0)
+    const totalRealizedProfit = allPortfolios.reduce((sum, p) => sum + (p.stats?.realizedProfit || 0), 0)
     
-    // Calcola current value direttamente inline per evitare dipendenze circolari
+    // Calcola current value con logica stabile
     let totalCurrentValue = 0
     const currentBtcPrice = btcPrice?.btcPrice || 0
     
-    allPortfolios.forEach(portfolio => {
-      const portfolioType = dcaPortfolios.includes(portfolio) ? 'dca_bitcoin' : 'crypto_wallet'
-      
-      if (portfolioType === 'crypto_wallet') {
+    // Usa un approccio più stabile senza forEach e controlli interni complessi
+    for (const portfolio of allPortfolios) {
+      if (portfolio.type === 'crypto_wallet') {
         // Crypto portfolios: usa totalValueEur dal backend
-        totalCurrentValue += portfolio.stats.totalValueEur || 0
-      } else {
-        // DCA portfolios: calcola inline usando logica getDCACurrentValue
-        if (portfolio.type === 'dca_bitcoin' && currentBtcPrice > 0) {
-          // Priority: netBTC (includes network fees)
-          if (portfolio.stats?.netBTC !== undefined && portfolio.stats?.netBTC !== null) {
-            totalCurrentValue += portfolio.stats.netBTC * currentBtcPrice
-          } else if (portfolio.stats?.totalBTC !== undefined && portfolio.stats?.totalBTC !== null) {
-            // Fallback: totalBTC
-            totalCurrentValue += portfolio.stats.totalBTC * currentBtcPrice
-          }
-        }
+        totalCurrentValue += portfolio.stats?.totalValueEur || 0
+      } else if (portfolio.type === 'dca_bitcoin' && currentBtcPrice > 0) {
+        // DCA portfolios: calcola usando BTC holdings
+        const btcAmount = portfolio.stats?.netBTC ?? portfolio.stats?.totalBTC ?? 0
+        totalCurrentValue += btcAmount * currentBtcPrice
       }
-    })
+    }
     
     // Enhanced calculation per overall metrics
     const totalUnrealizedGains = totalCurrentValue - totalEffectiveInvestment
@@ -249,7 +258,7 @@ export default function InvestmentsPage() {
       dcaCount: dcaPortfolios.length,
       cryptoCount: cryptoPortfolios.length
     }
-  }, [dcaPortfolios, cryptoPortfolios, btcPrice])
+  }, [dcaPortfolios, cryptoPortfolios, btcPrice?.btcPrice]) // Usa solo btcPrice.btcPrice come dipendenza
 
   // Create DCA Portfolio
   const createDCAPortfolio = async () => {
@@ -444,22 +453,24 @@ export default function InvestmentsPage() {
         </div>
 
         {/* Performance Charts - Reintrodotti con dynamic import */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <PerformanceChart
-            data={chartData}
-            currency={user?.currency || 'EUR'}
-            type="fiat"
-            title={`📈 Andamento Portfolio (${user?.currency || 'EUR'})`}
-            height={300}
-          />
-          <PerformanceChart
-            data={chartData}
-            currency={user?.currency || 'EUR'}
-            type="btc"
-            title="₿ Andamento Portfolio (BTC)"
-            height={300}
-          />
-        </div>
+        {!chartsLoading && chartData && chartData.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <PerformanceChart
+              data={chartData}
+              currency={user?.currency || 'EUR'}
+              type="fiat"
+              title={`📈 Andamento Portfolio (${user?.currency || 'EUR'})`}
+              height={300}
+            />
+            <PerformanceChart
+              data={chartData}
+              currency={user?.currency || 'EUR'}
+              type="btc"
+              title="₿ Andamento Portfolio (BTC)"
+              height={300}
+            />
+          </div>
+        )}
 
         {/* DCA Bitcoin Portfolios */}
         {dcaPortfolios.length > 0 && (
@@ -471,19 +482,12 @@ export default function InvestmentsPage() {
             
             <div className="divide-y divide-adaptive">
               {dcaPortfolios.map(portfolio => {
-                // Calcola current value inline
-                let currentValue = 0
+                // Calcola current value inline con logica stabile
                 const currentBtcPrice = btcPrice?.btcPrice || 0
-                
-                if (portfolio.type === 'dca_bitcoin' && currentBtcPrice > 0) {
-                  // Priority: netBTC (includes network fees)
-                  if (portfolio.stats?.netBTC !== undefined && portfolio.stats?.netBTC !== null) {
-                    currentValue = portfolio.stats.netBTC * currentBtcPrice
-                  } else if (portfolio.stats?.totalBTC !== undefined && portfolio.stats?.totalBTC !== null) {
-                    // Fallback: totalBTC
-                    currentValue = portfolio.stats.totalBTC * currentBtcPrice
-                  }
-                }
+                const btcAmount = portfolio.stats?.netBTC ?? portfolio.stats?.totalBTC ?? 0
+                const currentValue = portfolio.type === 'dca_bitcoin' && currentBtcPrice > 0 
+                  ? btcAmount * currentBtcPrice 
+                  : 0
                 
                 const totalInvested = portfolio.stats.totalInvested || 0
                 const effectiveInvestment = portfolio.stats.effectiveInvestment || 0
