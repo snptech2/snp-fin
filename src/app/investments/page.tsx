@@ -9,6 +9,8 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
 import { useNotifications } from '@/contexts/NotificationContext'
+import TutorialBanner from '@/components/ui/TutorialBanner'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 
 // Import dinamico per evitare hydration mismatch
 const PerformanceChart = dynamic(() => import('@/components/charts/PerformanceChart'), {
@@ -390,6 +392,20 @@ export default function InvestmentsPage() {
             </button>
           </div>
         </div>
+
+        {/* Tutorial Banner */}
+        <TutorialBanner
+          id="investments-list-tutorial"
+          title="📈 Centro Investimenti - Dashboard Completa" 
+          steps={[
+            "1. 🟠 DCA Bitcoin: Strategia Dollar Cost Averaging per accumulo Bitcoin graduale",
+            "2. 🚀 Crypto Wallet: Gestione completa portfolio multi-asset con trading, staking e DeFi",
+            "3. 📊 Tracking Avanzato: Sistema di snapshot per monitorare performance nel tempo",
+            "4. 💰 Enhanced Cash Flow: Tracking separato di capitale investito vs. profitti realizzati",
+            "5. 📈 Ogni portfolio mostra ROI, BTC accumulati, e stato del recupero capitale"
+          ]}
+          variant="success"
+        />
 
         {/* Enhanced Overall Statistics - Mobile Optimized with SATS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">

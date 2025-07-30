@@ -7,6 +7,8 @@ import {
   HomeIcon, PlusIcon, PencilIcon, TrashIcon
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import TutorialBanner from '@/components/ui/TutorialBanner'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 
 interface NonCurrentAsset {
   id: number
@@ -188,6 +190,20 @@ export default function BeniNonCorrentiPage() {
             </button>
           </div>
         </div>
+
+        {/* Tutorial Banner */}
+        <TutorialBanner
+          id="beni-non-correnti-tutorial"
+          title="🏠 Gestione Beni Non Correnti"
+          steps={[
+            "1. 🏡 Registra beni immobilizzati come casa, auto, terreni che hanno valore ma non sono liquidità immediata",
+            "2. 💰 Inserisci il valore attuale stimato di ogni bene per il calcolo del patrimonio complessivo",
+            "3. 📝 Aggiungi descrizioni dettagliate per tenere traccia delle caratteristiche di ogni bene",
+            "4. 📊 I beni non correnti contribuiscono al patrimonio totale ma sono separati dalla liquidità",
+            "5. 🔄 Aggiorna periodicamente i valori per riflettere le variazioni di mercato"
+          ]}
+          variant="warning"
+        />
 
         {/* Totale - Mobile Optimized */}
         <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive bg-green-50 text-center sm:text-left">

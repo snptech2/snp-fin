@@ -10,6 +10,8 @@ import { formatCurrency } from '@/utils/formatters';
 import { ColorSettingsModal } from '@/components/dashboard/ColorSettingsModal';
 import { PatrimonyColorModal } from '@/components/dashboard/PatrimonyColorModal';
 import { LiquidityColorModal } from '@/components/dashboard/LiquidityColorModal';
+import TutorialBanner from '@/components/ui/TutorialBanner';
+import HelpTooltip from '@/components/ui/HelpTooltip';
 
 // Interfaces
 interface BitcoinPrice {
@@ -600,6 +602,20 @@ const Dashboard = () => {
             <p className="text-adaptive-600 mt-1">Panoramica completa del tuo patrimonio</p>
           </div>
 
+          {/* Tutorial Banner */}
+          <TutorialBanner
+            id="dashboard-intro"
+            title="📊 Guida Dashboard"
+            steps={[
+              "Patrimonio Totale = Liquidità Bancaria + Conti Investimento + Valore Holdings + Beni + Crediti",
+              "Liquidità Bancaria = Saldo conti bancari - Riserva Tasse (se configurata)",
+              "Holdings = Valore attuale di tutti i tuoi investimenti (DCA Bitcoin + Crypto Portfolio)",
+              "Enhanced Cash Flow mostra quanto hai investito e quanto hai recuperato vendendo",
+              "I grafici a torta mostrano la composizione percentuale del tuo patrimonio"
+            ]}
+            variant="info"
+          />
+
           {/* Patrimonio Totale con Grafico */}
           <div className="rounded-xl p-8 text-white mb-8 shadow-lg" style={{
             background: 'linear-gradient(to right, oklch(0.35 0.1 265.43), oklch(0.24 0.06 265.97))'
@@ -608,7 +624,15 @@ const Dashboard = () => {
               {/* Informazioni Patrimonio */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-xl font-semibold opacity-90">💎 Patrimonio Totale</h2>
+                  <h2 className="text-xl font-semibold opacity-90 flex items-center gap-2">
+                    💎 Patrimonio Totale
+                    <HelpTooltip
+                      title="Patrimonio Totale"
+                      content="Somma di tutti i tuoi asset: liquidità nei conti bancari e di investimento, valore attuale degli investimenti (holdings), beni non correnti e crediti"
+                      position="bottom"
+                      iconSize="md"
+                    />
+                  </h2>
                   <button
                     onClick={() => setShowPatrimonyColors(true)}
                     className="text-sm text-white hover:text-white flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity"

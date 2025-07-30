@@ -6,6 +6,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useNotifications } from '@/contexts/NotificationContext'
 import { FormModal } from '@/components/base/FormModal'
+import TutorialBanner from '@/components/ui/TutorialBanner'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 
 interface Budget {
   id: number
@@ -381,10 +383,32 @@ export default function BudgetPage() {
           </div>
         </div>
 
+        {/* Tutorial Banner */}
+        <TutorialBanner
+          id="budget-tutorial"
+          title="📊 Come Funziona il Sistema Budget"
+          steps={[
+            "1. 💰 I budget ti aiutano ad allocare automaticamente la liquidità disponibile secondo le tue priorità",
+            "2. 🎯 Crea budget fissi (es. €1000 per fondo emergenza) o illimitati (che ricevono tutti i fondi rimanenti)",
+            "3. 📈 L'allocazione avviene in ordine di priorità: prima i budget con priorità 1, poi 2, ecc.",
+            "4. 🔄 I fondi vengono distribuiti dalla liquidità totale dei tuoi conti bancari",
+            "5. 📌 Usa i colori per distinguere visivamente i diversi budget nel grafico"
+          ]}
+          variant="info"
+        />
+
         {/* Statistiche - Mobile Optimized */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left">
-            <h3 className="text-sm font-medium text-adaptive-500">Liquidità Totale</h3>
+            <h3 className="text-sm font-medium text-adaptive-500 flex items-center gap-2">
+              Liquidità Totale
+              <HelpTooltip
+                title="Liquidità Totale"
+                content="Somma di tutti i saldi dei conti bancari (non include i conti di investimento). Questi fondi vengono automaticamente allocati ai budget secondo le priorità impostate."
+                position="top"
+                iconSize="sm"
+              />
+            </h3>
             <p className="text-2xl sm:text-2xl font-bold text-blue-600">
               {formatCurrency(budgetData?.totalLiquidity || 0)}
             </p>

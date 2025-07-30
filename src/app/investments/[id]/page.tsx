@@ -18,6 +18,8 @@ import ProtectedRoute from '@/components/ProtectedRoute'  // ← AGGIUNTO
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
 import { useNotifications } from '@/contexts/NotificationContext'
+import TutorialBanner from '@/components/ui/TutorialBanner'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 
 interface DCAPortfolio {
   id: number
@@ -894,11 +896,33 @@ const openEditTransaction = (transaction: DCATransaction) => {
           </div>
         )}
 
+        {/* Tutorial Banner for DCA */}
+        <TutorialBanner
+          id="dca-bitcoin-intro"
+          title="🟠 Guida DCA Bitcoin"
+          steps={[
+            "DCA (Dollar Cost Averaging) = strategia di acquisto periodico per mediare il prezzo",
+            "Investimento Effettivo = quanto hai ancora 'a rischio' (totale - recuperato)",
+            "Network Fees = commissioni di rete Bitcoin pagate per trasferimenti on-chain",
+            "Il prezzo medio di acquisto si aggiorna con ogni transazione buy/sell",
+            "Puoi recuperare il capitale vendendo parte dei Bitcoin mantenendo il resto come investimento"
+          ]}
+          variant="info"
+        />
+
         {/* 🎯 ENHANCED STATS GRID - Cash Flow Focus - Mobile Optimized */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Investimento Effettivo */}
           <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive text-center sm:text-left">
-            <h3 className="text-sm font-medium text-adaptive-500 mb-1">Investimento Effettivo</h3>
+            <h3 className="text-sm font-medium text-adaptive-500 mb-1 flex items-center gap-2">
+              Investimento Effettivo
+              <HelpTooltip
+                title="Investimento Effettivo"
+                content="Il capitale ancora 'a rischio'. È il totale investito meno quanto hai già recuperato vendendo Bitcoin"
+                position="top"
+                iconSize="sm"
+              />
+            </h3>
             <p className="text-xl sm:text-2xl font-bold text-blue-600">
               {formatCurrencyWithUserCurrency(effectiveInvestment)}
             </p>

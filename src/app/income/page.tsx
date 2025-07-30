@@ -16,12 +16,15 @@ import {
   CSVImportModal 
 } from '@/components/transactions'
 import { useNotifications } from '@/contexts/NotificationContext'
+import TutorialBanner from '@/components/ui/TutorialBanner'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 
 interface Account {
   id: number
   name: string
   balance: number
   isDefault: boolean
+  type: 'bank' | 'investment'
 }
 
 interface Category {
@@ -168,7 +171,7 @@ export default function IncomePage() {
     }, {})
 
     return Object.entries(categoryTotals)
-      .map(([name, data]) => ({
+      .map(([name, data]: [string, any]) => ({
         name,
         value: data.amount,
         color: data.color
@@ -190,7 +193,7 @@ export default function IncomePage() {
     }, {})
 
     return Object.entries(categoryTotals)
-      .map(([name, data]) => ({
+      .map(([name, data]: [string, any]) => ({
         name,
         value: data.amount,
         color: data.color
@@ -555,7 +558,7 @@ export default function IncomePage() {
       })
 
       if (response.ok) {
-        fetchCategories()
+        fetchData()
         setShowCategoryForm(false)
         setDeletingCategory(null)
       } else {
@@ -942,6 +945,20 @@ export default function IncomePage() {
             </button>
           </div>
         </div>
+
+        {/* Tutorial Banner */}
+        <TutorialBanner
+          id="income-intro"
+          title="💰 Guida Entrate"
+          steps={[
+            "Registra ogni entrata specificando data, importo e categoria",
+            "Le categorie ti aiutano a capire da dove provengono i tuoi guadagni",
+            "Puoi importare un CSV con formato: data, descrizione, importo, categoria, conto",
+            "Il conto predefinito viene selezionato automaticamente per velocizzare l'inserimento",
+            "Usa i filtri per analizzare le entrate per periodo, categoria o conto"
+          ]}
+          variant="info"
+        />
 
         {/* Statistiche - Mobile Optimized */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">

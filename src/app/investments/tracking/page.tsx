@@ -7,6 +7,8 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { useNotifications } from '@/contexts/NotificationContext'
 import { formatCurrency } from '@/utils/formatters'
+import TutorialBanner from '@/components/ui/TutorialBanner'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 
 interface HoldingsSnapshot {
   id: number
@@ -341,6 +343,20 @@ export default function TrackingPage() {
           </button>
           <h1 className="text-xl sm:text-2xl font-bold">📊 Tracking Avanzato</h1>
         </div>
+
+        {/* Tutorial Banner */}
+        <TutorialBanner
+          id="tracking-tutorial"
+          title="📊 Tracking Avanzato - Snapshot del Patrimonio"
+          steps={[
+            "1. 📸 Crea snapshot manuali per fotografare il valore del tuo patrimonio in momenti specifici",
+            "2. 📁 Importa/Esporta dati in formato CSV per backup o analisi esterne",
+            "3. 📈 Ogni snapshot cattura: valore EUR/USD, BTC posseduti, prezzo BTC del momento",
+            "4. 🔄 Usa il tracking per analizzare performance a lungo termine e trend del patrimonio",
+            "5. 🗑️ Gestisci i dati con selezione multipla per eliminazioni di massa"
+          ]}
+          variant="info"
+        />
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

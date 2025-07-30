@@ -7,6 +7,8 @@ import {
   CurrencyEuroIcon, PlusIcon, PencilIcon, TrashIcon
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import TutorialBanner from '@/components/ui/TutorialBanner'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 
 interface Credit {
   id: number
@@ -188,6 +190,20 @@ export default function CreditiPage() {
             </button>
           </div>
         </div>
+
+        {/* Tutorial Banner */}
+        <TutorialBanner
+          id="crediti-tutorial"
+          title="💰 Gestione Crediti e Prestiti"
+          steps={[
+            "1. 💸 Registra prestiti concessi a terzi, TFR accantonati o altri crediti che hai verso persone/aziende",
+            "2. 💰 Inserisci l'importo esatto che ti è dovuto per tenere traccia del tuo patrimonio completo",
+            "3. 📝 Aggiungi descrizioni dettagliate per ricordare i termini e le scadenze di ogni credito",
+            "4. 📊 I crediti contribuiscono al patrimonio totale come beni non immediatamente liquidi",
+            "5. ✅ Elimina o aggiorna i crediti quando vengono saldati o le condizioni cambiano"
+          ]}
+          variant="info"
+        />
 
         {/* Totale - Mobile Optimized */}
         <div className="card-adaptive p-4 sm:p-6 rounded-lg border-adaptive bg-blue-50 text-center sm:text-left">

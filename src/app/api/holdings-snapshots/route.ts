@@ -135,10 +135,19 @@ export async function POST(request: NextRequest) {
       
       return {
         ...portfolio,
-        type: 'dca_bitcoin',
+        type: 'dca_bitcoin' as const,
         stats: {
           totalBTC: totalBTC,
-          netBTC: totalBTC // Per ora usiamo lo stesso valore
+          netBTC: totalBTC, // Per ora usiamo lo stesso valore
+          transactionCount: portfolio.transactions?.length || 0,
+          // Aggiungi proprietà richieste dall'interfaccia Portfolio
+          totalInvested: 0,
+          capitalRecovered: 0,
+          effectiveInvestment: 0,
+          realizedProfit: 0,
+          isFullyRecovered: false,
+          buyCount: 0,
+          sellCount: 0
         }
       }
     })
@@ -175,9 +184,18 @@ export async function POST(request: NextRequest) {
       
       return {
         ...portfolio,
-        type: 'crypto_wallet',
+        type: 'crypto_wallet' as const,
         stats: {
-          totalValueEur
+          totalValueEur,
+          transactionCount: 0,
+          // Aggiungi proprietà richieste dall'interfaccia Portfolio
+          totalInvested: 0,
+          capitalRecovered: 0,
+          effectiveInvestment: 0,
+          realizedProfit: 0,
+          isFullyRecovered: false,
+          buyCount: 0,
+          sellCount: 0
         }
       }
     })

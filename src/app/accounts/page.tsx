@@ -10,6 +10,8 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
 import { useNotifications } from '@/contexts/NotificationContext'
+import TutorialBanner from '@/components/ui/TutorialBanner'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 
 interface Account {
   id: number
@@ -574,6 +576,20 @@ const handleSetDefaultAccount = async (accountId: number) => {
             </button>
           </div>
         </div>
+
+        {/* Tutorial Banner */}
+        <TutorialBanner
+          id="accounts-intro"
+          title="💳 Guida Conti"
+          steps={[
+            "Conto Bancario: per gestire liquidità, entrate e uscite quotidiane",
+            "Conto Investimento: necessario per creare portfolio DCA e Crypto", 
+            "Trasferimenti: sposta liquidità tra conti (es. da bancario a investimento)",
+            "Conto Default: dove vanno automaticamente entrate e uscite non assegnate",
+            "Include Gains: nei trasferimenti da conti investimento, puoi specificare i guadagni realizzati"
+          ]}
+          variant="info"
+        />
 
         {/* Stats Overview */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-6 mb-6 sm:mb-8">

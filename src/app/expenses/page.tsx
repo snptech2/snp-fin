@@ -20,12 +20,15 @@ import {
   BulkDeleteModal, 
   CSVImportModal 
 } from '@/components/transactions'
+import TutorialBanner from '@/components/ui/TutorialBanner'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 
 interface Account {
   id: number
   name: string
   balance: number
   isDefault: boolean
+  type: 'bank' | 'investment'
 }
 
 interface Category {
@@ -519,7 +522,7 @@ export default function ExpensesPage() {
       // DETAILED DEBUG: Analizza ogni riga per capire perdite
       let validCount = 0
       let invalidCount = 0
-      const problemRows = []
+      const problemRows: any[] = []
       
       allParsedRows.forEach((row, index) => {
         const hasData = row.data && row.data.length > 0
@@ -869,7 +872,7 @@ export default function ExpensesPage() {
   const grandTotal = totalChartData.reduce((sum, item) => sum + item.value, 0)
 
   // === COMPONENTE GRAFICO - Mobile Optimized ===
-  const renderPieChart = (data, title, total) => (
+  const renderPieChart = (data: any[], title: string, total: number) => (
     <div className="card-adaptive p-4 sm:p-6 rounded-lg shadow-sm border-adaptive">
       <h3 className="text-base sm:text-lg font-medium text-adaptive-900 mb-4 sm:mb-6 text-center lg:text-left">{title}</h3>
       
@@ -1057,6 +1060,20 @@ export default function ExpensesPage() {
             </button>
           </div>
         </div>
+
+        {/* Tutorial Banner */}
+        <TutorialBanner
+          id="expenses-intro"
+          title="💸 Guida Uscite"
+          steps={[
+            "Traccia ogni spesa specificando data, importo e categoria",
+            "Le categorie aiutano a capire dove vanno i tuoi soldi (cibo, trasporti, bollette...)",
+            "Puoi escludere categorie dai grafici per focus su spese operative",
+            "Il sistema separa automaticamente le tasse fiscali dalle spese normali",
+            "Analizza i trend mensili per ottimizzare il tuo budget"
+          ]}
+          variant="info"
+        />
 
         {/* Statistiche - Mobile Optimized */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -1695,7 +1712,7 @@ export default function ExpensesPage() {
                       </label>
                       {csvFile && (
                         <p className="text-sm text-gray-600 mt-2">
-                          File selezionato: {csvFile.name}
+                          File selezionato: {csvFile?.name}
                         </p>
                       )}
                     </div>
@@ -1847,7 +1864,7 @@ export default function ExpensesPage() {
                       <div className="mt-2">
                         <p className="text-red-800 text-sm font-medium">Errori:</p>
                         <ul className="text-red-700 text-sm mt-1 space-y-1">
-                          {importResult.errors.map((error, index) => (
+                          {importResult.errors.map((error: any, index: number) => (
                             <li key={index}>• {error}</li>
                           ))}
                         </ul>

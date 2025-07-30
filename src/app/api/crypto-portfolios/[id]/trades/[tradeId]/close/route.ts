@@ -50,14 +50,14 @@ export async function POST(
       where: { portfolioId, assetId: trade.toAssetId }
     })
 
-    if (!toHolding || toHolding.quantity < trade.toQuantity) {
+    if (!toHolding || toHolding.quantity < (trade.toQuantity || 0)) {
       return NextResponse.json({ 
-        error: `Holdings insufficienti. Disponibili: ${toHolding?.quantity || 0} ${trade.toAsset.symbol}, richiesti: ${trade.toQuantity}` 
+        error: `Holdings insufficienti. Disponibili: ${toHolding?.quantity || 0} ${trade.toAsset.symbol}, richiesti: ${trade.toQuantity || 0}` 
       }, { status: 400 })
     }
 
     // Calcola valore EUR dalla quantità ricevuta (assumiamo stesso valore dell'investimento originale per semplicità)
-    const finalValue = trade.initialValue * (receivedQuantity / trade.fromQuantity)
+    const finalValue = trade.initialValue * (receivedQuantity / (trade.fromQuantity || 1))
     
     const currentDate = new Date()
 
@@ -69,9 +69,9 @@ export async function POST(
           portfolioId,
           assetId: trade.toAssetId,
           type: 'trade_close',
-          quantity: -trade.toQuantity, // Vendiamo esattamente la quantità del trade
+          quantity: -(trade.toQuantity || 0), // Vendiamo esattamente la quantità del trade
           eurValue: finalValue,
-          pricePerUnit: finalValue / trade.toQuantity,
+          pricePerUnit: finalValue / (trade.toQuantity || 1),
           date: currentDate,
           notes: `✅ Trade chiuso: ${trade.toAsset.symbol} → ${trade.fromAsset.symbol} (ricevuto: ${receivedQuantity})`
         }
@@ -83,7 +83,7 @@ export async function POST(
           portfolioId_assetId: { portfolioId, assetId: trade.toAssetId }
         },
         data: {
-          quantity: { decrement: trade.toQuantity },
+          quantity: { decrement: trade.toQuantity || 0 },
           totalInvested: { decrement: trade.initialValue }
         }
       })

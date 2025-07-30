@@ -11,6 +11,8 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency, formatCryptoSmart, formatCurrencySmart, smartRoundPrice } from '@/utils/formatters'
 import { useNotifications } from '@/contexts/NotificationContext'
+import TutorialBanner from '@/components/ui/TutorialBanner'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 
 interface Asset {
   id: number
@@ -1270,10 +1272,32 @@ export default function CryptoPortfolioDetailPage() {
         </div>
       </div>
 
+      {/* Tutorial Banner */}
+      <TutorialBanner
+        id="crypto-portfolio-intro"
+        title="🎓 Guida Portfolio Crypto"
+        steps={[
+          "Aggiungi transazioni di acquisto/vendita per tracciare i tuoi investimenti",
+          "Usa la funzione Swap per scambi diretti tra crypto (es. BTC→ETH)",
+          "Le Stake Rewards sono entrate passive che non influenzano il prezzo medio",
+          "I Trade ti permettono di speculare su aumenti/diminuzioni di prezzo",
+          "Realized Gains = profitti già incassati, Unrealized = profitti potenziali"
+        ]}
+        variant="info"
+      />
+
       {/* 🚀 Enhanced Statistics Overview - Mobile Optimized */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4 sm:p-6 text-center sm:text-left">
-          <h3 className="text-sm font-medium text-adaptive-500 mb-2">💰 Investimento Totale</h3>
+          <h3 className="text-sm font-medium text-adaptive-500 mb-2 flex items-center gap-2">
+            💰 Investimento Totale
+            <HelpTooltip
+              title="Investimento Totale"
+              content="Somma di tutti gli acquisti effettuati, senza considerare vendite o recuperi"
+              position="bottom"
+              iconSize="sm"
+            />
+          </h3>
           <p className="text-xl sm:text-2xl font-bold text-adaptive-900">{formatCurrencyWithUserCurrency(portfolio.stats.totalInvested)}</p>
           <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.buyCount} acquisti</p>
         </div>
@@ -1292,7 +1316,15 @@ export default function CryptoPortfolioDetailPage() {
         </div>
         
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive p-4 sm:p-6 text-center sm:text-left">
-          <h3 className="text-sm font-medium text-adaptive-500 mb-2">📈 Valore Attuale</h3>
+          <h3 className="text-sm font-medium text-adaptive-500 mb-2 flex items-center gap-2">
+            📈 Valore Attuale
+            <HelpTooltip
+              title="Valore Attuale"
+              content="Valore corrente di tutti i tuoi asset basato sui prezzi di mercato attuali"
+              position="bottom"
+              iconSize="sm"
+            />
+          </h3>
           <p className="text-xl sm:text-2xl font-bold text-green-600">{formatCurrencyWithUserCurrency(portfolio.stats.totalValueEur)}</p>
           <p className="text-xs text-adaptive-600 mt-1">{portfolio.stats.holdingsCount} asset</p>
         </div>
@@ -3333,6 +3365,61 @@ export default function CryptoPortfolioDetailPage() {
             {error && (
               <div className="mb-4 p-3 bg-red-100 border border-red-200 rounded-lg">
                 <p className="text-red-700">{error}</p>
+              </div>
+            )}
+
+            {/* Help Section */}
+            {!isImporting && !showPreview && !importResult && (
+              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
+                  📘 Guida Import CSV
+                  <HelpTooltip
+                    title="Formato CSV richiesto"
+                    content={
+                      <div className="space-y-2">
+                        <p>Il file CSV deve contenere le seguenti colonne:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>date (formato: YYYY-MM-DD)</li>
+                          <li>type (buy, sell, stake_reward, swap)</li>
+                          <li>asset_symbol (es: BTC, ETH)</li>
+                          <li>quantity (quantità crypto)</li>
+                          <li>eur_value (valore in euro)</li>
+                          <li>notes (opzionale)</li>
+                          <li>swap_to_symbol (solo per swap)</li>
+                          <li>swap_to_quantity (solo per swap)</li>
+                        </ul>
+                      </div>
+                    }
+                    position="right"
+                  />
+                </h3>
+                <div className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+                  <p>📌 <strong>Formato richiesto:</strong> CSV con colonne specifiche (vedi help)</p>
+                  <p>📌 <strong>Tipi supportati:</strong> buy, sell, stake_reward, swap</p>
+                  <p>📌 <strong>Asset:</strong> Usa i simboli standard (BTC, ETH, BNB, etc.)</p>
+                  <p>📌 <strong>Date:</strong> Formato YYYY-MM-DD (es: 2024-01-15)</p>
+                </div>
+                <button
+                  onClick={() => {
+                    // Download template CSV
+                    const template = `date,type,asset_symbol,quantity,eur_value,notes,swap_to_symbol,swap_to_quantity
+2024-01-15,buy,BTC,0.001,50,Primo acquisto Bitcoin,,
+2024-02-20,buy,ETH,0.5,1000,DCA Ethereum,,
+2024-03-10,sell,BTC,0.0005,30,Vendita parziale,,
+2024-04-05,stake_reward,ETH,0.01,20,Ricompense staking,,
+2024-05-12,swap,BTC,0.001,55,Swap BTC to ETH,ETH,0.4`;
+                    const blob = new Blob([template], { type: 'text/csv' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'crypto_transactions_template.csv';
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                  }}
+                  className="mt-3 text-sm bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700"
+                >
+                  📥 Scarica Template CSV
+                </button>
               </div>
             )}
 

@@ -9,6 +9,8 @@ import {
   DocumentArrowUpIcon, XMarkIcon, CheckIcon
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import TutorialBanner from '@/components/ui/TutorialBanner'
+import HelpTooltip from '@/components/ui/HelpTooltip'
 
 interface Account {
   id: number
@@ -1041,6 +1043,20 @@ export default function PartitaIVAPage() {
           </div>
         </div>
 
+        {/* Tutorial Banner */}
+        <TutorialBanner
+          id="partita-iva-intro"
+          title="📋 Guida Partita IVA"
+          steps={[
+            "Configura le percentuali tasse per ogni anno (imponibile, imposta, contributi)",
+            "Registra le entrate quando incassi una fattura",
+            "Il sistema calcola automaticamente le tasse dovute in base alle percentuali",
+            "Registra i pagamenti tasse (F24, acconti, saldi) per tenere traccia",
+            "Monitora il saldo: tasse dovute vs tasse pagate per vedere quanto devi accantonare"
+          ]}
+          variant="info"
+        />
+
         {/* Statistiche Globali */}
         {globalStats && (
           <div className="card-adaptive rounded-lg shadow-sm border-adaptive mb-6">
@@ -1170,17 +1186,35 @@ export default function PartitaIVAPage() {
             
             {/* Desktop Layout */}
             <div className="hidden sm:grid grid-cols-3 gap-4 text-sm">
-              <div>
+              <div className="flex items-center gap-2">
                 <span className="text-adaptive-600">Imponibile:</span>
                 <span className="ml-2 font-semibold">{config.percentualeImponibile}%</span>
+                <HelpTooltip
+                  title="Imponibile"
+                  content="Percentuale dell'entrata su cui calcolare le tasse. Es: con forfettario al 78% di imponibile, su 1000€ paghi tasse solo su 780€"
+                  position="top"
+                  iconSize="sm"
+                />
               </div>
-              <div>
+              <div className="flex items-center gap-2">
                 <span className="text-adaptive-600">Imposta:</span>
                 <span className="ml-2 font-semibold">{config.percentualeImposta}%</span>
+                <HelpTooltip
+                  title="Imposta"
+                  content="Aliquota fiscale applicata sull'imponibile. Es: forfettario 15% o 5% per startup"
+                  position="top"
+                  iconSize="sm"
+                />
               </div>
-              <div>
+              <div className="flex items-center gap-2">
                 <span className="text-adaptive-600">Contributi:</span>
                 <span className="ml-2 font-semibold">{config.percentualeContributi}%</span>
+                <HelpTooltip
+                  title="Contributi INPS"
+                  content="Percentuale per i contributi previdenziali INPS calcolata sull'imponibile"
+                  position="top"
+                  iconSize="sm"
+                />
               </div>
             </div>
 

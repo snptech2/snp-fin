@@ -412,8 +412,8 @@ export async function GET(request: NextRequest) {
       .filter(account => account.type === 'investment')
       .reduce((sum, account) => sum + account.balance, 0)
 
-    const totalNonCurrentAssets = nonCurrentAssets.reduce((sum, asset) => sum + asset.value, 0)
-    const totalCredits = credits.reduce((sum, credit) => sum + credit.amount, 0)
+    const totalNonCurrentAssets = (nonCurrentAssets as any[]).reduce((sum, asset) => sum + asset.value, 0)
+    const totalCredits = (credits as any[]).reduce((sum, credit) => sum + credit.amount, 0)
 
     // 📊 Calculate portfolio values and Enhanced Cash Flow
     console.log('🔍 DCA Portfolios found:', dcaPortfolios.length)
