@@ -795,6 +795,48 @@ export default function InvestmentsPage() {
             <div className="text-4xl sm:text-6xl mb-4">📊</div>
             <h3 className="text-lg sm:text-xl font-semibold text-adaptive-900 mb-2">Nessun portfolio ancora</h3>
             <p className="text-adaptive-600 mb-6 text-sm sm:text-base">Inizia creando il tuo primo portfolio di investimenti</p>
+            
+            {/* Onboarding Guide when no investment accounts */}
+            {investmentAccounts.length === 0 && (
+              <div className="max-w-md mx-auto mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-left">
+                <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">🎯 Come iniziare:</h4>
+                <ol className="space-y-3 text-sm text-blue-800 dark:text-blue-200">
+                  <li className="flex items-start gap-2">
+                    <span className="font-bold">1️⃣</span>
+                    <div>
+                      <strong>Crea un conto di investimento</strong>
+                      <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                        Separato dal tuo conto bancario, serve per tracciare i fondi destinati agli investimenti
+                      </p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="font-bold">2️⃣</span>
+                    <div>
+                      <strong>Trasferisci liquidità</strong>
+                      <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                        Sposta i soldi dal conto bancario al conto investimento (usa il bottone "Trasferimento" nella pagina Conti)
+                      </p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="font-bold">3️⃣</span>
+                    <div>
+                      <strong>Crea e usa il portfolio</strong>
+                      <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                        Collega il portfolio al conto investimento e inizia ad aggiungere transazioni
+                      </p>
+                    </div>
+                  </li>
+                </ol>
+                <button
+                  onClick={() => router.push('/accounts?create=investment')}
+                  className="mt-3 w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+                >
+                  Crea Conto di Investimento →
+                </button>
+              </div>
+            )}
             {/* Desktop */}
             <div className="hidden sm:flex gap-4 justify-center">
               <button
@@ -873,7 +915,38 @@ export default function InvestmentsPage() {
                       </option>
                     ))}
                   </select>
-                  
+                  {/* Warning for selected account with 0 balance */}
+                  {formData.accountId && (
+                    (() => {
+                      const selectedAccount = investmentAccounts.find(acc => acc.id === formData.accountId);
+                      return selectedAccount && selectedAccount.balance <= 0 ? (
+                        <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md">
+                          <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">
+                            ⚠️ Conto senza liquidità
+                          </p>
+                          <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
+                            Il conto selezionato ha saldo 0€. Dovrai trasferire liquidità prima di poter aggiungere transazioni.
+                          </p>
+                        </div>
+                      ) : null;
+                    })()
+                  )}
+                  {investmentAccounts.length === 0 && (
+                    <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        Per creare un portfolio DCA hai bisogno di un conto di investimento.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setShowCreateDCAModal(false);
+                          router.push('/accounts?create=investment');
+                        }}
+                        className="mt-2 text-sm text-yellow-700 dark:text-yellow-300 underline hover:text-yellow-800 dark:hover:text-yellow-200"
+                      >
+                        Crea un conto di investimento →
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-3">
@@ -953,6 +1026,38 @@ export default function InvestmentsPage() {
                       </option>
                     ))}
                   </select>
+                  {/* Warning for selected account with 0 balance */}
+                  {cryptoFormData.accountId && (
+                    (() => {
+                      const selectedAccount = investmentAccounts.find(acc => acc.id === cryptoFormData.accountId);
+                      return selectedAccount && selectedAccount.balance <= 0 ? (
+                        <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md">
+                          <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">
+                            ⚠️ Conto senza liquidità
+                          </p>
+                          <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
+                            Il conto selezionato ha saldo 0€. Dovrai trasferire liquidità prima di poter aggiungere transazioni.
+                          </p>
+                        </div>
+                      ) : null;
+                    })()
+                  )}
+                  {investmentAccounts.length === 0 && (
+                    <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        Per creare un portfolio crypto hai bisogno di un conto di investimento.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setShowCreateCryptoModal(false);
+                          router.push('/accounts?create=investment');
+                        }}
+                        className="mt-2 text-sm text-yellow-700 dark:text-yellow-300 underline hover:text-yellow-800 dark:hover:text-yellow-200"
+                      >
+                        Crea un conto di investimento →
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-3">

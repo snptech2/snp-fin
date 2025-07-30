@@ -114,7 +114,15 @@ export async function POST(request: NextRequest) {
     // 🟠 NUOVO: Validazione saldo per acquisti
     if (type === 'buy' && portfolio.account.balance < eurAmt) {
       return NextResponse.json(
-        { error: 'Saldo insufficiente nel conto di investimento' },
+        { 
+          error: 'Saldo insufficiente nel conto di investimento',
+          details: {
+            required: eurAmt,
+            available: portfolio.account.balance,
+            missing: eurAmt - portfolio.account.balance,
+            suggestion: 'Trasferisci liquidità dal tuo conto bancario al conto di investimento nella pagina Conti'
+          }
+        },
         { status: 400 }
       )
     }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { 
   PlusIcon, PencilIcon, TrashIcon, 
   ArrowsRightLeftIcon, CheckIcon, XMarkIcon, ArrowPathIcon 
@@ -63,6 +64,7 @@ interface BitcoinPrice {
 export default function AccountsPage() {
   const { user } = useAuth()
   const { alert, confirm } = useNotifications()
+  const searchParams = useSearchParams()
   
   // Stati esistenti
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -170,6 +172,13 @@ const handleSetDefaultAccount = async (accountId: number) => {
   useEffect(() => {
     fetchData()
     fetchBitcoinPrice()
+    
+    // Check if we need to open create account modal for investment
+    const createType = searchParams.get('create')
+    if (createType === 'investment') {
+      setAccountForm({ name: '', type: 'investment' })
+      setShowAccountModal(true)
+    }
   }, [])
 
   const fetchData = async () => {
@@ -1094,7 +1103,29 @@ const handleSetDefaultAccount = async (accountId: number) => {
               </div>
 
               <form onSubmit={handleAccountSubmit} className="space-y-4">
-                <p>Usa Conto Bancario per gestione entrate e uscite, usa Conto Investimento per collegarlo a dei Portfolio</p>
+                {/* Account type explanation */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">📘 Tipi di conto:</h4>
+                  <div className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+                    <div>
+                      <strong>🏦 Conto Bancario:</strong>
+                      <ul className="ml-4 mt-1 list-disc">
+                        <li>Per gestire entrate (stipendi, incassi)</li>
+                        <li>Per registrare spese quotidiane</li>
+                        <li>Rappresenta i tuoi conti correnti reali</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <strong>📈 Conto Investimento:</strong>
+                      <ul className="ml-4 mt-1 list-disc">
+                        <li>Necessario per creare portfolio DCA o Crypto</li>
+                        <li>Traccia separatamente i fondi destinati agli investimenti</li>
+                        <li>Permette di calcolare i guadagni realizzati</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                
                 <div>
                   <label className="block text-sm font-medium text-adaptive-900 mb-1">
                     Nome Conto

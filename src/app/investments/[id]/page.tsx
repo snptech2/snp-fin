@@ -247,12 +247,23 @@ export default function DCAPortfolioPage() {
       })
       fetchPortfolio()
     } else {
-      // ✅ AGGIUNTO: Gestione errori mancante
+      // ✅ AGGIUNTO: Gestione errori mancante con supporto per errori dettagliati
       const errorData = await response.json()
       console.error('Errore API:', errorData)
+      
+      let errorMessage = errorData.error || 'Errore durante la creazione della transazione'
+      
+      // Se c'è un errore di saldo insufficiente con dettagli, mostra informazioni utili
+      if (errorData.details && errorData.details.suggestion) {
+        errorMessage += `\n\n💡 ${errorData.details.suggestion}`
+        if (errorData.details.required && errorData.details.available) {
+          errorMessage += `\n\nRichiesto: €${errorData.details.required.toFixed(2)}\nDisponibile: €${errorData.details.available.toFixed(2)}`
+        }
+      }
+      
       await alert({
         title: 'Errore',
-        message: errorData.error || 'Errore durante la creazione della transazione',
+        message: errorMessage,
         variant: 'error'
       })
     }
@@ -783,6 +794,22 @@ const openEditTransaction = (transaction: DCATransaction) => {
               <p className="text-adaptive-600 text-sm sm:text-base">
                 Portfolio DCA Bitcoin • Account: {portfolio.account.name}
               </p>
+              <div className="flex items-center gap-3 mt-2">
+                <div className="text-sm">
+                  <span className="text-adaptive-500">Saldo disponibile: </span>
+                  <span className={`font-semibold ${portfolio.account.balance <= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {formatCurrencyWithUserCurrency(portfolio.account.balance)}
+                  </span>
+                </div>
+                {portfolio.account.balance <= 0 && (
+                  <Link 
+                    href="/accounts" 
+                    className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-md hover:bg-yellow-200 transition-colors"
+                  >
+                    Trasferisci liquidità →
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
           {/* Desktop */}
@@ -837,6 +864,32 @@ const openEditTransaction = (transaction: DCATransaction) => {
                 </p>
               </div>
               <div className="text-3xl sm:text-4xl">₿</div>
+            </div>
+          </div>
+        )}
+
+        {/* Warning Banner for Low Balance */}
+        {portfolio.account.balance <= 100 && (
+          <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="text-yellow-600 text-2xl">⚠️</div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-1">
+                  {portfolio.account.balance <= 0 ? 'Saldo Insufficiente' : 'Saldo Basso'}
+                </h4>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
+                  {portfolio.account.balance <= 0 
+                    ? 'Non puoi aggiungere transazioni senza liquidità nel conto di investimento.'
+                    : 'Il saldo del tuo conto di investimento è basso. Considera di trasferire più liquidità.'
+                  }
+                </p>
+                <Link 
+                  href="/accounts"
+                  className="inline-flex items-center text-sm bg-yellow-600 text-white px-3 py-2 rounded-md hover:bg-yellow-700 transition-colors"
+                >
+                  Trasferisci Liquidità →
+                </Link>
+              </div>
             </div>
           </div>
         )}
@@ -1314,6 +1367,33 @@ const openEditTransaction = (transaction: DCATransaction) => {
                 </button>
               </div>
               <form onSubmit={handleAddTransaction} className="p-6 space-y-4">
+                {/* Balance Warning */}
+                {portfolio?.account.balance <= parseFloat(transactionForm.eurPaid || '0') && (
+                  <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <div className="text-red-600 text-lg">⚠️</div>
+                      <div className="flex-1">
+                        <p className="text-sm text-red-800 dark:text-red-200 font-medium">
+                          Saldo insufficiente
+                        </p>
+                        <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                          Saldo disponibile: {formatCurrencyWithUserCurrency(portfolio?.account.balance || 0)}
+                          {transactionForm.eurPaid && ` • Richiesto: ${formatCurrencyWithUserCurrency(parseFloat(transactionForm.eurPaid))}`}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddTransaction(false);
+                            router.push('/accounts');
+                          }}
+                          className="mt-2 text-xs bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
+                        >
+                          Trasferisci Liquidità →
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Data</label>
                   <input
