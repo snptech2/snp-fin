@@ -12,6 +12,7 @@ import { PatrimonyColorModal } from '@/components/dashboard/PatrimonyColorModal'
 import { LiquidityColorModal } from '@/components/dashboard/LiquidityColorModal';
 import TutorialBanner from '@/components/ui/TutorialBanner';
 import HelpTooltip from '@/components/ui/HelpTooltip';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 // Interfaces
 interface BitcoinPrice {
@@ -150,6 +151,7 @@ interface BudgetBreakdownItem {
 
 const Dashboard = () => {
   const { user, loading: authLoading } = useAuth();
+  const { alert } = useNotifications();
   const [loading, setLoading] = useState<boolean>(true);
   const [dataLoading, setDataLoading] = useState<boolean>(false);
   const [btcPrice, setBtcPrice] = useState<BitcoinPrice | null>(null);
@@ -268,6 +270,89 @@ const Dashboard = () => {
     
     return roi;
   };
+  
+  // Auto-snapshot check function
+  const checkAutoSnapshot = async () => {
+    try {
+      // Controlla se c'è già una richiesta in corso
+      if ((window as any).autoSnapshotInProgress) {
+        return;
+      }
+      
+      // Imposta flag di blocco
+      (window as any).autoSnapshotInProgress = true;
+      
+      // Carica impostazioni da localStorage
+      const settings = localStorage.getItem('autoSnapshotSettings');
+      
+      if (!settings) {
+        (window as any).autoSnapshotInProgress = false;
+        return;
+      }
+      
+      const parsedSettings = JSON.parse(settings);
+      
+      if (!parsedSettings.enabled) {
+        (window as any).autoSnapshotInProgress = false;
+        return;
+      }
+      
+      // Controlla se è passato abbastanza tempo dall'ultimo snapshot
+      const now = new Date();
+      const lastAutoSnapshot = parsedSettings.lastAutoSnapshot;
+      const frequency = parsedSettings.frequency || '24h';
+      
+      if (lastAutoSnapshot) {
+        const lastSnapshotTime = new Date(lastAutoSnapshot);
+        const timeDiff = now.getTime() - lastSnapshotTime.getTime();
+        const hoursDiff = timeDiff / (1000 * 60 * 60);
+        
+        // Determina le ore necessarie in base alla frequenza
+        let requiredHours = 24;
+        if (frequency === '6h') requiredHours = 6;
+        else if (frequency === '12h') requiredHours = 12;
+        
+        if (hoursDiff < requiredHours) {
+          // Non è ancora ora di fare uno snapshot
+          (window as any).autoSnapshotInProgress = false;
+          return;
+        }
+      }
+      
+      // Crea snapshot automatico
+      
+      const response = await fetch('/api/holdings-snapshots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          note: 'Auto-snapshot giornaliero dalla dashboard',
+          isAutomatic: true 
+        })
+      });
+      
+      if (response.ok) {
+        // Aggiorna localStorage con il timestamp completo
+        parsedSettings.lastAutoSnapshot = now.toISOString();
+        localStorage.setItem('autoSnapshotSettings', JSON.stringify(parsedSettings));
+        
+        // Notifica discreta con frequenza
+        const frequencyText = frequency === '6h' ? 'ogni 6 ore' : 
+                             frequency === '12h' ? 'ogni 12 ore' : 
+                             'giornaliero';
+        await alert({ 
+          title: '📸 Snapshot automatico creato!', 
+          message: `Il tuo snapshot ${frequencyText} è stato salvato con successo`,
+          variant: 'success' 
+        });
+      }
+    } catch (error) {
+      console.error('Error creating auto-snapshot:', error);
+      // Non mostrare errori all'utente per non disturbare l'esperienza
+    } finally {
+      // Rimuovi flag di blocco
+      (window as any).autoSnapshotInProgress = false;
+    }
+  };
 
   useEffect(() => {
     // Only load data if user is authenticated
@@ -277,6 +362,9 @@ const Dashboard = () => {
     
     // Load dashboard data and Bitcoin price in parallel
     const loadData = async () => {
+      // Check auto-snapshot PRIMA di caricare i dati
+      await checkAutoSnapshot();
+      
       // Start both fetches in parallel
       const dataPromise = loadDashboardData();
       const pricePromise = fetchBitcoinPrice();

@@ -5,7 +5,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import { 
   PlusIcon, PencilIcon, TrashIcon, TagIcon, CurrencyEuroIcon, 
   FunnelIcon, MagnifyingGlassIcon, ChevronLeftIcon, ChevronRightIcon,
-  CalendarIcon, CheckIcon, ChevronDownIcon, DocumentArrowUpIcon
+  CalendarIcon, CheckIcon, ChevronDownIcon, DocumentArrowUpIcon,
+  CalculatorIcon
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { usePathname } from 'next/navigation'
@@ -117,11 +118,13 @@ export default function IncomePage() {
   const [selectedAccount, setSelectedAccount] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [selectedMonth, setSelectedMonth] = useState('')
   const [showFilters, setShowFilters] = useState(true)
   
   // Stati per paginazione
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [showAllSelected, setShowAllSelected] = useState(false) // Traccia se user ha selezionato "Tutte"
   const [showCategories, setShowCategories] = useState(false)
   
   // Stati per selezione multipla
@@ -139,9 +142,67 @@ export default function IncomePage() {
   // Stati per gestione errori e caricamento
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Stato per mostrare totale filtrato
+  const [showFilteredTotal, setShowFilteredTotal] = useState(false)
 
   // Pathname per i grafici
   const pathname = usePathname()
+
+  // Funzione per calcolare totale transazioni filtrate
+  const handleCalculateTotal = () => {
+    setShowFilteredTotal(true)
+  }
+
+  // Helper function per formattare date mantenendo il timezone locale
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // Genera lista dei mesi disponibili basandosi sulle transazioni
+  const availableMonths = useMemo(() => {
+    const months: { value: string; label: string }[] = []
+    const monthSet = new Set<string>()
+    
+    transactions.forEach(transaction => {
+      const date = new Date(transaction.date)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      
+      if (!monthSet.has(monthKey)) {
+        monthSet.add(monthKey)
+        const monthName = date.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
+        months.push({
+          value: monthKey,
+          label: monthName.charAt(0).toUpperCase() + monthName.slice(1)
+        })
+      }
+    })
+    
+    // Ordina per data decrescente (più recente prima)
+    return months.sort((a, b) => b.value.localeCompare(a.value))
+  }, [transactions])
+
+  // Gestisce la selezione del mese
+  const handleMonthSelect = (monthValue: string) => {
+    setSelectedMonth(monthValue)
+    
+    if (monthValue) {
+      const [year, month] = monthValue.split('-').map(Number)
+      // month è 1-based (1=gennaio, 12=dicembre)
+      // JavaScript Date usa mesi 0-based (0=gennaio, 11=dicembre)
+      const firstDay = new Date(year, month - 1, 1) // Primo giorno del mese
+      const lastDay = new Date(year, month, 0) // Giorno 0 del mese successivo = ultimo giorno del mese corrente
+      
+      setDateFrom(formatLocalDate(firstDay))
+      setDateTo(formatLocalDate(lastDay))
+    } else {
+      setDateFrom('')
+      setDateTo('')
+    }
+  }
 
   // === NUOVE FUNZIONI PER RIEPILOGHI === 
   // Calcola transazioni del mese corrente
@@ -215,6 +276,13 @@ export default function IncomePage() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  // Reset selezione quando cambiano i filtri
+  useEffect(() => {
+    setSelectedTransactions([])
+    setSelectAll(false)
+    setCurrentPage(1) // Torna alla prima pagina quando cambiano i filtri
+  }, [searchTerm, selectedCategory, selectedAccount, dateFrom, dateTo, selectedMonth])
 
   // Imposta conto predefinito quando aprono i form
   useEffect(() => {
@@ -697,6 +765,13 @@ export default function IncomePage() {
     })
   }, [transactions, searchTerm, selectedCategory, selectedAccount, dateFrom, dateTo])
 
+  // Aggiorna itemsPerPage se l'utente aveva selezionato "Tutte"
+  useEffect(() => {
+    if (showAllSelected && filteredTransactions.length > 0) {
+      setItemsPerPage(filteredTransactions.length)
+    }
+  }, [filteredTransactions.length, showAllSelected])
+
   // Paginazione
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage)
   const paginatedTransactions = filteredTransactions.slice(
@@ -1097,6 +1172,13 @@ export default function IncomePage() {
                   </div>
                 </div>
                 <button
+                  onClick={handleCalculateTotal}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <CalculatorIcon className="w-5 h-5" />
+                  Calcola Totale
+                </button>
+                <button
                   onClick={() => setShowFilters(!showFilters)}
                   className="px-4 py-2 border border-adaptive rounded-md hover:bg-adaptive-50 flex items-center gap-2"
                 >
@@ -1105,8 +1187,45 @@ export default function IncomePage() {
                 </button>
               </div>
 
+              {/* Mostra totale transazioni filtrate */}
+              {showFilteredTotal && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-blue-700 font-medium">Totale transazioni filtrate:</p>
+                    <p className="text-2xl font-bold text-blue-900">
+                      {formatCurrency(filteredTransactions.reduce((sum, t) => sum + t.amount, 0))}
+                    </p>
+                    <p className="text-sm text-blue-600 mt-1">
+                      {filteredTransactions.length} transazioni totali filtrate
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowFilteredTotal(false)}
+                    className="text-blue-600 hover:text-blue-800 text-lg font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
               {showFilters && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-adaptive-50 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 p-4 bg-adaptive-50 rounded-lg">
+                  <div>
+                    <label className="block text-sm font-medium text-adaptive-700 mb-1">Mese</label>
+                    <select
+                      value={selectedMonth}
+                      onChange={(e) => handleMonthSelect(e.target.value)}
+                      className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Seleziona mese...</option>
+                      {availableMonths.map(month => (
+                        <option key={month.value} value={month.value}>
+                          {month.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-adaptive-700 mb-1">Categoria</label>
                     <select
@@ -1144,7 +1263,10 @@ export default function IncomePage() {
                     <input
                       type="date"
                       value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
+                      onChange={(e) => {
+                        setDateFrom(e.target.value)
+                        setSelectedMonth('') // Reset mese quando si cambia data manualmente
+                      }}
                       className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -1154,7 +1276,10 @@ export default function IncomePage() {
                     <input
                       type="date"
                       value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
+                      onChange={(e) => {
+                        setDateTo(e.target.value)
+                        setSelectedMonth('') // Reset mese quando si cambia data manualmente
+                      }}
                       className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -1190,10 +1315,12 @@ export default function IncomePage() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-adaptive-600">Mostra:</span>
                     <select
-                      value={itemsPerPage}
+                      value={showAllSelected ? filteredTransactions.length : itemsPerPage}
                       onChange={(e) => {
-                        setItemsPerPage(Number(e.target.value))
+                        const value = Number(e.target.value)
+                        setItemsPerPage(value)
                         setCurrentPage(1)
+                        setShowAllSelected(value === filteredTransactions.length)
                       }}
                       className="px-2 py-1 border border-adaptive rounded text-sm"
                     >
@@ -1226,15 +1353,20 @@ export default function IncomePage() {
                 </div>
 
                 {/* Header con selezione multipla */}
-                <div className="flex items-center gap-3 pb-2 border-b border-adaptive">
-                  <input
-                    type="checkbox"
-                    checked={selectAll}
-                    onChange={handleSelectAll}
-                    className="rounded"
-                  />
-                  <span className="text-sm text-adaptive-600">
-                    Seleziona tutto ({paginatedTransactions.length})
+                <div className="flex items-center justify-between pb-2 border-b border-adaptive">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectAll}
+                      onChange={handleSelectAll}
+                      className="rounded"
+                    />
+                    <span className="text-sm text-adaptive-600">
+                      Seleziona tutto in questa pagina ({paginatedTransactions.length})
+                    </span>
+                  </div>
+                  <span className="text-sm text-adaptive-500">
+                    Visualizzando {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredTransactions.length)} di {filteredTransactions.length}
                   </span>
                 </div>
 

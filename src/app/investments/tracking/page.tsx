@@ -49,6 +49,11 @@ export default function TrackingPage() {
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [importLoading, setImportLoading] = useState(false)
   const [forceReimport, setForceReimport] = useState(false)
+  
+  // Auto-snapshot settings
+  const [autoSnapshotEnabled, setAutoSnapshotEnabled] = useState(false)
+  const [lastAutoSnapshot, setLastAutoSnapshot] = useState<string | null>(null)
+  const [snapshotFrequency, setSnapshotFrequency] = useState<'6h' | '12h' | '24h'>('24h')
 
   const fetchData = useCallback(async () => {
     try {
@@ -80,6 +85,19 @@ export default function TrackingPage() {
 
   useEffect(() => {
     fetchData()
+    
+    // Carica impostazioni auto-snapshot da localStorage
+    const settings = localStorage.getItem('autoSnapshotSettings')
+    if (settings) {
+      try {
+        const parsed = JSON.parse(settings)
+        setAutoSnapshotEnabled(parsed.enabled || false)
+        setLastAutoSnapshot(parsed.lastAutoSnapshot || null)
+        setSnapshotFrequency(parsed.frequency || '24h')
+      } catch (e) {
+        console.error('Error parsing auto-snapshot settings:', e)
+      }
+    }
   }, [itemsPerPage, fetchData])
 
 
@@ -214,6 +232,40 @@ export default function TrackingPage() {
       setSelectedSnapshots(new Set(snapshots.map(s => s.id)))
     }
   }, [selectedSnapshots, snapshots])
+  
+  const toggleAutoSnapshot = useCallback(() => {
+    const newEnabled = !autoSnapshotEnabled
+    setAutoSnapshotEnabled(newEnabled)
+    
+    // Salva in localStorage
+    const settings = {
+      enabled: newEnabled,
+      lastAutoSnapshot: lastAutoSnapshot,
+      frequency: snapshotFrequency
+    }
+    localStorage.setItem('autoSnapshotSettings', JSON.stringify(settings))
+    
+    if (newEnabled) {
+      const frequencyText = snapshotFrequency === '6h' ? 'ogni 6 ore' : 
+                           snapshotFrequency === '12h' ? 'ogni 12 ore' : 
+                           'ogni 24 ore'
+      alert({ title: 'Auto-Snapshot Attivato', message: `Verrà creato uno snapshot ${frequencyText} quando accedi alla dashboard`, variant: 'success' })
+    } else {
+      alert({ title: 'Auto-Snapshot Disattivato', message: 'Gli snapshot automatici sono stati disattivati', variant: 'info' })
+    }
+  }, [autoSnapshotEnabled, lastAutoSnapshot, snapshotFrequency, alert])
+  
+  const updateFrequency = useCallback((newFrequency: '6h' | '12h' | '24h') => {
+    setSnapshotFrequency(newFrequency)
+    
+    // Aggiorna localStorage
+    const settings = {
+      enabled: autoSnapshotEnabled,
+      lastAutoSnapshot: lastAutoSnapshot,
+      frequency: newFrequency
+    }
+    localStorage.setItem('autoSnapshotSettings', JSON.stringify(settings))
+  }, [autoSnapshotEnabled, lastAutoSnapshot])
 
   const bulkDeleteSnapshots = async () => {
     if (selectedSnapshots.size === 0) {
@@ -416,6 +468,99 @@ export default function TrackingPage() {
                 <DocumentArrowDownIcon className="h-4 w-4" />
                 Export CSV
               </button>
+            </div>
+          </div>
+
+          {/* Auto-Snapshot Settings */}
+          <div className="card-adaptive p-4 sm:p-6">
+            <h3 className="font-medium mb-3">⚙️ Auto-Snapshot Periodico</h3>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoSnapshotEnabled}
+                  onChange={toggleAutoSnapshot}
+                  className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
+                />
+                <span className="text-sm text-adaptive-700">
+                  Abilita snapshot automatico
+                </span>
+              </label>
+              
+              {autoSnapshotEnabled && (
+                <>
+                  <div>
+                    <label className="block text-xs text-adaptive-600 mb-1">Frequenza:</label>
+                    <select
+                      value={snapshotFrequency}
+                      onChange={(e) => updateFrequency(e.target.value as '6h' | '12h' | '24h')}
+                      className="w-full px-3 py-2 border border-adaptive rounded-md text-sm bg-adaptive-50 text-adaptive-900"
+                    >
+                      <option value="6h">Ogni 6 ore</option>
+                      <option value="12h">Ogni 12 ore</option>
+                      <option value="24h">Ogni 24 ore (giornaliero)</option>
+                    </select>
+                  </div>
+                  
+                  <div className="text-xs text-adaptive-600 bg-adaptive-50 p-3 rounded-md">
+                    <p className="mb-1">
+                      📸 Verrà creato uno snapshot {
+                        snapshotFrequency === '6h' ? 'ogni 6 ore' : 
+                        snapshotFrequency === '12h' ? 'ogni 12 ore' : 
+                        'ogni 24 ore'
+                      } quando accedi alla dashboard
+                    </p>
+                    {lastAutoSnapshot && (
+                      <div className="mt-2">
+                        <p>Ultimo auto-snapshot: {
+                          new Date(lastAutoSnapshot).toLocaleString('it-IT', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        }</p>
+                        {(() => {
+                          const last = new Date(lastAutoSnapshot)
+                          const hours = snapshotFrequency === '6h' ? 6 : 
+                                       snapshotFrequency === '12h' ? 12 : 24
+                          const next = new Date(last.getTime() + hours * 60 * 60 * 1000)
+                          const now = new Date()
+                          
+                          if (next > now) {
+                            return (
+                              <p className="text-green-600">
+                                Prossimo snapshot: dopo le {next.toLocaleTimeString('it-IT', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </p>
+                            )
+                          } else {
+                            return <p className="text-orange-600">Prossimo snapshot: al prossimo accesso</p>
+                          }
+                        })()}
+                        <button
+                          onClick={() => {
+                            const settings = {
+                              enabled: autoSnapshotEnabled,
+                              lastAutoSnapshot: null,
+                              frequency: snapshotFrequency
+                            }
+                            localStorage.setItem('autoSnapshotSettings', JSON.stringify(settings))
+                            setLastAutoSnapshot(null)
+                            alert({ title: 'Reset completato', message: 'Puoi tornare alla dashboard per creare un nuovo snapshot', variant: 'info' })
+                          }}
+                          className="mt-2 text-xs text-purple-600 hover:text-purple-700 underline"
+                        >
+                          Reset data ultimo snapshot
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

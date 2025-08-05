@@ -1,8 +1,7 @@
 'use client'
 import { 
-  formatCurrency, 
-  filterOutFiscalTransactions, 
-  filterFiscalTransactions 
+  formatCurrency,
+  isFiscalCategory
 } from '@/utils/formatters'
 import { useNotifications } from '@/contexts/NotificationContext'
 import { useState, useEffect, useMemo } from 'react'
@@ -10,7 +9,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import { 
   PlusIcon, PencilIcon, TrashIcon, TagIcon, CurrencyEuroIcon, 
   FunnelIcon, MagnifyingGlassIcon, ChevronLeftIcon, ChevronRightIcon,
-  CalendarIcon, CheckIcon, ChevronDownIcon, DocumentArrowUpIcon
+  CalendarIcon, CheckIcon, ChevronDownIcon, DocumentArrowUpIcon,
+  CalculatorIcon
 } from '@heroicons/react/24/outline'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { usePathname } from 'next/navigation'
@@ -143,11 +143,13 @@ export default function ExpensesPage() {
   const [selectedAccount, setSelectedAccount] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [selectedMonth, setSelectedMonth] = useState('')
   const [showFilters, setShowFilters] = useState(true)
   
   // Stati per paginazione
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [showAllSelected, setShowAllSelected] = useState(false) // Traccia se user ha selezionato "Tutte"
   const [showCategories, setShowCategories] = useState(false)
   
   // Stati per selezione multipla
@@ -161,6 +163,9 @@ export default function ExpensesPage() {
   // Stati per gestione errori e caricamento
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Stato per mostrare totale filtrato
+  const [showFilteredTotal, setShowFilteredTotal] = useState(false)
 
   // Pathname per i grafici
   const pathname = usePathname()
@@ -176,6 +181,13 @@ export default function ExpensesPage() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  // Reset selezione quando cambiano i filtri
+  useEffect(() => {
+    setSelectedTransactions([])
+    setSelectAll(false)
+    setCurrentPage(1) // Torna alla prima pagina quando cambiano i filtri
+  }, [searchTerm, selectedCategory, selectedAccount, dateFrom, dateTo, selectedMonth])
 
   // Imposta conto predefinito quando aprono i form
   useEffect(() => {
@@ -200,11 +212,27 @@ export default function ExpensesPage() {
       ])
 
       if (accountsRes.ok) setAccounts(await accountsRes.json())
-      if (categoriesRes.ok) setCategories(await categoriesRes.json())
+      if (categoriesRes.ok) {
+        const categoriesData = await categoriesRes.json()
+        setCategories(categoriesData)
+        
+        // Se è il primo caricamento (nessuna categoria salvata), escludi automaticamente le categorie fiscali
+        const saved = localStorage.getItem('expensesExcludedCategories')
+        if (!saved) {
+          const fiscalCategoryIds = categoriesData
+            .filter((cat: Category) => isFiscalCategory(cat.name))
+            .map((cat: Category) => cat.id)
+          
+          if (fiscalCategoryIds.length > 0) {
+            setExcludedCategories(fiscalCategoryIds)
+            localStorage.setItem('expensesExcludedCategories', JSON.stringify(fiscalCategoryIds))
+          }
+        }
+      }
       if (transactionsRes.ok) {
-      const data = await transactionsRes.json()
-      setTransactions(data.transactions || [])
-    }
+        const data = await transactionsRes.json()
+        setTransactions(data.transactions || [])
+      }
     } catch (error) {
       setError('Errore nel caricamento dei dati')
     } finally {
@@ -722,10 +750,19 @@ export default function ExpensesPage() {
       const matchesDateTo = dateTo === '' || 
         transactionDate <= new Date(dateTo + 'T23:59:59')
       
+      const matchesNotExcluded = !excludedCategories.includes(transaction.category.id)
+      
       return matchesSearch && matchesCategory && matchesAccount && 
-             matchesDateFrom && matchesDateTo
+             matchesDateFrom && matchesDateTo && matchesNotExcluded
     })
-  }, [transactions, searchTerm, selectedCategory, selectedAccount, dateFrom, dateTo])
+  }, [transactions, searchTerm, selectedCategory, selectedAccount, dateFrom, dateTo, excludedCategories])
+
+  // Aggiorna itemsPerPage se l'utente aveva selezionato "Tutte"
+  useEffect(() => {
+    if (showAllSelected && filteredTransactions.length > 0) {
+      setItemsPerPage(filteredTransactions.length)
+    }
+  }, [filteredTransactions.length, showAllSelected])
 
   // Paginazione
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage)
@@ -750,6 +787,61 @@ export default function ExpensesPage() {
       setSelectedTransactions(paginatedTransactions.map(t => t.id))
     }
     setSelectAll(!selectAll)
+  }
+
+  // Funzione per calcolare totale transazioni filtrate
+  const handleCalculateTotal = () => {
+    setShowFilteredTotal(true)
+  }
+
+  // Helper function per formattare date mantenendo il timezone locale
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // Genera lista dei mesi disponibili basandosi sulle transazioni
+  const availableMonths = useMemo(() => {
+    const months: { value: string; label: string }[] = []
+    const monthSet = new Set<string>()
+    
+    transactions.forEach(transaction => {
+      const date = new Date(transaction.date)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      
+      if (!monthSet.has(monthKey)) {
+        monthSet.add(monthKey)
+        const monthName = date.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
+        months.push({
+          value: monthKey,
+          label: monthName.charAt(0).toUpperCase() + monthName.slice(1)
+        })
+      }
+    })
+    
+    // Ordina per data decrescente (più recente prima)
+    return months.sort((a, b) => b.value.localeCompare(a.value))
+  }, [transactions])
+
+  // Gestisce la selezione del mese
+  const handleMonthSelect = (monthValue: string) => {
+    setSelectedMonth(monthValue)
+    
+    if (monthValue) {
+      const [year, month] = monthValue.split('-').map(Number)
+      // month è 1-based (1=gennaio, 12=dicembre)
+      // JavaScript Date usa mesi 0-based (0=gennaio, 11=dicembre)
+      const firstDay = new Date(year, month - 1, 1) // Primo giorno del mese
+      const lastDay = new Date(year, month, 0) // Giorno 0 del mese successivo = ultimo giorno del mese corrente
+      
+      setDateFrom(formatLocalDate(firstDay))
+      setDateTo(formatLocalDate(lastDay))
+    } else {
+      setDateFrom('')
+      setDateTo('')
+    }
   }
 
   // Cancellazione multipla
@@ -786,23 +878,12 @@ export default function ExpensesPage() {
     }
   }
 
-  // Calcoli per statistiche - ESCLUSE TASSE FISCALI
-  const operationalTransactions = filterOutFiscalTransactions(transactions)
-  const fiscalTransactions = filterFiscalTransactions(transactions)
+  // Calcoli per statistiche - Filtra solo le categorie escluse dall'utente
+  const transactionsFiltered = transactions
+    .filter(t => !excludedCategories.includes(t.category.id))
   
-  const totalExpenses = operationalTransactions.reduce((sum, transaction) => sum + transaction.amount, 0)
-  const currentMonthExpenses = operationalTransactions
-    .filter(t => {
-      const transactionDate = new Date(t.date)
-      const currentDate = new Date()
-      return transactionDate.getMonth() === currentDate.getMonth() && 
-             transactionDate.getFullYear() === currentDate.getFullYear()
-    })
-    .reduce((sum, transaction) => sum + transaction.amount, 0)
-  
-  // Calcoli separati per tasse fiscali
-  const totalFiscalExpenses = fiscalTransactions.reduce((sum, transaction) => sum + transaction.amount, 0)
-  const currentMonthFiscalExpenses = fiscalTransactions
+  const totalExpenses = transactionsFiltered.reduce((sum, transaction) => sum + transaction.amount, 0)
+  const currentMonthExpenses = transactionsFiltered
     .filter(t => {
       const transactionDate = new Date(t.date)
       const currentDate = new Date()
@@ -811,10 +892,19 @@ export default function ExpensesPage() {
     })
     .reduce((sum, transaction) => sum + transaction.amount, 0)
 
-  // Statistiche per categoria - SOLO OPERATIVE (senza tasse fiscali)
+  // Calcoli per transazioni fiscali (sempre mostrate, indipendentemente dai filtri)
+  const fiscalTransactions = transactions.filter(t => isFiscalCategory(t.category.name))
+  const totalFiscalExpenses = fiscalTransactions.reduce((sum, t) => sum + t.amount, 0)
+  
+  // Calcola totale delle categorie escluse (per mostrare info all'utente)
+  const excludedTotal = transactions
+    .filter(t => excludedCategories.includes(t.category.id))
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
+
+  // Statistiche per categoria
   const categoryStats = useMemo(() => {
     const stats = categories.map(category => {
-      const categoryTransactions = operationalTransactions.filter(t => t.category.id === category.id)
+      const categoryTransactions = transactionsFiltered.filter(t => t.category.id === category.id)
       const total = categoryTransactions.reduce((sum, t) => sum + t.amount, 0)
       const percentage = totalExpenses > 0 ? (total / totalExpenses) * 100 : 0
       
@@ -829,13 +919,13 @@ export default function ExpensesPage() {
     }).filter(stat => stat.total > 0)
     
     return stats.sort((a, b) => b.total - a.total)
-  }, [categories, operationalTransactions, totalExpenses])
+  }, [categories, transactionsFiltered, totalExpenses])
 
   // Dati per grafici - SOLO SPESE OPERATIVE (senza tasse fiscali) E CATEGORIE NON ESCLUSE
   const currentMonthChartData = categoryStats
     .filter(stat => !excludedCategories.includes(stat.id)) // Escludi categorie selezionate
     .filter(stat => {
-      const categoryTransactions = operationalTransactions.filter(t => {
+      const categoryTransactions = transactionsFiltered.filter(t => {
         const transactionDate = new Date(t.date)
         const currentDate = new Date()
         return t.category.id === stat.id && 
@@ -846,7 +936,7 @@ export default function ExpensesPage() {
     })
     .map(stat => ({
       name: stat.name,
-      value: operationalTransactions
+      value: transactionsFiltered
         .filter(t => {
           const transactionDate = new Date(t.date)
           const currentDate = new Date()
@@ -1069,6 +1159,7 @@ export default function ExpensesPage() {
             "Traccia ogni spesa specificando data, importo e categoria",
             "Le categorie aiutano a capire dove vanno i tuoi soldi (cibo, trasporti, bollette...)",
             "Puoi escludere categorie dai grafici per focus su spese operative",
+            "Le categorie escluse dai grafici vengono automaticamente escluse anche dalle liste e dai totali",
             "Il sistema separa automaticamente le tasse fiscali dalle spese normali",
             "Analizza i trend mensili per ottimizzare il tuo budget"
           ]}
@@ -1080,7 +1171,7 @@ export default function ExpensesPage() {
           <div className="card-adaptive rounded-lg p-4 sm:p-6 text-center sm:text-left">
             <h3 className="text-base sm:text-lg font-semibold text-adaptive-900 mb-2">💸 Spese Operative</h3>
             <p className="text-2xl sm:text-3xl font-bold text-red-600">{formatCurrency(totalExpenses)}</p>
-            <p className="text-sm text-adaptive-600">{operationalTransactions.length} transazioni</p>
+            <p className="text-sm text-adaptive-600">{transactions.length} transazioni</p>
           </div>
           
           <div className="card-adaptive rounded-lg p-4 sm:p-6 text-center sm:text-left">
@@ -1180,17 +1271,17 @@ export default function ExpensesPage() {
                 <button
                   onClick={() => setShowCategoryFilter(!showCategoryFilter)}
                   className="ml-3 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors flex items-center gap-1"
-                  title="Gestisci categorie visibili nei grafici"
+                  title="Gestisci categorie visibili nei grafici e nelle liste"
                 >
                   <span>👁️</span>
-                  <span>Filtri</span>
+                  <span>Escludi categorie</span>
                 </button>
               </div>
               
               {/* Pannello filtri categorie */}
               {showCategoryFilter && (
                 <div className="mt-3 pt-3 border-t border-adaptive">
-                  <h4 className="text-sm font-medium text-adaptive-900 mb-2">Categorie nei grafici:</h4>
+                  <h4 className="text-sm font-medium text-adaptive-900 mb-2">Categorie visibili nei grafici e nelle liste:</h4>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {categoryStats.map(stat => (
                       <label key={stat.id} className="flex items-center gap-2 cursor-pointer">
@@ -1261,10 +1352,17 @@ export default function ExpensesPage() {
         <div className="card-adaptive rounded-lg shadow-sm border-adaptive">
           <div className="p-6 border-b border-adaptive">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
-                <CurrencyEuroIcon className="w-5 h-5" />
-                Transazioni ({filteredTransactions.length})
-              </h3>
+              <div>
+                <h3 className="text-lg font-medium text-adaptive-900 flex items-center gap-2">
+                  <CurrencyEuroIcon className="w-5 h-5" />
+                  Transazioni ({filteredTransactions.length})
+                </h3>
+                {excludedCategories.length > 0 && (
+                  <p className="text-sm text-orange-600 mt-1">
+                    ℹ️ {excludedCategories.length} categoria{excludedCategories.length > 1 ? 'e' : ''} esclus{excludedCategories.length > 1 ? 'e' : 'a'} da liste e totali
+                  </p>
+                )}
+              </div>
               {selectedTransactions.length > 0 && (
                 <button
                   onClick={handleBulkDelete}
@@ -1291,6 +1389,13 @@ export default function ExpensesPage() {
                   </div>
                 </div>
                 <button
+                  onClick={handleCalculateTotal}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <CalculatorIcon className="w-5 h-5" />
+                  Calcola Totale
+                </button>
+                <button
                   onClick={() => setShowFilters(!showFilters)}
                   className="px-4 py-2 border border-adaptive rounded-md hover:bg-adaptive-50 flex items-center gap-2"
                 >
@@ -1299,8 +1404,45 @@ export default function ExpensesPage() {
                 </button>
               </div>
 
+              {/* Mostra totale transazioni filtrate */}
+              {showFilteredTotal && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-blue-700 font-medium">Totale transazioni filtrate:</p>
+                    <p className="text-2xl font-bold text-blue-900">
+                      {formatCurrency(filteredTransactions.reduce((sum, t) => sum + t.amount, 0))}
+                    </p>
+                    <p className="text-sm text-blue-600 mt-1">
+                      {filteredTransactions.length} transazioni totali filtrate
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowFilteredTotal(false)}
+                    className="text-blue-600 hover:text-blue-800 text-lg font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
               {showFilters && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-adaptive-50 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 p-4 bg-adaptive-50 rounded-lg">
+                  <div>
+                    <label className="block text-sm font-medium text-adaptive-700 mb-1">Mese</label>
+                    <select
+                      value={selectedMonth}
+                      onChange={(e) => handleMonthSelect(e.target.value)}
+                      className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Seleziona mese...</option>
+                      {availableMonths.map(month => (
+                        <option key={month.value} value={month.value}>
+                          {month.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-adaptive-700 mb-1">Categoria</label>
                     <select
@@ -1338,7 +1480,10 @@ export default function ExpensesPage() {
                     <input
                       type="date"
                       value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
+                      onChange={(e) => {
+                        setDateFrom(e.target.value)
+                        setSelectedMonth('') // Reset mese quando si cambia data manualmente
+                      }}
                       className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -1348,7 +1493,10 @@ export default function ExpensesPage() {
                     <input
                       type="date"
                       value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
+                      onChange={(e) => {
+                        setDateTo(e.target.value)
+                        setSelectedMonth('') // Reset mese quando si cambia data manualmente
+                      }}
                       className="w-full px-3 py-2 border border-adaptive rounded-md focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -1384,10 +1532,12 @@ export default function ExpensesPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-adaptive-600">Mostra:</span>
                     <select
-                      value={itemsPerPage}
+                      value={showAllSelected ? filteredTransactions.length : itemsPerPage}
                       onChange={(e) => {
-                        setItemsPerPage(Number(e.target.value))
+                        const value = Number(e.target.value)
+                        setItemsPerPage(value)
                         setCurrentPage(1)
+                        setShowAllSelected(value === filteredTransactions.length)
                       }}
                       className="px-2 py-1 border border-adaptive rounded text-sm"
                     >
@@ -1420,15 +1570,20 @@ export default function ExpensesPage() {
                 </div>
 
                 {/* Header con selezione multipla */}
-                <div className="flex items-center gap-3 pb-2 border-b border-adaptive">
-                  <input
-                    type="checkbox"
-                    checked={selectAll}
-                    onChange={handleSelectAll}
-                    className="rounded"
-                  />
-                  <span className="text-sm text-adaptive-600">
-                    Seleziona tutto ({paginatedTransactions.length})
+                <div className="flex items-center justify-between pb-2 border-b border-adaptive">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectAll}
+                      onChange={handleSelectAll}
+                      className="rounded"
+                    />
+                    <span className="text-sm text-adaptive-600">
+                      Seleziona tutto in questa pagina ({paginatedTransactions.length})
+                    </span>
+                  </div>
+                  <span className="text-sm text-adaptive-500">
+                    Visualizzando {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredTransactions.length)} di {filteredTransactions.length}
                   </span>
                 </div>
 
