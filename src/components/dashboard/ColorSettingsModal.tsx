@@ -1,6 +1,7 @@
 // src/components/dashboard/ColorSettingsModal.tsx
 import React from 'react'
 import { Modal } from '@/components/base/Modal'
+import ColorPicker from '@/components/ui/ColorPicker'
 import { formatCurrency } from '@/utils/formatters'
 
 interface ChartColors {
@@ -61,7 +62,8 @@ export const ColorSettingsModal = ({
   }
 
   const handleSave = () => {
-    localStorage.setItem('dashboardChartColors', JSON.stringify(chartColors))
+    // Usa la callback per aggiornare i colori
+    onColorsChange(chartColors)
     onClose()
   }
 
@@ -74,26 +76,13 @@ export const ColorSettingsModal = ({
     colorKey: keyof ChartColors
     placeholder: string 
   }) => (
-    <div>
-      <label className="block text-sm font-medium mb-2 text-adaptive-700">
-        {label}
-      </label>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={chartColors[colorKey]}
-          onChange={(e) => updateColor(colorKey, e.target.value)}
-          className="w-12 h-8 rounded border border-adaptive cursor-pointer"
-        />
-        <input
-          type="text"
-          value={chartColors[colorKey]}
-          onChange={(e) => updateColor(colorKey, e.target.value)}
-          className="flex-1 px-3 py-2 border border-adaptive rounded-md text-sm text-adaptive-900 bg-white dark:bg-gray-800"
-          placeholder={placeholder}
-        />
-      </div>
-    </div>
+    <ColorPicker
+      value={chartColors[colorKey]}
+      onChange={(color) => updateColor(colorKey, color)}
+      label={label}
+      placeholder={placeholder}
+      allowCustom={true}
+    />
   )
 
   return (

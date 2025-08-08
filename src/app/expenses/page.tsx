@@ -4,6 +4,7 @@ import {
   isFiscalCategory
 } from '@/utils/formatters'
 import { useNotifications } from '@/contexts/NotificationContext'
+import { usePreferences } from '@/hooks/usePreferences'
 import { useState, useEffect, useMemo } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { 
@@ -94,25 +95,26 @@ export default function ExpensesPage() {
   })
   
   // Stato per categorie escluse dai grafici
-  const [excludedCategories, setExcludedCategories] = useState<number[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('expensesExcludedCategories')
-      if (saved) {
-        try {
-          return JSON.parse(saved)
-        } catch (e) {
-          console.error('Errore nel parsing delle categorie escluse:', e)
-        }
-      }
-    }
-    return []
-  })
+  const [excludedCategories, setExcludedCategories] = useState<number[]>([])
   const [showCategoryFilter, setShowCategoryFilter] = useState(false)
+  const { getPreference, updatePreference, loading: preferencesLoading } = usePreferences()
+  
+  // Carica le categorie escluse dalle preferenze
+  useEffect(() => {
+    if (!preferencesLoading) {
+      const saved = getPreference('expensesExcludedCategories', [])
+      setExcludedCategories(saved as number[])
+    }
+  }, [preferencesLoading, getPreference])
   
   // Funzione per aggiornare le categorie escluse
-  const updateExcludedCategories = (categoryIds: number[]) => {
+  const updateExcludedCategories = async (categoryIds: number[]) => {
     setExcludedCategories(categoryIds)
-    localStorage.setItem('expensesExcludedCategories', JSON.stringify(categoryIds))
+    try {
+      await updatePreference('expensesExcludedCategories', categoryIds)
+    } catch (error) {
+      console.error('Error updating excluded categories:', error)
+    }
   }
   
   // Colori disponibili per le categorie - PALETTE AMPLIATA (ORDINATA CON ROSSI PRIMA)
@@ -217,15 +219,19 @@ export default function ExpensesPage() {
         setCategories(categoriesData)
         
         // Se è il primo caricamento (nessuna categoria salvata), escludi automaticamente le categorie fiscali
-        const saved = localStorage.getItem('expensesExcludedCategories')
-        if (!saved) {
-          const fiscalCategoryIds = categoriesData
-            .filter((cat: Category) => isFiscalCategory(cat.name))
-            .map((cat: Category) => cat.id)
-          
-          if (fiscalCategoryIds.length > 0) {
-            setExcludedCategories(fiscalCategoryIds)
-            localStorage.setItem('expensesExcludedCategories', JSON.stringify(fiscalCategoryIds))
+        if (!preferencesLoading) {
+          const saved = getPreference('expensesExcludedCategories', [])
+          if ((saved as number[]).length === 0) {
+            const fiscalCategoryIds = categoriesData
+              .filter((cat: Category) => isFiscalCategory(cat.name))
+              .map((cat: Category) => cat.id)
+            
+            if (fiscalCategoryIds.length > 0) {
+              setExcludedCategories(fiscalCategoryIds)
+              updatePreference('expensesExcludedCategories', fiscalCategoryIds).catch(error => {
+                console.error('Error saving initial excluded categories:', error)
+              })
+            }
           }
         }
       }

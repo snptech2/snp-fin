@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
+import { usePreference } from '@/hooks/usePreferences'
 
 type Theme = 'light' | 'dark' | 'system'
 
@@ -9,6 +10,7 @@ interface ThemeContextType {
   actualTheme: 'light' | 'dark'
   setTheme: (theme: Theme) => void
   toggleTheme: () => void
+  loading: boolean
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
@@ -18,8 +20,8 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>('system')
   const [actualTheme, setActualTheme] = useState<'light' | 'dark'>('dark')
+  const [theme, setThemePreference, loading] = usePreference('theme', 'system')
 
   // Detect system theme preference
   const getSystemTheme = (): 'light' | 'dark' => {
@@ -49,14 +51,12 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }, [])
 
-  // Load theme from localStorage on mount
+  // Update actual theme when theme preference changes
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') as Theme
-    const initialTheme = savedTheme || 'system'
-    
-    setThemeState(initialTheme)
-    updateActualTheme(initialTheme)
-  }, [updateActualTheme])
+    if (theme && !loading) {
+      updateActualTheme(theme)
+    }
+  }, [theme, loading, updateActualTheme])
 
   // Listen for system theme changes
   useEffect(() => {
@@ -72,13 +72,16 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }, [theme, updateActualTheme])
 
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme)
-    updateActualTheme(newTheme)
-    localStorage.setItem('theme', newTheme)
-  }
+  const setTheme = useCallback(async (newTheme: Theme) => {
+    try {
+      await setThemePreference(newTheme)
+      updateActualTheme(newTheme)
+    } catch (error) {
+      console.error('Error updating theme preference:', error)
+    }
+  }, [setThemePreference, updateActualTheme])
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     if (theme === 'system') {
       // From system, go to opposite of current system preference
       const systemTheme = getSystemTheme()
@@ -88,13 +91,14 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     } else {
       setTheme('dark')
     }
-  }
+  }, [theme, setTheme])
 
   const value: ThemeContextType = {
-    theme,
+    theme: theme || 'system',
     actualTheme,
     setTheme,
-    toggleTheme
+    toggleTheme,
+    loading
   }
 
   return (

@@ -6,6 +6,7 @@ import { ArrowLeftIcon, PhotoIcon, TrashIcon, DocumentArrowDownIcon, DocumentArr
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { useNotifications } from '@/contexts/NotificationContext'
+import { usePreferences } from '@/hooks/usePreferences'
 import { formatCurrency } from '@/utils/formatters'
 import TutorialBanner from '@/components/ui/TutorialBanner'
 import HelpTooltip from '@/components/ui/HelpTooltip'
@@ -50,7 +51,8 @@ export default function TrackingPage() {
   const [importLoading, setImportLoading] = useState(false)
   const [forceReimport, setForceReimport] = useState(false)
   
-  // Auto-snapshot settings
+  // Auto-snapshot settings gestite tramite preferenze
+  const { getPreference, updatePreference, loading: preferencesLoading } = usePreferences()
   const [autoSnapshotEnabled, setAutoSnapshotEnabled] = useState(false)
   const [lastAutoSnapshot, setLastAutoSnapshot] = useState<string | null>(null)
   const [snapshotFrequency, setSnapshotFrequency] = useState<'6h' | '12h' | '24h'>('24h')
@@ -85,20 +87,17 @@ export default function TrackingPage() {
 
   useEffect(() => {
     fetchData()
-    
-    // Carica impostazioni auto-snapshot da localStorage
-    const settings = localStorage.getItem('autoSnapshotSettings')
-    if (settings) {
-      try {
-        const parsed = JSON.parse(settings)
-        setAutoSnapshotEnabled(parsed.enabled || false)
-        setLastAutoSnapshot(parsed.lastAutoSnapshot || null)
-        setSnapshotFrequency(parsed.frequency || '24h')
-      } catch (e) {
-        console.error('Error parsing auto-snapshot settings:', e)
-      }
+  }, [fetchData])
+
+  // Carica impostazioni auto-snapshot dalle preferenze
+  useEffect(() => {
+    if (!preferencesLoading) {
+      const settings = getPreference('autoSnapshotSettings', {})
+      setAutoSnapshotEnabled(settings?.enabled || false)
+      setLastAutoSnapshot(settings?.lastSnapshot || null)
+      setSnapshotFrequency(settings?.frequency || '24h')
     }
-  }, [itemsPerPage, fetchData])
+  }, [preferencesLoading, getPreference])
 
 
   const createSnapshot = useCallback(async () => {
@@ -233,39 +232,50 @@ export default function TrackingPage() {
     }
   }, [selectedSnapshots, snapshots])
   
-  const toggleAutoSnapshot = useCallback(() => {
+  const toggleAutoSnapshot = useCallback(async () => {
     const newEnabled = !autoSnapshotEnabled
     setAutoSnapshotEnabled(newEnabled)
     
-    // Salva in localStorage
+    // Salva nelle preferenze
     const settings = {
       enabled: newEnabled,
-      lastAutoSnapshot: lastAutoSnapshot,
+      lastSnapshot: lastAutoSnapshot,
       frequency: snapshotFrequency
     }
-    localStorage.setItem('autoSnapshotSettings', JSON.stringify(settings))
     
-    if (newEnabled) {
-      const frequencyText = snapshotFrequency === '6h' ? 'ogni 6 ore' : 
-                           snapshotFrequency === '12h' ? 'ogni 12 ore' : 
-                           'ogni 24 ore'
-      alert({ title: 'Auto-Snapshot Attivato', message: `Verrà creato uno snapshot ${frequencyText} quando accedi alla dashboard`, variant: 'success' })
-    } else {
-      alert({ title: 'Auto-Snapshot Disattivato', message: 'Gli snapshot automatici sono stati disattivati', variant: 'info' })
+    try {
+      await updatePreference('autoSnapshotSettings', settings)
+      
+      if (newEnabled) {
+        const frequencyText = snapshotFrequency === '6h' ? 'ogni 6 ore' : 
+                             snapshotFrequency === '12h' ? 'ogni 12 ore' : 
+                             'ogni 24 ore'
+        alert({ title: 'Auto-Snapshot Attivato', message: `Verrà creato uno snapshot ${frequencyText} quando accedi alla dashboard`, variant: 'success' })
+      } else {
+        alert({ title: 'Auto-Snapshot Disattivato', message: 'Gli snapshot automatici sono stati disattivati', variant: 'info' })
+      }
+    } catch (error) {
+      console.error('Error updating auto-snapshot settings:', error)
+      alert({ title: 'Errore', message: 'Errore nel salvataggio delle impostazioni', variant: 'error' })
     }
-  }, [autoSnapshotEnabled, lastAutoSnapshot, snapshotFrequency, alert])
+  }, [autoSnapshotEnabled, lastAutoSnapshot, snapshotFrequency, updatePreference, alert])
   
-  const updateFrequency = useCallback((newFrequency: '6h' | '12h' | '24h') => {
+  const updateFrequency = useCallback(async (newFrequency: '6h' | '12h' | '24h') => {
     setSnapshotFrequency(newFrequency)
     
-    // Aggiorna localStorage
+    // Aggiorna preferenze
     const settings = {
       enabled: autoSnapshotEnabled,
-      lastAutoSnapshot: lastAutoSnapshot,
+      lastSnapshot: lastAutoSnapshot,
       frequency: newFrequency
     }
-    localStorage.setItem('autoSnapshotSettings', JSON.stringify(settings))
-  }, [autoSnapshotEnabled, lastAutoSnapshot])
+    
+    try {
+      await updatePreference('autoSnapshotSettings', settings)
+    } catch (error) {
+      console.error('Error updating frequency settings:', error)
+    }
+  }, [autoSnapshotEnabled, lastAutoSnapshot, updatePreference])
 
   const bulkDeleteSnapshots = async () => {
     if (selectedSnapshots.size === 0) {
@@ -542,15 +552,20 @@ export default function TrackingPage() {
                           }
                         })()}
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             const settings = {
                               enabled: autoSnapshotEnabled,
-                              lastAutoSnapshot: null,
+                              lastSnapshot: null,
                               frequency: snapshotFrequency
                             }
-                            localStorage.setItem('autoSnapshotSettings', JSON.stringify(settings))
-                            setLastAutoSnapshot(null)
-                            alert({ title: 'Reset completato', message: 'Puoi tornare alla dashboard per creare un nuovo snapshot', variant: 'info' })
+                            try {
+                              await updatePreference('autoSnapshotSettings', settings)
+                              setLastAutoSnapshot(null)
+                              alert({ title: 'Reset completato', message: 'Puoi tornare alla dashboard per creare un nuovo snapshot', variant: 'info' })
+                            } catch (error) {
+                              console.error('Error resetting auto-snapshot:', error)
+                              alert({ title: 'Errore', message: 'Errore nel reset delle impostazioni', variant: 'error' })
+                            }
                           }}
                           className="mt-2 text-xs text-purple-600 hover:text-purple-700 underline"
                         >

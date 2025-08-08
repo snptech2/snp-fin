@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { XMarkIcon, LightBulbIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline'
+import { usePreferences } from '@/hooks/usePreferences'
 
 interface TutorialBannerProps {
   id: string // Unique ID to track if user has dismissed it
@@ -22,30 +23,67 @@ export default function TutorialBanner({
 }: TutorialBannerProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [isDismissed, setIsDismissed] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
+  const { preferences, updatePreference, loading } = usePreferences()
 
+  // Memoizza il valore dismissed specifico per questo tutorial
+  const dismissed = useMemo(() => {
+    return preferences?.tutorialsDismissed?.[id] || false
+  }, [preferences?.tutorialsDismissed, id])
+
+  // Logica reattiva: tutorial visibile se NON dismissed (o forceShow)
   useEffect(() => {
-    // Check localStorage to see if user has dismissed this tutorial
-    const dismissed = localStorage.getItem(`tutorial_dismissed_${id}`)
-    if (!dismissed || forceShow) {
-      setIsVisible(true)
-      setIsDismissed(false)
-    } else {
-      setIsVisible(false)
-      setIsDismissed(true)
+    if (!loading) {
+      const shouldBeVisible = !dismissed || forceShow
+      setIsVisible(shouldBeVisible)
+      setIsDismissed(dismissed)
     }
-  }, [id, forceShow])
+  }, [loading, dismissed, forceShow])
 
-  const handleDismiss = () => {
+  const handleDismiss = useCallback(async () => {
+    setIsUpdating(true)
     setIsVisible(false)
     setIsDismissed(true)
-    localStorage.setItem(`tutorial_dismissed_${id}`, 'true')
-  }
+    
+    try {
+      // Accesso diretto alle preferenze invece di getPreference
+      const currentTutorialsDismissed = preferences?.tutorialsDismissed || {}
+      await updatePreference('tutorialsDismissed', {
+        ...currentTutorialsDismissed,
+        [id]: true
+      })
+    } catch (error) {
+      console.error('Error saving tutorial dismissal:', error)
+    } finally {
+      setIsUpdating(false)
+    }
+  }, [id, preferences?.tutorialsDismissed, updatePreference])
 
-  const handleReopen = () => {
-    localStorage.removeItem(`tutorial_dismissed_${id}`)
+  const handleReopen = useCallback(async () => {
+    setIsUpdating(true)
     setIsVisible(true)
     setIsDismissed(false)
-  }
+    
+    try {
+      // Accesso diretto alle preferenze invece di getPreference
+      const currentTutorialsDismissed = preferences?.tutorialsDismissed || {}
+      const updatedTutorials = { ...currentTutorialsDismissed }
+      delete updatedTutorials[id]
+      
+      await updatePreference('tutorialsDismissed', updatedTutorials)
+    } catch (error) {
+      console.error('Error reopening tutorial:', error)
+    } finally {
+      setIsUpdating(false)
+    }
+  }, [id, preferences?.tutorialsDismissed, updatePreference])
+
+  // Debug log per monitorare i cambiamenti di stato
+  useEffect(() => {
+    const tutorialsDismissed = preferences?.tutorialsDismissed || {}
+    const dismissed = tutorialsDismissed[id] || false
+    console.log(`🔍 Tutorial ${id}: dismissed=${dismissed}, isVisible=${isVisible}, isDismissed=${isDismissed}, loading=${loading}, isUpdating=${isUpdating}`)
+  }, [id, isVisible, isDismissed, loading, isUpdating, preferences?.tutorialsDismissed])
 
   // Se il tutorial è stato dismisso, mostra solo un piccolo pulsante di help
   if (!isVisible && isDismissed) {

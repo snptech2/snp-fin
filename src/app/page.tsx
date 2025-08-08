@@ -13,6 +13,7 @@ import { LiquidityColorModal } from '@/components/dashboard/LiquidityColorModal'
 import TutorialBanner from '@/components/ui/TutorialBanner';
 import HelpTooltip from '@/components/ui/HelpTooltip';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { usePreferences } from '@/hooks/usePreferences';
 
 // Interfaces
 interface BitcoinPrice {
@@ -158,8 +159,10 @@ const Dashboard = () => {
   const [showColorSettings, setShowColorSettings] = useState<boolean>(false);
   const [showPatrimonyColors, setShowPatrimonyColors] = useState<boolean>(false);
   const [showLiquidityColors, setShowLiquidityColors] = useState<boolean>(false);
+  // Preferenze per i colori del grafico
+  const { getPreference, updatePreference, loading: preferencesLoading } = usePreferences()
   const [chartColors, setChartColors] = useState(() => {
-    const defaultColors = {
+    return {
       fondiDisponibili: '#22D3EE',
       contiInvestimento: '#A855F7',
       holdingsInvestimenti: '#F59E0B',
@@ -170,26 +173,31 @@ const Dashboard = () => {
       beniNonCorrenti: '#10B981',
       crediti: '#EF4444'
     };
-    
-    // Carica i colori salvati dal localStorage o usa i default
-    if (typeof window !== 'undefined') {
-      const savedColors = localStorage.getItem('dashboardChartColors');
-      if (savedColors) {
-        try {
-          const parsed = JSON.parse(savedColors);
-          // Verifica che tutti i colori necessari siano presenti
-          return {
-            ...defaultColors,
-            ...parsed
-          };
-        } catch (e) {
-          console.error('Errore nel parsing dei colori salvati:', e);
-          localStorage.removeItem('dashboardChartColors'); // Rimuovi dati corrotti
-        }
+  });
+
+  // Carica i colori dalle preferenze
+  useEffect(() => {
+    if (!preferencesLoading) {
+      const savedColors = getPreference('dashboardChartColors', {})
+      if (savedColors && Object.keys(savedColors).length > 0) {
+        setChartColors(prevColors => ({
+          ...prevColors,
+          ...savedColors
+        }))
       }
     }
-    return defaultColors;
-  });
+  }, [preferencesLoading, getPreference])
+
+  // Funzione per aggiornare i colori
+  const updateChartColors = async (newColors: Partial<typeof chartColors>) => {
+    const updatedColors = { ...chartColors, ...newColors }
+    setChartColors(updatedColors)
+    try {
+      await updatePreference('dashboardChartColors', updatedColors)
+    } catch (error) {
+      console.error('Error updating chart colors:', error)
+    }
+  }
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     accounts: [],
     investments: [],
@@ -282,25 +290,23 @@ const Dashboard = () => {
       // Imposta flag di blocco
       (window as any).autoSnapshotInProgress = true;
       
-      // Carica impostazioni da localStorage
-      const settings = localStorage.getItem('autoSnapshotSettings');
-      
-      if (!settings) {
+      // Carica impostazioni dalle preferenze
+      if (preferencesLoading) {
         (window as any).autoSnapshotInProgress = false;
         return;
       }
       
-      const parsedSettings = JSON.parse(settings);
+      const autoSnapshotSettings = getPreference('autoSnapshotSettings', {});
       
-      if (!parsedSettings.enabled) {
+      if (!autoSnapshotSettings?.enabled) {
         (window as any).autoSnapshotInProgress = false;
         return;
       }
       
       // Controlla se è passato abbastanza tempo dall'ultimo snapshot
       const now = new Date();
-      const lastAutoSnapshot = parsedSettings.lastAutoSnapshot;
-      const frequency = parsedSettings.frequency || '24h';
+      const lastAutoSnapshot = autoSnapshotSettings.lastSnapshot;
+      const frequency = autoSnapshotSettings.frequency || '24h';
       
       if (lastAutoSnapshot) {
         const lastSnapshotTime = new Date(lastAutoSnapshot);
@@ -331,9 +337,12 @@ const Dashboard = () => {
       });
       
       if (response.ok) {
-        // Aggiorna localStorage con il timestamp completo
-        parsedSettings.lastAutoSnapshot = now.toISOString();
-        localStorage.setItem('autoSnapshotSettings', JSON.stringify(parsedSettings));
+        // Aggiorna le preferenze con il timestamp
+        const updatedSettings = {
+          ...autoSnapshotSettings,
+          lastSnapshot: now.toISOString()
+        };
+        await updatePreference('autoSnapshotSettings', updatedSettings);
         
         // Notifica discreta con frequenza
         const frequencyText = frequency === '6h' ? 'ogni 6 ore' : 
@@ -1230,7 +1239,7 @@ const Dashboard = () => {
             isOpen={showColorSettings}
             onClose={() => setShowColorSettings(false)}
             chartColors={chartColors}
-            onColorsChange={setChartColors}
+            onColorsChange={updateChartColors}
             budgets={dashboardData.budgets}
             userCurrency={user?.currency}
           />
@@ -1246,7 +1255,7 @@ const Dashboard = () => {
               beniNonCorrenti: chartColors.beniNonCorrenti,
               crediti: chartColors.crediti
             }}
-            onColorsChange={(newColors) => setChartColors(prev => ({ ...prev, ...newColors }))}
+            onColorsChange={updateChartColors}
           />
           
           {/* Liquidity Color Modal */}
@@ -1258,7 +1267,7 @@ const Dashboard = () => {
               contiInvestimento: chartColors.contiInvestimento,
               holdingsInvestimenti: chartColors.holdingsInvestimenti
             }}
-            onColorsChange={(newColors) => setChartColors(prev => ({ ...prev, ...newColors }))}
+            onColorsChange={updateChartColors}
           />
         </div>
       </div>
