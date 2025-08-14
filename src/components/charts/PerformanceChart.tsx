@@ -20,6 +20,7 @@ export default function PerformanceChart({ data, currency, type, title, height =
   const [autoScale, setAutoScale] = useState(true)
   const [showPoints, setShowPoints] = useState(false)
   const [smoothLine, setSmoothLine] = useState(true)
+  const [logScale, setLogScale] = useState(false)
 
   if (!data || data.length === 0) {
     return (
@@ -37,18 +38,49 @@ export default function PerformanceChart({ data, currency, type, title, height =
   }
 
   // Prepare data for recharts
-  const chartData = data.map(point => ({
-    date: new Date(point.date).toLocaleDateString('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit'
-    }),
-    value: type === 'fiat' ? point.fiatValue : point.btcValue,
-    fullDate: point.date
-  }))
+  const chartData = useMemo(() => {
+    return data
+      .map(point => {
+        const rawValue = type === 'fiat' ? point.fiatValue : point.btcValue
+        return {
+          date: new Date(point.date).toLocaleDateString('it-IT', {
+            day: '2-digit',
+            month: '2-digit',
+            year: '2-digit'
+          }),
+          value: rawValue,
+          originalValue: rawValue,
+          fullDate: point.date
+        }
+      })
+      .filter(point => {
+        // Se siamo in scala log, filtriamo i valori <= 0
+        return logScale ? point.value > 0 : true
+      })
+  }, [data, type, logScale])
 
   // Calculate smart Y-axis domain
   const yAxisDomain = useMemo(() => {
+    if (logScale) {
+      // Usa i dati già filtrati per valori positivi
+      const values = chartData.map(d => d.value)
+      if (values.length === 0) {
+        console.log('Nessun valore positivo per scala logaritmica')
+        return [1, 1000] // Fallback 
+      }
+      
+      const minValue = Math.min(...values)
+      const maxValue = Math.max(...values)
+      
+      console.log('Log scale domain:', { minValue, maxValue, pointCount: values.length })
+      
+      // Iniziamo dal primo valore positivo reale con un po' di margin
+      return [
+        Math.max(1, minValue * 0.9), // Leggermente sotto il minimo reale
+        maxValue * 1.1 // Leggermente sopra il massimo
+      ]
+    }
+    
     if (!autoScale) return undefined // Let recharts handle it automatically
     
     const values = chartData.map(d => d.value)
@@ -60,7 +92,7 @@ export default function PerformanceChart({ data, currency, type, title, height =
       Math.max(0, minValue - padding), // Don't go below 0
       maxValue + padding
     ]
-  }, [chartData, autoScale])
+  }, [chartData, autoScale, logScale])
 
   const formatTooltipValue = (value: number) => {
     if (type === 'fiat') {
@@ -87,14 +119,37 @@ export default function PerformanceChart({ data, currency, type, title, height =
         <h3 className="text-lg font-semibold text-adaptive-900">{title}</h3>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setAutoScale(!autoScale)}
+            onClick={() => {
+              setAutoScale(!autoScale)
+              if (logScale && !autoScale) {
+                setLogScale(false) // Disabilita log se si attiva smart
+              }
+            }}
+            disabled={logScale}
             className={`px-2 py-1 text-xs rounded-md border ${
               autoScale 
                 ? 'bg-blue-100 text-blue-700 border-blue-300' 
+                : logScale 
+                ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
                 : 'bg-gray-100 text-gray-700 border-gray-300'
             }`}
           >
             {autoScale ? 'Smart' : 'Full'}
+          </button>
+          <button
+            onClick={() => {
+              setLogScale(!logScale)
+              if (!logScale && autoScale) {
+                setAutoScale(false) // Disabilita smart se si attiva log
+              }
+            }}
+            className={`px-2 py-1 text-xs rounded-md border ${
+              logScale 
+                ? 'bg-orange-100 text-orange-700 border-orange-300' 
+                : 'bg-gray-100 text-gray-700 border-gray-300'
+            }`}
+          >
+            Log
           </button>
           <button
             onClick={() => setShowPoints(!showPoints)}
@@ -126,6 +181,7 @@ export default function PerformanceChart({ data, currency, type, title, height =
               axisLine={false}
               tickFormatter={formatYAxisValue}
               domain={yAxisDomain}
+              scale={logScale ? 'log' : 'linear'}
             />
             <Tooltip
               contentStyle={{
@@ -135,7 +191,10 @@ export default function PerformanceChart({ data, currency, type, title, height =
                 color: '#fff',
                 fontSize: '12px'
               }}
-              formatter={(value: number) => [formatTooltipValue(value), type === 'fiat' ? `Portfolio (${currency})` : 'Portfolio (BTC)']}
+              formatter={(value: number, name: string, props: any) => {
+                const originalValue = props.payload?.originalValue ?? value
+                return [formatTooltipValue(originalValue), type === 'fiat' ? `Portfolio (${currency})` : 'Portfolio (BTC)']
+              }}
               labelFormatter={(label) => `Data: ${label}`}
             />
             <Line 

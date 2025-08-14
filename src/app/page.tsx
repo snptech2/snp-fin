@@ -280,6 +280,7 @@ const Dashboard = () => {
   };
   
   // Auto-snapshot check function
+
   const checkAutoSnapshot = async () => {
     try {
       // Controlla se c'è già una richiesta in corso
@@ -319,14 +320,12 @@ const Dashboard = () => {
         else if (frequency === '12h') requiredHours = 12;
         
         if (hoursDiff < requiredHours) {
-          // Non è ancora ora di fare uno snapshot
           (window as any).autoSnapshotInProgress = false;
           return;
         }
       }
       
       // Crea snapshot automatico
-      
       const response = await fetch('/api/holdings-snapshots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -353,12 +352,13 @@ const Dashboard = () => {
           message: `Il tuo snapshot ${frequencyText} è stato salvato con successo`,
           variant: 'success' 
         });
+      } else {
+        const errorText = await response.text();
+        console.error('Auto-snapshot API error:', response.status, errorText);
       }
     } catch (error) {
-      console.error('Error creating auto-snapshot:', error);
-      // Non mostrare errori all'utente per non disturbare l'esperienza
+      console.error('Auto-snapshot creation error:', error);
     } finally {
-      // Rimuovi flag di blocco
       (window as any).autoSnapshotInProgress = false;
     }
   };
@@ -369,11 +369,13 @@ const Dashboard = () => {
       return;
     }
     
+    // Reset flag di blocco auto-snapshot se presente al caricamento
+    if ((window as any).autoSnapshotInProgress) {
+      (window as any).autoSnapshotInProgress = false;
+    }
+    
     // Load dashboard data and Bitcoin price in parallel
     const loadData = async () => {
-      // Check auto-snapshot PRIMA di caricare i dati
-      await checkAutoSnapshot();
-      
       // Start both fetches in parallel
       const dataPromise = loadDashboardData();
       const pricePromise = fetchBitcoinPrice();
@@ -384,6 +386,18 @@ const Dashboard = () => {
     
     loadData();
   }, [user, authLoading]);
+
+  // ✅ FIX: Auto-snapshot check quando le preferenze sono caricate
+  useEffect(() => {
+    if (user && !authLoading && !preferencesLoading) {
+      // Aspetta un momento per essere sicuri che tutto sia inizializzato
+      const timer = setTimeout(() => {
+        checkAutoSnapshot();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user, authLoading, preferencesLoading]);
 
   // ✅ FIX: Ricarica dati quando arriva il prezzo Bitcoin
   useEffect(() => {
