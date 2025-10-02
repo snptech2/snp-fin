@@ -15,12 +15,12 @@ interface PerformanceChartProps {
   height?: number
 }
 
+type TimeRange = 'full' | '1y' | '1m' | '1w'
+
 export default function PerformanceChart({ data, currency, type, title, height = 300 }: PerformanceChartProps) {
   // Chart controls state
-  const [autoScale, setAutoScale] = useState(true)
-  const [showPoints, setShowPoints] = useState(false)
-  const [smoothLine, setSmoothLine] = useState(true)
   const [logScale, setLogScale] = useState(false)
+  const [timeRange, setTimeRange] = useState<TimeRange>('full')
 
   if (!data || data.length === 0) {
     return (
@@ -39,7 +39,28 @@ export default function PerformanceChart({ data, currency, type, title, height =
 
   // Prepare data for recharts
   const chartData = useMemo(() => {
-    return data
+    // Filtra i dati in base al time range selezionato
+    const now = new Date()
+    let filteredData = data
+
+    if (timeRange !== 'full') {
+      const cutoffDate = new Date()
+      switch (timeRange) {
+        case '1y':
+          cutoffDate.setFullYear(now.getFullYear() - 1)
+          break
+        case '1m':
+          cutoffDate.setMonth(now.getMonth() - 1)
+          break
+        case '1w':
+          cutoffDate.setDate(now.getDate() - 7)
+          break
+      }
+
+      filteredData = data.filter(point => new Date(point.date) >= cutoffDate)
+    }
+
+    return filteredData
       .map(point => {
         const rawValue = type === 'fiat' ? point.fiatValue : point.btcValue
         return {
@@ -57,42 +78,33 @@ export default function PerformanceChart({ data, currency, type, title, height =
         // Se siamo in scala log, filtriamo i valori <= 0
         return logScale ? point.value > 0 : true
       })
-  }, [data, type, logScale])
+  }, [data, type, logScale, timeRange])
 
-  // Calculate smart Y-axis domain
+  // Calculate Y-axis domain
   const yAxisDomain = useMemo(() => {
     if (logScale) {
       // Usa i dati già filtrati per valori positivi
       const values = chartData.map(d => d.value)
       if (values.length === 0) {
         console.log('Nessun valore positivo per scala logaritmica')
-        return [1, 1000] // Fallback 
+        return [1, 1000] // Fallback
       }
-      
+
       const minValue = Math.min(...values)
       const maxValue = Math.max(...values)
-      
+
       console.log('Log scale domain:', { minValue, maxValue, pointCount: values.length })
-      
+
       // Iniziamo dal primo valore positivo reale con un po' di margin
       return [
         Math.max(1, minValue * 0.9), // Leggermente sotto il minimo reale
         maxValue * 1.1 // Leggermente sopra il massimo
       ]
     }
-    
-    if (!autoScale) return undefined // Let recharts handle it automatically
-    
-    const values = chartData.map(d => d.value)
-    const minValue = Math.min(...values)
-    const maxValue = Math.max(...values)
-    const padding = (maxValue - minValue) * 0.1 // 10% padding
-    
-    return [
-      Math.max(0, minValue - padding), // Don't go below 0
-      maxValue + padding
-    ]
-  }, [chartData, autoScale, logScale])
+
+    // Full scale: let recharts handle it automatically
+    return undefined
+  }, [chartData, logScale])
 
   const formatTooltipValue = (value: number) => {
     if (type === 'fiat') {
@@ -118,48 +130,59 @@ export default function PerformanceChart({ data, currency, type, title, height =
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-adaptive-900">{title}</h3>
         <div className="flex items-center gap-2">
+          {/* Time range selector */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setTimeRange('full')}
+              className={`px-2 py-1 text-xs rounded-md border ${
+                timeRange === 'full'
+                  ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700'
+                  : 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'
+              }`}
+            >
+              Full
+            </button>
+            <button
+              onClick={() => setTimeRange('1y')}
+              className={`px-2 py-1 text-xs rounded-md border ${
+                timeRange === '1y'
+                  ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700'
+                  : 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'
+              }`}
+            >
+              1A
+            </button>
+            <button
+              onClick={() => setTimeRange('1m')}
+              className={`px-2 py-1 text-xs rounded-md border ${
+                timeRange === '1m'
+                  ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700'
+                  : 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'
+              }`}
+            >
+              1M
+            </button>
+            <button
+              onClick={() => setTimeRange('1w')}
+              className={`px-2 py-1 text-xs rounded-md border ${
+                timeRange === '1w'
+                  ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700'
+                  : 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'
+              }`}
+            >
+              1S
+            </button>
+          </div>
+          {/* Log scale toggle */}
           <button
-            onClick={() => {
-              setAutoScale(!autoScale)
-              if (logScale && !autoScale) {
-                setLogScale(false) // Disabilita log se si attiva smart
-              }
-            }}
-            disabled={logScale}
+            onClick={() => setLogScale(!logScale)}
             className={`px-2 py-1 text-xs rounded-md border ${
-              autoScale 
-                ? 'bg-blue-100 text-blue-700 border-blue-300' 
-                : logScale 
-                ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                : 'bg-gray-100 text-gray-700 border-gray-300'
-            }`}
-          >
-            {autoScale ? 'Smart' : 'Full'}
-          </button>
-          <button
-            onClick={() => {
-              setLogScale(!logScale)
-              if (!logScale && autoScale) {
-                setAutoScale(false) // Disabilita smart se si attiva log
-              }
-            }}
-            className={`px-2 py-1 text-xs rounded-md border ${
-              logScale 
-                ? 'bg-orange-100 text-orange-700 border-orange-300' 
-                : 'bg-gray-100 text-gray-700 border-gray-300'
+              logScale
+                ? 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700'
+                : 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'
             }`}
           >
             Log
-          </button>
-          <button
-            onClick={() => setShowPoints(!showPoints)}
-            className={`px-2 py-1 text-xs rounded-md border ${
-              showPoints 
-                ? 'bg-green-100 text-green-700 border-green-300' 
-                : 'bg-gray-100 text-gray-700 border-gray-300'
-            }`}
-          >
-            •
           </button>
         </div>
       </div>
@@ -197,12 +220,12 @@ export default function PerformanceChart({ data, currency, type, title, height =
               }}
               labelFormatter={(label) => `Data: ${label}`}
             />
-            <Line 
-              type={smoothLine ? "monotone" : "linear"} 
-              dataKey="value" 
+            <Line
+              type="monotone"
+              dataKey="value"
               stroke={strokeColor}
               strokeWidth={1}
-              dot={showPoints ? { fill: strokeColor, strokeWidth: 1, r: 2 } : false}
+              dot={false}
               activeDot={{ r: 4, fill: strokeColor, strokeWidth: 2 }}
               fill={fillColor}
             />
