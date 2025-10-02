@@ -65,7 +65,7 @@ interface BitcoinPrice {
 
 export default function AccountsPage() {
   const { user } = useAuth()
-  const { alert, confirm } = useNotifications()
+  const { alert: showAlert, confirm } = useNotifications()
   const searchParams = useSearchParams()
   
   // Stati esistenti
@@ -300,9 +300,21 @@ const handleSetDefaultAccount = async (accountId: number) => {
         })
         if (response.ok) {
           await fetchData()
+        } else {
+          const errorData = await response.json()
+          await showAlert({
+            title: 'Errore',
+            message: errorData.error || 'Errore durante l\'eliminazione del conto',
+            variant: 'error'
+          })
         }
       } catch (error) {
         console.error('Error deleting account:', error)
+        await showAlert({
+          title: 'Errore',
+          message: 'Errore durante l\'eliminazione del conto',
+          variant: 'error'
+        })
       }
     }
   }
